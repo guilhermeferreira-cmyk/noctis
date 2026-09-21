@@ -1,27 +1,31 @@
 """A organização: quem responde a quem, e por qual domínio.
 
-Até aqui a hierarquia do Noctis existia só em prosa: o Maestro do Overhaul é
-Maestro porque o system_prompt dele diz isso, e os engenheiros sabem se reportar
-porque outra frase pede. Funciona enquanto alguém lembra de escrever a frase —
-e falha silenciosamente quando não escreve, que é o pior tipo de falha.
+Até aqui a hierarquia do Noctis existia só em prosa: o Maestro era Maestro porque
+o system_prompt dele dizia isso. Agora a cadeia é dado — e dado que você e os
+agentes editam a qualquer momento, que era o gap: dava para ver a organização e
+não dava para montá-la.
 
-Aqui a cadeia passa a ser dado. Dois campos no yaml do agente, e nada mais:
+Duas verdades, cada uma no seu lugar:
 
-    papel: maestro | lider | agente
-    squad: <nome livre>          (o que ele lidera, se lider; onde ele está, se agente)
+    agents/<nome>.yaml     papel e squad DAQUELE agente
+    squads.json            a identidade da squad: nome, cor, ícone, o que ela faz
 
-Três decisões que economizam estrutura:
+A squad ganhou arquivo porque ela é uma coisa, não um rótulo: tem nome que se
+renomeia sem reescrever dez agentes, tem cor no mapa da organização e tem uma
+frase dizendo de que ela cuida. Squad citada num yaml e ausente do registro é
+adotada na leitura — assim nada se perde quando um agente inventa uma squad nova
+num despacho.
 
-· **Squad não tem arquivo.** A lista de squads nasce do uso, como as tags das
-  habilidades: squad é o que os agentes dizem que é. Um cadastro à parte só
-  criaria squad vazia e squad órfã para alguém arrumar depois.
-· **Papel não é capacidade.** Maestro não é o agente mais forte, é o que tem a
-  visão do todo — compute é outra conversa, e ainda não existe aqui.
-· **Modo raso é legítimo.** Projeto sem líder nenhum é Flat Mode: o Maestro fala
-  direto com os agentes, e a vista mostra isso sem reclamar.
+Quem pode mexer: você e os agentes. Diferente das habilidades, aqui não há o que
+proteger de palpite — desenhar a própria organização é parte do trabalho deles, e
+o desenho errado é visível na hora, na tela.
 """
 from __future__ import annotations
 
+import json
+import re
+import unicodedata
+from datetime import date
 from pathlib import Path
 
 PAPEIS = {
@@ -33,7 +37,83 @@ PAPEIS = {
                 "cor": "#10b981"},
 }
 PAPEL_PADRAO = "agente"
+COR_PADRAO = "#38bdf8"
+ICONE_PADRAO = "GiFamilyTree"
 
+
+def slug(texto: str) -> str:
+    t = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
+    return re.sub(r"-+", "-", re.sub(r"[^a-z0-9]+", "-", t.lower())).strip("-")[:40]
+
+
+# ── O registro de squads ──────────────────────────────────────────────────────
+
+def _caminho(base: Path) -> Path:
+    return base / "squads.json"
+
+
+def carregar(base: Path) -> dict:
+    p = _caminho(base)
+    if not p.exists():
+        return {}
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+
+
+def salvar(base: Path, dados: dict) -> None:
+    _caminho(base).write_text(json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def criar_squad(base: Path, nome: str, por: str = "usuario", cor: str = "",
+                icone: str = "", descricao: str = "") -> dict:
+    nome = " ".join(str(nome).strip().split())[:60]
+    if not nome:
+        raise ValueError("squad sem nome")
+    chave = slug(nome)
+    if not chave:
+        raise ValueError("nome inválido")
+    sq = carregar(base)
+    if chave in sq:
+        raise KeyError(chave)
+    sq[chave] = {"nome": nome, "cor": (cor or COR_PADRAO)[:9], "icone": (icone or ICONE_PADRAO)[:60],
+                 "descricao": str(descricao).strip()[:300],
+                 "criada_em": date.today().isoformat(), "criada_por": str(por)[:120]}
+    salvar(base, sq)
+    return {**sq[chave], "chave": chave}
+
+
+def editar_squad(base: Path, chave: str, patch: dict) -> dict:
+    sq = carregar(base)
+    if chave not in sq:
+        raise KeyError(chave)
+    d = sq[chave]
+    if str(patch.get("nome") or "").strip():
+        d["nome"] = " ".join(str(patch["nome"]).strip().split())[:60]
+    for campo, limite in (("cor", 9), ("icone", 60), ("descricao", 300)):
+        if campo in patch:
+            d[campo] = str(patch[campo] or "").strip()[:limite] or d.get(campo, "")
+    salvar(base, sq)
+    return {**d, "chave": chave}
+
+
+def apagar_squad(base: Path, chave: str) -> int:
+    """Tira a squad do registro e solta quem estava nela. Nenhum agente é apagado."""
+    sq = carregar(base)
+    sq.pop(chave, None)
+    salvar(base, sq)
+    soltos = 0
+    for f in (base / "agents").glob("*.yaml"):
+        cfg = _yaml(base, f.stem)
+        if slug(cfg.get("squad") or "") == chave:
+            definir(base, f.stem, squad="")
+            soltos += 1
+    return soltos
+
+
+# ── Os agentes ────────────────────────────────────────────────────────────────
 
 def _yaml(base: Path, nome: str) -> dict:
     import yaml
@@ -44,35 +124,121 @@ def _yaml(base: Path, nome: str) -> dict:
         return {}
 
 
-def ler(base: Path) -> dict:
-    """A organização montada a partir dos yaml — sem índice para desatualizar."""
-    agentes = []
+def _customizacao(base: Path) -> dict:
+    """Cor, ícone, tags e ativo — o que você ajustou no card daquele agente.
+
+    Isso mora no resources.json, junto da identidade visual dos outros recursos:
+    o card na organização tem de ser o MESMO agente que aparece na grade e no
+    mapa, com a mesma cor e o mesmo ícone. Dois desenhos para a mesma coisa é
+    como se perde a confiança na tela.
+    """
+    p = base / "resources.json"
+    if not p.exists():
+        return {}
+    try:
+        d = json.loads(p.read_text(encoding="utf-8")) or {}
+    except json.JSONDecodeError:
+        return {}
+    out = {}
+    for k, v in d.items():
+        if isinstance(k, str) and k.startswith("agent:") and isinstance(v, dict):
+            out[k.split(":", 1)[1]] = v
+    return out
+
+
+def _agentes(base: Path) -> list[dict]:
+    custom = _customizacao(base)
+    out = []
     for f in sorted((base / "agents").glob("*.yaml")):
         cfg = _yaml(base, f.stem)
         papel = str(cfg.get("papel") or "").strip().lower()
-        agentes.append({
+        c = custom.get(f.stem, {})
+        out.append({
             "nome": f.stem,
             "titulo": cfg.get("name") or f.stem,
-            "descricao": (cfg.get("description") or "").strip()[:160],
+            "descricao": (cfg.get("description") or "").strip()[:200],
             "papel": papel if papel in PAPEIS else PAPEL_PADRAO,
-            "squad": str(cfg.get("squad") or "").strip(),
+            "squad": slug(cfg.get("squad") or ""),
+            "squadNome": str(cfg.get("squad") or "").strip(),
             "reporta_a": str(cfg.get("reporta_a") or "").strip(),
+            # a customização do card, a mesma da grade e do mapa
+            "cor": c.get("color") or "",
+            "icone": c.get("icon") or "",
+            "tags": [t for t in (c.get("tags") or []) if isinstance(t, str)][:8],
+            "ativo": c.get("active", True),
+            "modelo": cfg.get("model") or cfg.get("modelo") or "",
+            "temperatura": cfg.get("temperature", cfg.get("temperatura")),
+            "ferramentas": len(cfg.get("tools") or cfg.get("ferramentas") or []),
         })
+    return out
+
+
+def definir(base: Path, nome: str, papel: str | None = None, squad: str | None = None,
+            reporta_a: str | None = None) -> dict:
+    """Muda papel e squad de um agente, mexendo só nesses campos do yaml.
+
+    Squad que ainda não existe no registro é criada na hora: no meio de um
+    despacho, ter de cadastrar antes de atribuir é atrito que faz o agente
+    desistir e deixar o campo vazio.
+    """
+    import yaml
+    p = base / "agents" / f"{nome}.yaml"
+    if not p.exists():
+        raise KeyError(nome)
+    cfg = _yaml(base, nome)
+    if papel is not None:
+        if papel and papel not in PAPEIS:
+            raise ValueError(f"papel inválido: {papel!r}")
+        cfg["papel"] = papel or PAPEL_PADRAO
+    if squad is not None:
+        s = " ".join(str(squad).strip().split())[:60]
+        if s:
+            chave = slug(s)
+            sq = carregar(base)
+            nome_bonito = sq[chave]["nome"] if chave in sq else s
+            if chave not in sq:
+                criar_squad(base, s, por="sistema")
+            cfg["squad"] = nome_bonito
+        else:
+            cfg.pop("squad", None)
+    if reporta_a is not None:
+        if reporta_a:
+            cfg["reporta_a"] = str(reporta_a).strip()[:80]
+        else:
+            cfg.pop("reporta_a", None)
+    p.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False, width=88),
+                 encoding="utf-8")
+    return {"nome": nome, "papel": cfg.get("papel"), "squad": cfg.get("squad", "")}
+
+
+# ── A leitura ─────────────────────────────────────────────────────────────────
+
+def ler(base: Path) -> dict:
+    agentes = _agentes(base)
+    registro = carregar(base)
+
+    # Squad citada por um agente e ausente do registro entra: nada se perde
+    # quando um agente inventa uma squad no meio do trabalho.
+    mudou = False
+    for a in agentes:
+        if a["squad"] and a["squad"] not in registro:
+            registro[a["squad"]] = {
+                "nome": a["squadNome"] or a["squad"], "cor": COR_PADRAO, "icone": ICONE_PADRAO,
+                "descricao": "", "criada_em": date.today().isoformat(), "criada_por": "adotada"}
+            mudou = True
+    if mudou:
+        salvar(base, registro)
 
     maestros = [a for a in agentes if a["papel"] == "maestro"]
     lideres = [a for a in agentes if a["papel"] == "lider"]
     comuns = [a for a in agentes if a["papel"] == "agente"]
 
-    # Uma squad existe porque alguém disse que está nela. A que tem gente e
-    # nenhum líder aparece igual: é informação, não defeito — no Flat Mode o
-    # Maestro fala direto com todos.
-    nomes = sorted({a["squad"] for a in agentes if a["squad"]}, key=str.lower)
     squads = []
-    for s in nomes:
+    for chave, d in sorted(registro.items(), key=lambda kv: kv[1].get("nome", "").lower()):
         squads.append({
-            "nome": s,
-            "lider": next((l for l in lideres if l["squad"] == s), None),
-            "membros": [a for a in comuns if a["squad"] == s],
+            "chave": chave, **d,
+            "lider": next((l for l in lideres if l["squad"] == chave), None),
+            "membros": [a for a in comuns if a["squad"] == chave],
         })
 
     soltos = [a for a in comuns if not a["squad"]]
@@ -84,8 +250,6 @@ def ler(base: Path) -> dict:
         "soltos": soltos,
         "lideresSemSquad": sem_squad_lider,
         "total": len(agentes),
-        # O que está torto, dito em uma frase cada. A vista mostra como aviso, e
-        # nada disso impede o projeto de funcionar.
         "avisos": _avisos(maestros, squads, soltos, sem_squad_lider, len(agentes)),
     }
 
@@ -99,6 +263,8 @@ def _avisos(maestros, squads, soltos, lideres_sem_squad, total) -> list[str]:
     for s in squads:
         if not s["lider"] and len(s["membros"]) > 2:
             avisos.append(f'A squad "{s["nome"]}" tem {len(s["membros"])} agentes e nenhum líder.')
+        if not s["lider"] and not s["membros"]:
+            avisos.append(f'A squad "{s["nome"]}" está vazia.')
         if s["lider"] and not s["membros"]:
             avisos.append(f'"{s["lider"]["titulo"]}" lidera a squad "{s["nome"]}", que está vazia.')
     for l in lideres_sem_squad:
@@ -108,34 +274,6 @@ def _avisos(maestros, squads, soltos, lideres_sem_squad, total) -> list[str]:
     return avisos
 
 
-def definir(base: Path, nome: str, papel: str | None = None, squad: str | None = None,
-            reporta_a: str | None = None) -> dict:
-    """Muda o papel ou a squad de um agente, mexendo só nesses campos do yaml."""
-    import yaml
-    p = base / "agents" / f"{nome}.yaml"
-    if not p.exists():
-        raise KeyError(nome)
-    cfg = _yaml(base, nome)
-    if papel is not None:
-        if papel and papel not in PAPEIS:
-            raise ValueError(f"papel inválido: {papel!r}")
-        cfg["papel"] = papel or PAPEL_PADRAO
-    if squad is not None:
-        s = " ".join(str(squad).strip().split())[:40]
-        if s:
-            cfg["squad"] = s
-        else:
-            cfg.pop("squad", None)
-    if reporta_a is not None:
-        if reporta_a:
-            cfg["reporta_a"] = str(reporta_a).strip()[:80]
-        else:
-            cfg.pop("reporta_a", None)
-    p.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False, width=88),
-                 encoding="utf-8")
-    return {"nome": nome, "papel": cfg.get("papel"), "squad": cfg.get("squad", "")}
-
-
 def cadeia_de(base: Path, nome: str) -> list[dict]:
     """A cadeia de comando deste agente, de cima para baixo.
 
@@ -143,16 +281,14 @@ def cadeia_de(base: Path, nome: str) -> list[dict]:
     que impede ele de sobrescrever restrição de quem está acima.
     """
     org = ler(base)
-    eu = next((a for a in [*org["maestros"], *[s["lider"] for s in org["squads"] if s["lider"]],
-                           *org["soltos"], *[m for s in org["squads"] for m in s["membros"]]]
-               if a and a["nome"] == nome), None)
+    eu = next((a for a in _agentes(base) if a["nome"] == nome), None)
     if not eu:
         raise KeyError(nome)
     cadeia = [{"papel": "usuario", "nome": "usuario", "titulo": "Você"}]
     if org["maestros"]:
         cadeia.append(org["maestros"][0])
     if eu["papel"] == "agente" and eu["squad"]:
-        lider = next((s["lider"] for s in org["squads"] if s["nome"] == eu["squad"]), None)
+        lider = next((s["lider"] for s in org["squads"] if s["chave"] == eu["squad"]), None)
         if lider:
             cadeia.append(lider)
     if eu["papel"] != "maestro" or not org["maestros"]:

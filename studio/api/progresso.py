@@ -245,7 +245,8 @@ def fundir_habilidades(base: Path, de: list[str], para: str, rotulo: str = "") -
 
 # ── Estado ────────────────────────────────────────────────────────────────────
 
-def _xp_do_evento(ev: dict, confirmado: bool, descoberta: bool) -> float:
+def _xp_do_evento(ev: dict, confirmado: bool, descoberta: bool,
+                  despacho_cumprido: bool = False) -> float:
     # Tudo aqui vem do registro de regras: o que o painel mostra é o que conta.
     base = regras.valor("xp.base_por_tipo").get(ev["tipo"], 0)
     if base == 0:
@@ -262,6 +263,10 @@ def _xp_do_evento(ev: dict, confirmado: bool, descoberta: bool) -> float:
         xp *= regras.valor("xp.mult_confirmado")
     if descoberta:
         xp *= regras.valor("xp.mult_descoberta")
+    # Coordenar bem é o despacho virar entrega confirmada. Quem só distribui
+    # tarefa fica com a base, que é baixa de propósito.
+    if despacho_cumprido:
+        xp *= regras.valor("xp.mult_despacho_cumprido")
     return min(regras.valor("xp.teto_por_evento"), xp)
 
 
@@ -286,6 +291,17 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
     firmadas = firmadas if firmadas is not None else None
     eventos = ler_log(base)
     confirmados = {r["evento"]: r.get("por") for r in eventos if r.get("registro") == "confirmacao"}
+    # Quem despachou e quem executou se encontram pelo NOME do despacho: o
+    # executor já o cita ao registrar (`--despacho`), e é assim que o XP de
+    # quem coordena passa a depender do resultado de quem fez.
+    despachos_cumpridos = {
+        (e.get("despacho") or "").strip().lower()
+        for e in eventos
+        if e.get("registro") == "evento" and e["id"] in confirmados
+        and e.get("tipo") not in ("despacho", "resposta", "consolidacao")
+        and (e.get("despacho") or "").strip()
+    }
+    despachos_cumpridos.discard("")
     fusoes: dict[str, str] = {}
     rotulos_fundidos: dict[str, str] = {}
     for r in eventos:
@@ -337,7 +353,10 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
             alvos.append((chave, rotulo, nova))
 
         descoberta = any(nova for _, _, nova in alvos)
-        xp = _xp_do_evento(ev, ev["id"] in confirmados, descoberta)
+        # O despacho de quem coordena vale mais quando virou entrega confirmada.
+        cumprido = (ev.get("tipo") == "despacho"
+                    and (ev.get("despacho") or "").strip().lower() in despachos_cumpridos)
+        xp = _xp_do_evento(ev, ev["id"] in confirmados, descoberta, cumprido)
 
         a["xp"] += xp
         a["eventos"] += 1

@@ -148,7 +148,14 @@ def responder(base: Path, hipotese_id: str, dados: dict) -> dict:
 
     aprendizado = None
     if veredito in ("confirma", "corrige"):
-        texto = (resp["texto"] if veredito == "corrige" and resp["texto"] else hip["texto"])
+        # Corrigir é ESCOLHER a causa certa entre as opções da pergunta, e não
+        # redigir. O aprendizado se monta da escolha: assim duas correções sobre
+        # a mesma causa viram o mesmo dado, e não duas frases parecidas.
+        if veredito == "corrige" and resp["escolhas"]:
+            causa = ", ".join(resp["escolhas"])
+            texto = f"{hip['pergunta']['texto']} → {causa}"
+        else:
+            texto = (resp["texto"] if veredito == "corrige" and resp["texto"] else hip["texto"])
         aprendizado = _gravar_aprendizado(base, hip["skill"], texto, hipotese_id,
                                           str(dados.get("escopo") or "projeto"), por)
     return {"resposta": resp, "aprendizado": aprendizado}

@@ -1,21 +1,25 @@
-"""As perguntas que descobrem o que uma habilidade é.
+"""As perguntas que descobrem o que uma habilidade é — todas fechadas.
 
-O dono só digita o nome. Quem descobre o resto é o Noctis, perguntando — e a
-diferença entre isto e um formulário é o que ele disse: "eu só quero digitar uma
-habilidade para eles aprenderem e eles mesmos irem descobrindo o que é essa
-habilidade, com perguntas".
+O dono digita só o nome da habilidade. Quem descobre o resto é o Noctis,
+perguntando. E as perguntas são de ESCOLHA, nunca campo aberto:
 
-**Não existe mais bifurcação.** Por um tempo a primeira pergunta era "isto é um
-passo a passo ou um assunto que se apura?", e ele derrubou com o argumento certo:
-"poderia ser os dois". Diagramação avançada tem passos E vai acumulando
-sensibilidade; verificar um build tem passos E ensina armadilhas novas a cada
-caso. Obrigar a escolher um lado era o sistema impondo uma forma que o trabalho
-não tem.
+    "as perguntas de skill e aprendizado não devem ser campos abertos, devem ser
+     baseadas em teses e ser por múltipla escolha, boolean ou radio"
 
-Então toda habilidade tem os mesmos campos, perguntados em ordem de utilidade, e
-toda habilidade pode acumular aprendizado. Campo que não cabe naquela habilidade
-se dispensa — e dispensar é uma resposta legítima, registrada, que não volta a
-ser perguntada.
+O motivo é bom e vale escrever: resposta digitada à mão não se compara entre
+habilidades nem entre projetos. Cinco habilidades com "medir antes de decidir"
+escrito de cinco maneiras são cinco strings; cinco marcando a mesma TESE são um
+padrão que o Noctis lê, conta e usa para escolher a quem delegar.
+
+Cada pergunta é uma tese ou um conjunto de teses:
+
+    bool    a tese vale ou não vale aqui
+    radio   qual das teses descreve esta habilidade
+    multi   quais teses valem (várias)
+
+Nenhuma escolha é obrigatória: "nenhuma delas" fecha a pergunta e ela não volta.
+Quando faltar tese, o lugar de escrever é o DOCUMENTO da habilidade, em markdown,
+onde ele cola o que quiser — a fila de perguntas não é onde se redige.
 """
 from __future__ import annotations
 
@@ -23,91 +27,154 @@ from pathlib import Path
 
 import repertorio as rep
 
-# A ordem é a do trabalho, não a de um formulário: primeiro quando usar (sem
-# isso o resto não serve), depois o passo a passo, o que dá errado, como saber
-# que ficou pronto, e por fim o que importa entender além do procedimento.
-CAMPOS = [
-    ("quando_usar", "Quando usar", "Em que situação isto entra?"),
-    ("passos", "Como se faz", "Quais são os passos, na ordem? (se não for passo a passo, dispense)"),
-    ("armadilhas", "Armadilhas", "O que costuma dar errado aqui?"),
-    ("verificacao", "Como verificar", "Como se sabe que ficou bom — que medida, que prova?"),
-    ("o_que_importa", "O que importa entender",
-     "Além do procedimento, o que eles precisam entender para acertar o julgamento?"),
+NENHUMA = "nenhuma delas"
+
+# ── O catálogo de teses ───────────────────────────────────────────────────────
+# As opções são genéricas de propósito: descrevem FORMAS de trabalho, e não o
+# conteúdo de um projeto. Tese que cita cliente, arquivo ou ferramenta viraria
+# exatamente o que ele recusou nas habilidades — específico demais para reusar.
+PERGUNTAS = [
+    {
+        "campo": "momento", "titulo": "Quando entra", "tipo": "multi",
+        "texto": "Em que momento do trabalho esta habilidade entra?",
+        "opcoes": [
+            "Antes de começar, para decidir o caminho",
+            "Durante a execução, a cada passo",
+            "Ao fechar, antes de entregar",
+            "Quando algo deu errado",
+            "Só quando alguém pede",
+        ],
+        "frase": "Entra {escolhas}.",
+    },
+    {
+        "campo": "tem_passos", "titulo": "Tem passo a passo", "tipo": "bool",
+        "texto": "Isto se faz seguindo uma sequência fixa de passos?",
+        "opcoes": ["Sim, tem sequência fixa", "Não, depende do caso"],
+        "frase": "{escolhas}.",
+    },
+    {
+        "campo": "erro_tipico", "titulo": "Onde se erra", "tipo": "multi",
+        "texto": "Como se erra nisto, normalmente?",
+        "opcoes": [
+            "Acreditando no que o código ou o documento declara, sem medir",
+            "Pulando a verificação por pressa",
+            "Copiando de um caso anterior sem conferir se cabe",
+            "Decidindo sem consultar o que o projeto já aprendeu",
+            "Tratando exceção como regra",
+            "Parando no primeiro resultado que parece bom",
+        ],
+        "frase": "Erra-se {escolhas}.",
+    },
+    {
+        "campo": "prova", "titulo": "Como se prova", "tipo": "multi",
+        "texto": "O que prova que ficou bom?",
+        "opcoes": [
+            "Uma medida no artefato final, não no código-fonte",
+            "Comparação com um alvo declarado antes",
+            "Revisão de outro agente",
+            "Teste automatizado passando",
+            "Aprovação sua, e só ela",
+        ],
+        "frase": "Está pronto quando existe {escolhas}.",
+    },
+    {
+        "campo": "julgamento", "titulo": "O que pesa no julgamento", "tipo": "radio",
+        "texto": "Acertar isto depende mais de quê?",
+        "opcoes": [
+            "Seguir o procedimento com disciplina",
+            "Sensibilidade que se apura com os casos",
+            "Conhecer o contexto do projeto",
+            "Domínio de uma ferramenta",
+        ],
+        "frase": "Acertar depende de {escolhas}.",
+    },
 ]
-TITULO = {c: t for c, t, _ in CAMPOS}
-
-DISPENSADO = "—"
+POR_CAMPO = {p["campo"]: p for p in PERGUNTAS}
 
 
-def _resp(d: dict, campo: str) -> str:
-    return str((d.get("enquadramento") or {}).get(campo) or "").strip()
+def _resp(d: dict, campo: str):
+    return (d.get("enquadramento") or {}).get(campo)
 
 
 def perguntas(base: Path) -> list[dict]:
-    """As perguntas abertas, uma por habilidade incompleta.
-
-    Uma por vez, de propósito: cinco perguntas sobre a mesma habilidade de uma
-    vez viram formulário, e formulário é o que ele não quer. A seguinte aparece
-    quando esta for respondida — ou dispensada.
-    """
+    """As perguntas abertas, uma por habilidade — a fila tem de andar."""
     out = []
     for chave, d in rep.carregar(base).items():
         if d.get("estado") == "arquivada":
             continue
         rotulo = d.get("rotulo") or chave
-        for campo, titulo, texto in CAMPOS:
-            if not _resp(d, campo):
+        for p in PERGUNTAS:
+            if _resp(d, p["campo"]) is None:
                 out.append({
-                    "id": f"enq:{chave}:{campo}",
-                    "tipo_fila": "enquadramento", "skill": chave, "campo": campo,
-                    "rotuloSkill": rotulo, "titulo": titulo,
-                    "pergunta": {"tipo": "texto", "texto": f"{rotulo} — {texto}", "opcoes": []},
-                    "podeDispensar": True,
-                    "restantes": sum(1 for c, _, _ in CAMPOS if not _resp(d, c)),
+                    "id": f"enq:{chave}:{p['campo']}",
+                    "tipo_fila": "enquadramento", "skill": chave, "campo": p["campo"],
+                    "rotuloSkill": rotulo, "titulo": p["titulo"],
+                    "pergunta": {"tipo": p["tipo"], "texto": f"{rotulo} — {p['texto']}",
+                                 "opcoes": [*p["opcoes"], NENHUMA]},
+                    "restantes": sum(1 for q in PERGUNTAS if _resp(d, q["campo"]) is None),
+                    "total": len(PERGUNTAS),
                 })
-                break          # uma por habilidade: a fila tem de andar
+                break
     return out
 
 
-def responder(base: Path, chave: str, campo: str, valor: str, autor: str = "usuario") -> dict:
-    """Grava a resposta no campo. `valor` vazio ou '—' é dispensa registrada.
+def responder(base: Path, chave: str, campo: str, escolhas, autor: str = "usuario") -> dict:
+    """Grava as escolhas. Lista vazia ou "nenhuma delas" fecha a pergunta.
 
-    Enquadrar é da pessoa. Agente que tentar cai na mesma trava das habilidades:
-    ele propõe, ela define.
+    Enquadrar é da pessoa: o agente propõe tese (hipótese), ela decide.
     """
     if autor not in ("usuario", ""):
         raise PermissionError("enquadrar é seu: o agente propõe, você define")
     d = rep.carregar(base).get(chave)
     if not d:
         raise KeyError(chave)
-    if campo not in TITULO:
+    p = POR_CAMPO.get(campo)
+    if not p:
         raise ValueError(f"campo desconhecido: {campo!r}")
 
+    if isinstance(escolhas, str):
+        escolhas = [escolhas] if escolhas.strip() else []
+    validas = [str(e) for e in escolhas if str(e) in p["opcoes"]]
+    if p["tipo"] in ("bool", "radio"):
+        validas = validas[:1]
+
     enq = dict(d.get("enquadramento") or {})
-    enq[campo] = (str(valor or "").strip() or DISPENSADO)[:2000]
+    enq[campo] = validas          # lista vazia = dispensada, e não volta a ser feita
     atualizada = rep.atualizar(base, chave, {"enquadramento": enq})
-    # O corpo em markdown se remonta a partir das respostas: é ele que o agente
-    # lê na consulta, e é ele que vai virar SKILL.md.
-    rep.escrever_corpo(base, chave, corpo_de(atualizada))
+    # O corpo se remonta a partir das escolhas — MENOS quando ele escreveu o
+    # documento à mão. Aí o documento é dele, e as escolhas ficam guardadas.
+    if not atualizada.get("corpo_curado"):
+        rep.escrever_corpo(base, chave, corpo_de(atualizada))
     return atualizada
 
 
+def _lista(itens: list[str]) -> str:
+    itens = [i[0].lower() + i[1:] for i in itens]
+    if len(itens) == 1:
+        return itens[0]
+    return ", ".join(itens[:-1]) + " e " + itens[-1]
+
+
 def corpo_de(d: dict) -> str:
-    """O markdown da habilidade, montado a partir das respostas."""
+    """O documento montado a partir das escolhas — frases, não tabela de opções.
+
+    O agente lê este markdown na consulta, então ele tem de soar como instrução,
+    e não como resultado de questionário.
+    """
     enq = d.get("enquadramento") or {}
     linhas: list[str] = []
-    for campo, titulo, _ in CAMPOS:
-        v = str(enq.get(campo) or "").strip()
-        if v and v != DISPENSADO:
-            linhas.append(f"## {titulo}\n\n{v}\n")
+    for p in PERGUNTAS:
+        v = enq.get(p["campo"])
+        if not v:
+            continue
+        linhas.append(f"## {p['titulo']}\n\n{p['frase'].format(escolhas=_lista(list(v)))}\n")
     return "\n".join(linhas)
 
 
 def completude(d: dict) -> dict:
-    """Quanto dela já foi dito — o que a tela mostra como "descobrindo"."""
-    respondidos = sum(1 for c, _, _ in CAMPOS if _resp(d, c))
-    return {"respondidos": respondidos, "total": len(CAMPOS),
-            "completa": respondidos >= len(CAMPOS)}
+    respondidos = sum(1 for p in PERGUNTAS if _resp(d, p["campo"]) is not None)
+    return {"respondidos": respondidos, "total": len(PERGUNTAS),
+            "completa": respondidos >= len(PERGUNTAS)}
 
 
 def estado(base: Path) -> dict:
@@ -116,4 +183,5 @@ def estado(base: Path) -> dict:
     todas = [c for c, d in rep.carregar(base).items() if d.get("estado") != "arquivada"]
     return {"perguntas": abertas, "incompletas": len(incompletas),
             "prontas": len([c for c in todas if c not in incompletas]),
-            "campos": [{"id": c, "titulo": t} for c, t, _ in CAMPOS]}
+            "campos": [{"id": p["campo"], "titulo": p["titulo"], "tipo": p["tipo"]}
+                       for p in PERGUNTAS]}

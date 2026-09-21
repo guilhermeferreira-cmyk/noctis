@@ -343,6 +343,8 @@ export interface SkillCard {
   natureza?: string
   /** As respostas que você deu às perguntas — é delas que sai o documento. */
   enquadramento?: Record<string, string>
+  /** Você escreveu o documento à mão: as respostas param de remontá-lo. */
+  corpo_curado?: boolean
   /** Agrupamento livre. O vocabulário nasce do uso; nome próprio não entra. */
   tags: string[]
   cor?: string
@@ -482,14 +484,37 @@ export interface TagSkill { tag: string; usos: number; solta: boolean }
 export interface AgenteOrg {
   nome: string; titulo: string; descricao: string
   papel: 'maestro' | 'lider' | 'agente'
+  /** A chave da squad (slug). `squadNome` é como ela se escreve. */
   squad: string
+  squadNome: string
   reporta_a: string
+  /** A customização do card — a mesma da grade e do mapa. */
+  cor: string
+  icone: string
+  tags: string[]
+  ativo: boolean
+  modelo: string
+  temperatura?: number
+  ferramentas: number
+}
+
+/** Uma squad é coisa, com identidade própria: nome, cor, ícone e do que cuida. */
+export interface SquadOrg {
+  chave: string
+  nome: string
+  cor: string
+  icone: string
+  descricao: string
+  criada_em?: string
+  criada_por?: string
+  lider: AgenteOrg | null
+  membros: AgenteOrg[]
 }
 
 export interface Organizacao {
   papeis: Record<string, { label: string; desc: string; cor: string }>
   maestros: AgenteOrg[]
-  squads: { nome: string; lider: AgenteOrg | null; membros: AgenteOrg[] }[]
+  squads: SquadOrg[]
   soltos: AgenteOrg[]
   lideresSemSquad: AgenteOrg[]
   total: number
@@ -515,7 +540,10 @@ export interface PerguntaEnquadramento {
   rotuloSkill: string
   titulo?: string
   ajuda?: string
-  pergunta: { tipo: 'escolha' | 'texto'; texto: string; opcoes: string[] }
+  /** Só escolha: a pergunta é uma tese, e a resposta é qual tese vale. */
+  pergunta: { tipo: 'bool' | 'radio' | 'multi'; texto: string; opcoes: string[] }
+  restantes?: number
+  total?: number
 }
 
 export interface Hipotese {
@@ -783,6 +811,8 @@ export const api = {
   /** Confirma um evento em QUALQUER projeto — a ronda cruza fronteiras. */
   confirmarEventoEm: (projeto: string, id: string, por = 'nocturn') =>
     req<{ ok: boolean }>('POST', `/api/projects/${encodeURIComponent(projeto)}/eventos/${id}/confirmar`, { por }),
+  enquadramentoMd: (chave: string) =>
+    req<{ markdown: string }>('GET', `${px()}/skills/${encodeURIComponent(chave)}/enquadramento-md`),
   escreverCorpoSkill: (chave: string, corpo: string) =>
     req<{ ok: boolean }>('PUT', `${px()}/skills/${encodeURIComponent(chave)}/corpo`, { corpo }),
   anotarSkill:    (chave: string, texto: string, autor = 'usuario') =>
@@ -816,6 +846,12 @@ export const api = {
   organizacao:    () => req<Organizacao>('GET', `${px()}/organizacao`),
   definirOrganizacao: (nome: string, patch: { papel?: string; squad?: string; reporta_a?: string }) =>
     req<{ ok: boolean }>('PUT', `${px()}/organizacao/${encodeURIComponent(nome)}`, patch),
+  criarSquad:     (nome: string, extra: { cor?: string; icone?: string; descricao?: string } = {}) =>
+    req<{ ok: boolean; squad: SquadOrg }>('POST', `${px()}/squads`, { nome, ...extra }),
+  editarSquad:    (chave: string, patch: { nome?: string; cor?: string; icone?: string; descricao?: string }) =>
+    req<{ ok: boolean }>('PUT', `${px()}/squads/${encodeURIComponent(chave)}`, patch),
+  apagarSquad:    (chave: string) =>
+    req<{ ok: boolean; soltos: number }>('DELETE', `${px()}/squads/${encodeURIComponent(chave)}`),
   cadeiaDe:       (nome: string) =>
     req<{ cadeia: { papel: string; nome: string; titulo: string }[] }>(
       'GET', `${px()}/organizacao/${encodeURIComponent(nome)}/cadeia`),
@@ -828,9 +864,10 @@ export const api = {
     'GET', `${px()}/aprendizado/inbox`),
   enquadramento:  () => req<{ perguntas: PerguntaEnquadramento[]; incompletas: number; prontas: number }>(
     'GET', `${px()}/enquadramento`),
-  enquadrar:      (chave: string, campo: string, valor: string) =>
+  // Lista vazia dispensa a pergunta, e ela não volta a ser feita.
+  enquadrar:      (chave: string, campo: string, escolhas: string[]) =>
     req<{ ok: boolean }>('POST', `${px()}/skills/${encodeURIComponent(chave)}/enquadrar`,
-      { campo, valor }),
+      { campo, escolhas }),
   aprendizadoDe:  (chave: string) =>
     req<{ observacoes: Observacao[]; hipoteses: Hipotese[]; aprendizados: Aprendizado[] }>(
       'GET', `${px()}/aprendizado/${encodeURIComponent(chave)}`),

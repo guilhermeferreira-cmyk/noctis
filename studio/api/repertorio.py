@@ -401,8 +401,14 @@ def atualizar(base: Path, chave: str, patch: dict, autor: str = "usuario") -> di
         d["especie"] = patch["especie"]
     if patch.get("natureza") in NATUREZAS:
         d["natureza"] = patch["natureza"]
+    if "corpo_curado" in patch:
+        d["corpo_curado"] = bool(patch["corpo_curado"])
     if isinstance(patch.get("enquadramento"), dict):
-        d["enquadramento"] = {str(k)[:40]: str(v)[:2000] for k, v in patch["enquadramento"].items()}
+        # O valor é a LISTA de teses marcadas — `str()` aqui viraria o repr da
+        # lista, e o documento saía soletrado, caractere por caractere.
+        d["enquadramento"] = {
+            str(k)[:40]: ([str(x)[:300] for x in v][:12] if isinstance(v, list) else [str(v)[:300]])
+            for k, v in patch["enquadramento"].items()}
     if "tags" in patch:
         d["tags"] = validar_tags(base, patch["tags"], autor)
     if "cor" in patch:
@@ -494,6 +500,9 @@ def visao(base: Path) -> dict:
             # como "descobrindo", não como erro.
             "natureza": d.get("natureza") if d.get("natureza") in NATUREZAS else "",
             "enquadramento": d.get("enquadramento") or {},
+            # Corpo que você escreveu à mão não é remontado a partir das
+            # respostas — o documento passa a ser seu.
+            "corpo_curado": bool(d.get("corpo_curado")),
             "tags": d.get("tags") or [],
             "marcos": sorted(marcos.get(chave, []), key=lambda m: m.get("quando") or "", reverse=True),
             "temCorpo": bool(ler_corpo(base, chave).strip()),

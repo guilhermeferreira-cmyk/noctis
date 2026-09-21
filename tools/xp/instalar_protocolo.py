@@ -29,8 +29,24 @@ MARCA = "[noctis-xp]"
 # reescreve o bloco de todo agente. O que o agente lê é sempre o que está valendo.
 sys.path.insert(0, str(RAIZ / "studio" / "api"))
 import regras as _regras  # noqa: E402
+import organizacao as _org  # noqa: E402
 
 _regras.configurar(RAIZ)
+
+
+def _papel(projeto: str, agente: str) -> str:
+    """O papel do agente na organização — maestro, lider ou agente.
+
+    O bloco continua o mesmo para todos no essencial; o que muda é que quem
+    coordena ganha as linhas do trabalho DELE. Sem isso, Maestro e líder não
+    tinham como registrar nada e ficavam no nível 1 para sempre, como se
+    coordenar não fosse trabalho.
+    """
+    try:
+        base = RAIZ / "projects" / projeto
+        return next((a["papel"] for a in _org._agentes(base) if a["nome"] == agente), "agente")
+    except Exception:
+        return "agente"
 
 
 def bloco_para(projeto: str, agente: str) -> str:
@@ -53,6 +69,16 @@ def bloco_para(projeto: str, agente: str) -> str:
     # O loop de aprendizado na ponta do agente. A ordem das linhas é a ordem do
      # trabalho: consultar antes, observar durante, supor no fim — e nunca
      # concluir, porque concluir é dele.
+    # Quem coordena registra o trabalho de coordenar: despachar, responder ao
+    # dono e consolidar o que a squad produziu. O bônus vem de o despacho virar
+    # entrega confirmada — então citar o MESMO nome de despacho nos dois lados
+    # não é burocracia, é o que liga o resultado a quem pediu.
+    if _papel(projeto, agente) in ("maestro", "lider") and v("protocolo.registrar_trabalho"):
+        linhas.append('- Despachou tarefa? despacho "o que pediu" -d "<nome-do-despacho>"')
+        linhas.append('  Quem executa cita o mesmo -d; quando aquilo virar entrega confirmada,'
+                      ' o seu despacho vale mais.')
+        linhas.append('- Respondeu um pedido do dono? resposta "o que respondeu"')
+        linhas.append('- Consolidou o que a squad produziu? consolidacao "o que subiu, e para quem"')
     if v("aprendizado.no_protocolo"):
         minimo = v("aprendizado.evidencias_minimas")
         linhas.append('- Aplicou um aprendizado que a consulta trouxe? Cite o id ao fechar: --usei apr_xxxx')

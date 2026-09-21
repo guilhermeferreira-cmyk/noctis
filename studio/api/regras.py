@@ -133,11 +133,18 @@ CATALOGO: list[dict] = [
 
     # ── XP ────────────────────────────────────────────────────────────────────
     {"id": "xp.base_por_tipo", "area": "xp", "tipo": "mapa", "padrao": {
-        "entrega": 60, "output": 25, "correcao": 20, "revisao": 15, "memoria": 15, "decisao": 10, "retrabalho": 0},
+        "entrega": 60, "output": 25, "correcao": 20, "revisao": 15, "memoria": 15, "decisao": 10,
+        "despacho": 12, "resposta": 10, "consolidacao": 20, "retrabalho": 0},
      "min": 0, "max": 500,
      "titulo": "XP base por tipo de trabalho",
-     "faz": "O ponto de partida de cada registro, antes dos multiplicadores.",
-     "porque": "Revisão e decisão têm valor próprio para o agente que orienta, e não produz, não ficar para sempre no nível 1.",
+     "faz": "O ponto de partida de cada registro, antes dos multiplicadores. `despacho`, `resposta` e `consolidacao` são o trabalho de quem coordena: delegar, responder ao dono e consolidar o que a squad produziu.",
+     "porque": "Coordenar é trabalho e não aparecia em lugar nenhum: Maestro e líderes ficavam no nível 1 para sempre, como se não fizessem nada. A base é baixa de propósito — quem coordena sobe pelo BÔNUS de o despacho dar certo, não por despachar muito.",
+     "onde": ["servidor"]},
+    {"id": "xp.mult_despacho_cumprido", "area": "xp", "tipo": "float", "padrao": 1.8,
+     "min": 1.0, "max": 4.0, "passo": 0.1,
+     "titulo": "Bônus quando o despacho vira entrega confirmada",
+     "faz": "O `despacho` de quem coordena recebe este multiplicador quando existe trabalho confirmado citando o mesmo despacho.",
+     "porque": "Sem isto, delegar dez vezes valeria mais do que delegar bem uma vez. Com isto, o XP de quem coordena depende do resultado de quem executou — que é exatamente a responsabilidade do papel.",
      "onde": ["servidor"]},
     {"id": "xp.dificuldade", "area": "xp", "tipo": "mapa", "padrao": {"baixa": 1.0, "media": 1.3, "alta": 1.7},
      "min": 0.1, "max": 5, "passo": 0.05,

@@ -161,63 +161,63 @@ function PainelDominio({ chave, cor, onMudou }: {
  *
  * A Inbox do NOCTURN é a fila de tudo; aqui é o contrário — você abriu ESTA
  * habilidade e quer terminar de dizer o que ela é sem procurá-la numa lista.
+ * Só escolha, como na Inbox: campo aberto virou o documento em markdown.
  */
 function ProximaPergunta({ chave, onRespondido }: { chave: string; onRespondido: () => void }) {
   const [p, setP] = useState<PerguntaEnquadramento | null>(null)
-  const [texto, setTexto] = useState('')
+  const [marcadas, setMarcadas] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
 
   const reler = useCallback(() => {
     api.enquadramento()
-      .then(r => { setP(r.perguntas.find(x => x.skill === chave) || null); setTexto('') })
+      .then(r => { setP(r.perguntas.find(x => x.skill === chave) || null); setMarcadas([]) })
       .catch(() => setP(null))
   }, [chave])
   useEffect(() => { reler() }, [reler])
 
   if (!p) return null
+  const multi = p.pergunta.tipo === 'multi'
 
-  const responder = async (valor: string) => {
-    if (!valor.trim()) return
+  const gravar = async (escolhas: string[]) => {
     setSalvando(true)
-    try { await api.enquadrar(chave, p.campo, valor); reler(); onRespondido() }
+    try { await api.enquadrar(chave, p.campo, escolhas); reler(); onRespondido() }
     catch (e) { alert((e as Error).message) } finally { setSalvando(false) }
+  }
+
+  const clicar = (o: string) => {
+    if (o === 'nenhuma delas') return gravar([])
+    if (!multi) return gravar([o])
+    setMarcadas(m => m.includes(o) ? m.filter(x => x !== o) : [...m, o])
   }
 
   return (
     <div className="px-4 py-3 border-b border-gray-800 bg-violet-500/[0.06] space-y-2">
       <div className="text-[10px] uppercase tracking-wider text-violet-300/70">
-        descobrindo · {p.titulo || 'o que é'}
+        descobrindo · {p.titulo}
+        {p.restantes ? <span className="text-gray-600"> · {p.restantes} de {p.total}</span> : null}
       </div>
       <div className="text-[12.5px] text-gray-100 leading-snug">{p.pergunta.texto}</div>
-      {p.ajuda && <p className="text-[11px] text-gray-500 leading-snug">{p.ajuda}</p>}
-      {p.pergunta.tipo === 'escolha' ? (
-        <div className="space-y-1">
-          {p.pergunta.opcoes.map(o => (
-            <button key={o} disabled={salvando} onClick={() => responder(o)}
-              className="w-full text-left text-[11.5px] px-2.5 py-1.5 rounded-md border border-white/[0.08] text-gray-200 hover:bg-white/[0.06] hover:border-violet-500/50">
+      <div className="space-y-1">
+        {p.pergunta.opcoes.map(o => {
+          const on = marcadas.includes(o)
+          const nenhuma = o === 'nenhuma delas'
+          return (
+            <button key={o} disabled={salvando} onClick={() => clicar(o)}
+              className={`w-full text-left text-[11.5px] px-2.5 py-1.5 rounded-md border leading-snug ${
+                on ? 'border-violet-500/60 bg-violet-500/15 text-violet-100'
+                   : nenhuma ? 'border-transparent text-gray-500 hover:text-gray-300'
+                   : 'border-white/[0.08] text-gray-200 hover:bg-white/[0.06] hover:border-violet-500/40'}`}>
+              {!nenhuma && <span className="text-gray-500 mr-1.5">{multi ? (on ? '☑' : '☐') : '○'}</span>}
               {o}
             </button>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={3}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) responder(texto) }}
-            placeholder="com as suas palavras — é este texto que os agentes vão ler"
-            className="w-full bg-black/40 border border-white/[0.1] rounded-md px-2 py-1.5 text-[11.5px] text-gray-200 focus:outline-none focus:border-violet-500/60 resize-none" />
-          <div className="flex items-center gap-1.5">
-            <button disabled={salvando || !texto.trim()} onClick={() => responder(texto)}
-              className="text-[11px] bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-2.5 py-1 rounded">
-              responder
-            </button>
-            {/* Dispensar é resposta legítima: nem toda habilidade tem passo a
-                passo, e a pergunta não volta depois de dispensada. */}
-            <button disabled={salvando} onClick={() => responder('—')}
-              className="text-[11px] text-gray-500 hover:text-gray-200 px-2 py-1">
-              não se aplica
-            </button>
-          </div>
-        </div>
+          )
+        })}
+      </div>
+      {multi && (
+        <button disabled={salvando || !marcadas.length} onClick={() => gravar(marcadas)}
+          className="text-[11px] bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-2.5 py-1 rounded">
+          pronto{marcadas.length ? ` · ${marcadas.length}` : ''}
+        </button>
       )}
     </div>
   )
@@ -235,6 +235,7 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
   const [editandoCorpo, setEditandoCorpo] = useState(false)
   const [corpo, setCorpo] = useState('')
   const [tagNova, setTagNova] = useState('')
+  const [preverCorpo, setPreverCorpo] = useState(false)
 
   const carregar = useCallback(() => {
     api.skill(chave).then(x => { setD(x); setTexto(x.descricao || ''); setCorpo(x.corpo || '') })
@@ -424,25 +425,74 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
               Os agentes acrescentam trechos assinados; reescrever é curadoria. */}
           {aba === 'corpo' ? (
             editandoCorpo ? (
+              /* Markdown inteiro, do jeito que você escreveu em qualquer editor:
+                 colar um documento de 300 linhas aqui é caso de uso, não abuso.
+                 Salvar marca o corpo como SEU — as respostas das perguntas param
+                 de remontá-lo, e passam a entrar só quando você manda. */
               <div className="space-y-1.5">
-                <textarea value={corpo} onChange={e => setCorpo(e.target.value)} rows={18} autoFocus
-                  spellCheck={false}
-                  placeholder={'## O caso\n\n...\n\n## O que falhou\n\n...\n\n## O contorno\n\n...'}
-                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 font-mono text-[11px] text-gray-300 focus:outline-none focus:border-blue-500 resize-none leading-relaxed" />
-                <div className="flex gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-gray-600 flex-1">
+                    markdown · {corpo.split('\n').length} linhas · {corpo.length} caracteres
+                  </span>
+                  <button onClick={() => setPreverCorpo(v => !v)}
+                    className="text-[10px] text-gray-500 hover:text-gray-200">
+                    {preverCorpo ? 'escrever' : 'prever'}
+                  </button>
+                  {dito > 0 && (
+                    <button onClick={async () => {
+                        const { markdown } = await api.enquadramentoMd(chave)
+                        if (!markdown.trim()) return
+                        setCorpo(c => (c.trim() ? c.replace(/\s*$/, '\n\n') : '') + markdown)
+                      }}
+                      title="Põe no texto as seções montadas a partir das suas respostas"
+                      className="text-[10px] text-gray-500 hover:text-gray-200">
+                      + inserir o que você respondeu
+                    </button>
+                  )}
+                </div>
+                {preverCorpo ? (
+                  <div className="text-sm border border-gray-800 rounded p-3 min-h-[24rem]">
+                    <MarkdownView text={corpo} />
+                  </div>
+                ) : (
+                  <textarea value={corpo} onChange={e => setCorpo(e.target.value)} autoFocus
+                    spellCheck={false}
+                    onKeyDown={e => {
+                      // Tab indenta em vez de sair do campo: documento longo tem lista.
+                      if (e.key === 'Tab') {
+                        e.preventDefault()
+                        const el = e.currentTarget
+                        const i = el.selectionStart
+                        setCorpo(c => c.slice(0, i) + '  ' + c.slice(el.selectionEnd))
+                        requestAnimationFrame(() => el.setSelectionRange(i + 2, i + 2))
+                      }
+                    }}
+                    placeholder={'# Título\n\nCole aqui o markdown inteiro — seções, listas, tabelas, código.\n\n## Quando usar\n\n...'}
+                    className="w-full min-h-[30rem] bg-gray-900 border border-gray-700 rounded px-2.5 py-2 font-mono text-[11.5px] text-gray-300 focus:outline-none focus:border-blue-500 resize-y leading-relaxed" />
+                )}
+                <div className="flex items-center gap-1.5">
                   <button onClick={async () => {
                       await api.escreverCorpoSkill(chave, corpo)
-                      setEditandoCorpo(false); carregar(); onMudou()
+                      setEditandoCorpo(false); setPreverCorpo(false); carregar(); onMudou()
                     }}
                     className="text-[11px] bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded">Salvar</button>
-                  <button onClick={() => { setCorpo(d.corpo || ''); setEditandoCorpo(false) }}
+                  <button onClick={() => { setCorpo(d.corpo || ''); setEditandoCorpo(false); setPreverCorpo(false) }}
                     className="text-[11px] text-gray-400 hover:text-gray-200 px-2 py-1">Cancelar</button>
+                  <div className="flex-1" />
+                  <span className="text-[10px] text-gray-600">o documento passa a ser seu</span>
                 </div>
               </div>
             ) : d.corpo?.trim() ? (
               <div className="text-sm">
-                <button onClick={() => setEditandoCorpo(true)}
-                  className="text-[10px] text-gray-500 hover:text-gray-200 mb-1">editar documento</button>
+                <div className="flex items-center gap-2 mb-1">
+                  <button onClick={() => setEditandoCorpo(true)}
+                    className="text-[10px] text-gray-500 hover:text-gray-200">editar documento</button>
+                  <span className="text-[10px] text-gray-600">
+                    {d.corpo_curado
+                      ? 'escrito por você — as respostas não o reescrevem'
+                      : 'montado a partir das suas respostas'}
+                  </span>
+                </div>
                 <MarkdownView text={d.corpo} />
               </div>
             ) : (

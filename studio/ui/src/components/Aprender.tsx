@@ -33,62 +33,68 @@ function Barra({ c }: { c: number }) {
   )
 }
 
-/** As perguntas que descobrem o que a habilidade é.
+/** As perguntas que descobrem o que a habilidade é — todas de escolha.
  *
- * Ele não quer escolher isso num formulário: digita o nome da habilidade e o
- * Noctis vai perguntando. A primeira decide o rumo sem nunca dizer a palavra
- * "natureza"; as seguintes preenchem o corpo, uma por vez.
+ * Campo aberto saiu daqui por pedido dele, e o argumento é bom: resposta
+ * digitada não se compara entre habilidades. A pergunta virou tese, e a
+ * resposta é qual tese vale. Para escrever à mão existe o documento da
+ * habilidade, em markdown.
  */
-function Enquadrar({ p, onRespondido }: { p: PerguntaEnquadramento; onRespondido: () => void }) {
-  const [texto, setTexto] = useState('')
+function Escolher({ p, onRespondido }: { p: PerguntaEnquadramento; onRespondido: () => void }) {
+  const [marcadas, setMarcadas] = useState<string[]>([])
   const [salvando, setSalvando] = useState(false)
+  const multi = p.pergunta.tipo === 'multi'
 
-  const responder = async (valor: string) => {
-    if (!valor.trim()) return
+  const gravar = async (escolhas: string[]) => {
     setSalvando(true)
-    try { await api.enquadrar(p.skill, p.campo, valor); onRespondido() }
+    try { await api.enquadrar(p.skill, p.campo, escolhas); setMarcadas([]); onRespondido() }
     catch (e) { alert((e as Error).message); setSalvando(false) }
+  }
+
+  const clicar = (o: string) => {
+    // "nenhuma delas" e as respostas únicas gravam na hora: um clique, uma
+    // pergunta a menos. Múltipla espera o "pronto", senão não dá para marcar
+    // a segunda opção.
+    if (o === 'nenhuma delas') return gravar([])
+    if (!multi) return gravar([o])
+    setMarcadas(m => m.includes(o) ? m.filter(x => x !== o) : [...m, o])
   }
 
   return (
     <div className="rounded-lg border border-violet-500/25 bg-violet-500/[0.06] p-3 space-y-2.5">
       <div>
         <div className="text-[10px] uppercase tracking-wider text-violet-300/70 mb-1">
-          descobrindo · {p.titulo || 'o que é'}
+          descobrindo · {p.titulo}
+          {p.restantes ? <span className="text-gray-600"> · {p.restantes} de {p.total}</span> : null}
         </div>
         <div className="text-[12.5px] text-gray-100 leading-snug">{p.pergunta.texto}</div>
-        {p.ajuda && <p className="text-[11px] text-gray-500 mt-1 leading-snug">{p.ajuda}</p>}
+        <p className="text-[10.5px] text-gray-600 mt-0.5">
+          {multi ? 'marque quantas valerem' : 'escolha uma'}
+        </p>
       </div>
 
-      {p.pergunta.tipo === 'escolha' ? (
-        <div className="space-y-1">
-          {p.pergunta.opcoes.map(o => (
-            <button key={o} disabled={salvando} onClick={() => responder(o)}
-              className="w-full text-left text-[11.5px] px-2.5 py-1.5 rounded-md border border-white/[0.08] text-gray-200 hover:bg-white/[0.06] hover:border-violet-500/50">
+      <div className="space-y-1">
+        {p.pergunta.opcoes.map(o => {
+          const on = marcadas.includes(o)
+          const nenhuma = o === 'nenhuma delas'
+          return (
+            <button key={o} disabled={salvando} onClick={() => clicar(o)}
+              className={`w-full text-left text-[11.5px] px-2.5 py-1.5 rounded-md border leading-snug ${
+                on ? 'border-violet-500/60 bg-violet-500/15 text-violet-100'
+                   : nenhuma ? 'border-transparent text-gray-500 hover:text-gray-300'
+                   : 'border-white/[0.08] text-gray-200 hover:bg-white/[0.06] hover:border-violet-500/40'}`}>
+              {!nenhuma && <span className="text-gray-500 mr-1.5">{multi ? (on ? '☑' : '☐') : '○'}</span>}
               {o}
             </button>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-1.5">
-          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={3}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) responder(texto) }}
-            placeholder="responda com as suas palavras — é este texto que os agentes vão ler"
-            className="w-full bg-black/40 border border-white/[0.1] rounded-md px-2 py-1.5 text-[11.5px] text-gray-200 focus:outline-none focus:border-violet-500/60 resize-none" />
-          <div className="flex items-center gap-1.5">
-            <button disabled={salvando || !texto.trim()} onClick={() => responder(texto)}
-              className="text-[11px] bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-2.5 py-1 rounded">
-              responder
-            </button>
-            <button disabled={salvando} onClick={() => responder('—')}
-              title="Esta pergunta não cabe nesta habilidade — não volta a ser feita"
-              className="text-[11px] text-gray-500 hover:text-gray-200 px-2 py-1">
-              não se aplica
-            </button>
-            <div className="flex-1" />
-            <span className="text-[10px] text-gray-600">Ctrl+Enter</span>
-          </div>
-        </div>
+          )
+        })}
+      </div>
+
+      {multi && (
+        <button disabled={salvando || !marcadas.length} onClick={() => gravar(marcadas)}
+          className="text-[11px] bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-2.5 py-1 rounded">
+          pronto{marcadas.length ? ` · ${marcadas.length}` : ''}
+        </button>
       )}
     </div>
   )
@@ -173,19 +179,20 @@ function Pergunta({ h, onRespondido }: { h: Hipotese; onRespondido: () => void }
         </div>
       )}
 
+      {/* Corrigir é apontar a causa certa entre as opções — não redigir. Duas
+          correções sobre a mesma causa viram o mesmo dado, e é isso que
+          permite contar. */}
       {corrigindo ? (
         <div className="space-y-1.5">
-          <textarea value={texto} onChange={e => setTexto(e.target.value)} rows={3} autoFocus
-            placeholder="O aprendizado como ele é de verdade — é este texto que fica valendo."
-            className="w-full bg-black/40 border border-white/[0.1] rounded-md px-2 py-1.5 text-[11.5px] text-gray-200 focus:outline-none focus:border-violet-500/60 resize-none" />
-          <div className="flex gap-1.5">
-            <button disabled={salvando || !texto.trim()} onClick={() => responder('corrige', { texto })}
-              className="text-[11px] bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white px-2.5 py-1 rounded">
-              gravar o aprendizado
+          <p className="text-[11px] text-gray-400">Qual era a causa, então?</p>
+          {h.pergunta.opcoes.map(o => (
+            <button key={o} disabled={salvando} onClick={() => responder('corrige', { escolhas: [o] })}
+              className="w-full text-left text-[11.5px] px-2.5 py-1.5 rounded-md border border-white/[0.08] text-gray-200 hover:bg-white/[0.06] hover:border-violet-500/50">
+              {o}
             </button>
-            <button onClick={() => { setCorrigindo(false); setTexto(h.texto) }}
-              className="text-[11px] text-gray-400 hover:text-gray-200 px-2 py-1">cancelar</button>
-          </div>
+          ))}
+          <button onClick={() => setCorrigindo(false)}
+            className="text-[11px] text-gray-400 hover:text-gray-200 px-2 py-1">cancelar</button>
         </div>
       ) : (
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -250,7 +257,7 @@ export function Aprender() {
                 observa o trabalho e propõe uma generalização.
               </p>
             ) : perguntas.map(q => 'tipo_fila' in q && q.tipo_fila === 'enquadramento'
-              ? <Enquadrar key={q.id} p={q as PerguntaEnquadramento} onRespondido={recarregar} />
+              ? <Escolher key={q.id} p={q as PerguntaEnquadramento} onRespondido={recarregar} />
               : <Pergunta key={q.id} h={q as Hipotese} onRespondido={recarregar} />)
         ) : (
           vivos.length === 0 ? (

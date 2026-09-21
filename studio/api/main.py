@@ -427,6 +427,35 @@ def definir_organizacao(project: str, nome: str, data: dict):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/projects/{project}/squads")
+def criar_squad(project: str, data: dict):
+    """Cria uma squad. Você ou um agente — desenhar a organização é trabalho deles também."""
+    try:
+        return {"ok": True, "squad": org.criar_squad(
+            project_base(project), str(data.get("nome") or ""),
+            str(data.get("por") or "usuario"), str(data.get("cor") or ""),
+            str(data.get("icone") or ""), str(data.get("descricao") or ""))}
+    except KeyError as e:
+        raise HTTPException(409, f"já existe uma squad '{e.args[0]}'")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.put("/api/projects/{project}/squads/{chave}")
+def editar_squad(project: str, chave: str, data: dict):
+    """Renomeia, troca a cor, o ícone ou o que a squad cuida."""
+    try:
+        return {"ok": True, "squad": org.editar_squad(project_base(project), chave, data)}
+    except KeyError:
+        raise HTTPException(404, f"squad '{chave}' não encontrada")
+
+
+@app.delete("/api/projects/{project}/squads/{chave}")
+def apagar_squad(project: str, chave: str):
+    """Apaga a squad e solta quem estava nela. Agente nenhum é apagado."""
+    return {"ok": True, "soltos": org.apagar_squad(project_base(project), chave)}
+
+
 @app.get("/api/projects/{project}/organizacao/{nome}/cadeia")
 def ler_cadeia(project: str, nome: str):
     """A cadeia de comando deste agente — o que o despacho dele carrega."""
@@ -2713,11 +2742,19 @@ def fundir_habilidades(project: str, data: dict):
 
 @app.put("/api/projects/{project}/skills/{chave}/corpo")
 def escrever_corpo_skill(project: str, chave: str, data: dict):
-    """Reescreve o corpo inteiro — curadoria."""
+    """Reescreve o corpo inteiro com o markdown que você escreveu — curadoria.
+
+    A partir daqui o corpo é SEU: as respostas das perguntas continuam sendo
+    guardadas, mas param de remontar o documento. Sem isso, responder uma
+    pergunta apagaria o markdown que você acabou de colar — e foi para isso
+    que a marca de curadoria existe no resto do sistema.
+    """
     base = project_base(project)
     if chave not in rep.carregar(base):
         raise HTTPException(404, f"habilidade '{chave}' não encontrada")
-    return {"ok": True, "corpo": rep.escrever_corpo(base, chave, str(data.get("corpo") or ""))}
+    corpo = str(data.get("corpo") or "")
+    rep.atualizar(base, chave, {"corpo_curado": bool(corpo.strip())})
+    return {"ok": True, "corpo": rep.escrever_corpo(base, chave, corpo)}
 
 
 @app.post("/api/projects/{project}/skills/{chave}/corpo")
@@ -2833,14 +2870,23 @@ def ler_enquadramento(project: str):
     return enq.estado(project_base(project))
 
 
+@app.get("/api/projects/{project}/skills/{chave}/enquadramento-md")
+def ler_enquadramento_md(project: str, chave: str):
+    """O markdown que as suas respostas renderiam — para inserir num corpo seu."""
+    d = rep.carregar(project_base(project)).get(chave)
+    if not d:
+        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+    return {"markdown": enq.corpo_de(d)}
+
+
 @app.post("/api/projects/{project}/skills/{chave}/enquadrar")
 def enquadrar_skill(project: str, chave: str, data: dict):
     """Sua resposta a uma pergunta de enquadramento — ela preenche a habilidade."""
     try:
-        return {"ok": True, "skill": enq.responder(project_base(project), chave,
-                                                   str(data.get("campo") or ""),
-                                                   str(data.get("valor") or ""),
-                                                   str(data.get("por") or "usuario"))}
+        return {"ok": True, "skill": enq.responder(
+            project_base(project), str(chave), str(data.get("campo") or ""),
+            data.get("escolhas", data.get("valor") or []),
+            str(data.get("por") or "usuario"))}
     except PermissionError as e:
         raise HTTPException(403, str(e))
     except KeyError:

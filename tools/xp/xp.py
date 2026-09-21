@@ -33,7 +33,12 @@ for _fluxo in (sys.stdout, sys.stderr):
         _fluxo.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError):
         pass
-TIPOS = ["entrega", "output", "correcao", "revisao", "memoria", "decisao", "retrabalho"]
+# Os tipos de trabalho — os três últimos são de quem coordena: despachar,
+# responder ao dono e consolidar o que a squad produziu. A lista fica em código
+# porque o argparse precisa dela antes de falar com o servidor; o VALOR de cada
+# um em XP mora nas regras do Noctis.
+TIPOS = ["entrega", "output", "correcao", "revisao", "memoria", "decisao",
+         "despacho", "resposta", "consolidacao", "retrabalho"]
 
 
 def _slug(texto: str) -> str:
