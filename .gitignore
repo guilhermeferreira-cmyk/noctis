@@ -1,0 +1,35 @@
+# ── O que NÃO sobe ───────────────────────────────────────────────────────────
+# Este repositório é a FERRAMENTA Noctis, não os dados que ela guarda. Os
+# projetos carregam memórias, prompts e o histórico de trabalho de clientes, e
+# alguns deles são repositórios de código com dono próprio.
+projects/
+outputs/
+Imagens/
+deploy/
+assinatura de email/
+.backup-canvas*/
+.claude/
+.claudian/
+.obsidian/
+_templates/
+{agents,flows,memory,tools,outputs}/
+
+# Configuração local: as regras alteradas são do seu Noctis, não do projeto.
+config/regras.json
+config/nocturn/
+config/aparencia.json
+
+# O mapa das pastas de cliente na máquina: é dado seu, não código da ferramenta.
+PROJETOS.md
+orchestrator.py
+traduzir_site.py
+
+__pycache__/
+*.pyc
+node_modules/
+dist/
+.vite/
+.env
+.env.*
+desktop.ini
+Thumbs.db

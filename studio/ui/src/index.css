@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0a0a0a;
+  color: #e5e7eb;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+textarea, input, select {
+  font-family: inherit;
+  color-scheme: dark;
+}
+
+/* Scrollbar fina escura */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+/* ── Efeito vidro no mapa e no cosmos ────────────────────────────────────────
+   O card deixa de ser uma chapa opaca e passa a filtrar o que está atrás dele:
+   a grade, as setas e, principalmente, a aura de cor dos vizinhos. Por isso só
+   vale aqui — no grid de memórias não há nada atrás que valha a pena ver.
+
+   O vidro fica numa CAMADA À PARTE, e não no próprio card. `backdrop-filter`
+   cria contexto de empilhamento: aplicado no card, ele traria a aura (que é
+   filha com z negativo) para dentro, por cima do fundo e por baixo do texto —
+   exatamente o borrão sob a leitura que não pode existir. Na camada, a aura
+   continua atrás e é o que o vidro filtra.
+
+   Ordem de pintura dentro do card, com o fundo dele transparente:
+     aura (z -10) → camada de vidro (z -1) → conteúdo. */
+.vidro .corpo-vidro,
+.vidro .corpo-vidro-lane { background: transparent !important; }
+
+.vidro .camada-vidro {
+  background: rgba(22, 22, 22, 0.55);
+  backdrop-filter: blur(12px) saturate(1.25);
+  -webkit-backdrop-filter: blur(12px) saturate(1.25);
+}
+
+/* A lane já é quase transparente; aqui o vidro só encorpa um pouco, senão o
+   fundo dela somaria com o dos cards de dentro e tudo viraria leitoso. */
+.vidro .camada-vidro-lane {
+  backdrop-filter: blur(6px) saturate(1.1);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
+}
+
+/* ── Hover: o card acende ────────────────────────────────────────────────────
+   Duas coisas ao passar o mouse: um contorno claro e, se houver aura, ela cresce
+   e ganha luz. O crescimento é `transform: scale`, e não uma mudança de tamanho
+   real, porque escala é composta na GPU e não obriga o navegador a refazer o
+   layout de nada — com dezenas de cards no mapa, a diferença aparece.
+
+   Nada de `filter: brightness` no card: `filter` cria contexto de empilhamento e
+   traria a aura para dentro dele, por cima do fundo — o mesmo motivo que fez o
+   vidro virar camada à parte. Por isso a luz vem de `box-shadow`, que não cria
+   contexto nenhum. */
+.aura {
+  transition: transform .35s cubic-bezier(.2, .7, .3, 1), opacity .35s ease;
+  will-change: transform;
+}
+
+.acende { transition: box-shadow .25s ease; }
+
+.acende:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, .14), 0 10px 34px rgba(0, 0, 0, .45);
+}
+
+/* Onde o card declara a própria cor (`--cor-card`), o halo do hover sai dela em
+   vez do branco: o grid inteiro acende no vocabulário de cores do projeto. */
+.acende[style*="--cor-card"]:hover {
+  box-shadow: 0 0 0 1px var(--cor-card), 0 10px 34px rgba(0, 0, 0, .45),
+              0 0 22px -6px var(--cor-card);
+}
+
+.acende:hover > .aura {
+  transform: scale(1.22);
+  opacity: calc(var(--aura-op) * 1.7);
+}
+
+/* No vidro, o corpo também clareia um tom — é o que faz o card parecer aceso, e
+   não apenas contornado. */
+.vidro .acende:hover > .camada-vidro { background: rgba(38, 38, 38, .62); }
