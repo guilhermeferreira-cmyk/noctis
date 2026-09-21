@@ -111,7 +111,7 @@ LIXEIRA = PROJECTS_DIR / ".lixeira"
 def _e_repositorio(base: Path) -> bool:
     """Pasta que é repositório de código, e não projeto do Noctis.
 
-    `projects/` também guarda clones dos sites (site-tessera, tessera-governance…).
+    `projects/` também guarda clones de repositórios de código do trabalho.
     Eles têm `.git` e não têm `project.yaml`. O Noctis os lista, mas não pode
     movê-los nem apagá-los: um clique na lixeira arrancaria o repositório do lugar
     onde o resto do trabalho espera encontrá-lo.

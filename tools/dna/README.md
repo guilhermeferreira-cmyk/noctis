@@ -88,4 +88,4 @@ apontar outro: `DNA_BROWSER=<caminho do exe>`.
 
 - Agente `Extrator de DNA Visual` (`~/.claude/agents/`) — faz a análise e escreve o dossiê
 - Comando `/dna-visual` (`~/.claude/commands/`) — o fluxo ponta a ponta
-- Fluxo `extrair_dna_visual` (Agent Studio, projeto sciensa) — a versão orquestrada
+- Fluxo `extrair_dna_visual` (Agent Studio) — a versão orquestrada

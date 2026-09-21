@@ -11,7 +11,7 @@ disco: `estado_do_agente` recalcula do zero a cada leitura. A fórmula vai mudar
 quando os primeiros números aparecerem, e recalcular do log é o que faz mudar a
 fórmula não apagar a história.
 
-O escopo é o projeto: um agente que aprendeu diagramação no overhaul da Tessera
+O escopo é o projeto: um agente que aprendeu diagramação num projeto
 começa do zero em outro projeto, porque lá ele é outro agente.
 """
 from __future__ import annotations
