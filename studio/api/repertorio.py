@@ -95,7 +95,8 @@ NATUREZAS: dict = {}
 # recusou formulário — "eu só quero digitar uma habilidade para eles aprenderem".
 NATUREZA_PADRAO = ""
 
-_MAX_TAGS = 8
+def _max_tags() -> int:
+    return regras.valor("habilidades.max_tags")
 
 
 def normalizar_tag(t: str) -> str:
@@ -163,7 +164,7 @@ def validar_tags(base: Path, tags, autor: str = "usuario") -> list:
         if de_agente and tg not in existentes:
             raise ValueError("agente nao cria tag: '%s' ainda nao existe no projeto" % tg)
         limpas.append(tg)
-    return limpas[:_MAX_TAGS]
+    return limpas[:_max_tags()]
 
 
 def renomear_tag(base: Path, de: str, para: str) -> int:
@@ -524,13 +525,15 @@ def visao(base: Path) -> dict:
 import re as _re
 
 # Palavras curtas demais casam com tudo e não dizem nada.
-_MIN_TERMO = 3
+def _min_termo() -> int:
+    return regras.valor("habilidades.min_termo_busca")
 # Armadilha pesa mais: é o que evita o erro, e é por isso que se consulta.
-_PESO_TAG = {"armadilha": 1.35, "padrao": 1.15}
+def _peso_tag() -> dict:
+    return regras.valor("habilidades.peso_da_tag")
 
 
 def _termos(texto: str) -> list[str]:
-    return [t for t in prog.slug(texto).split("-") if len(t) >= _MIN_TERMO]
+    return [t for t in prog.slug(texto).split("-") if len(t) >= _min_termo()]
 
 
 def buscar(base: Path, consulta: str, limite: int = 5) -> list[dict]:
@@ -562,8 +565,9 @@ def buscar(base: Path, consulta: str, limite: int = 5) -> list[dict]:
             nota += peso * sum(1 for t in alvo if t in termos)
         if nota <= 0:
             continue
+        pesos = _peso_tag()
         for _tg in (d.get("tags") or []):
-            nota *= _PESO_TAG.get(_tg, 1.0)
+            nota *= pesos.get(_tg, 1.0)
         achados.append({"chave": chave, "rotulo": d.get("rotulo", chave),
                         "especie": d.get("especie", ESPECIE_PADRAO),
                         "estado": d.get("estado", "broto"),

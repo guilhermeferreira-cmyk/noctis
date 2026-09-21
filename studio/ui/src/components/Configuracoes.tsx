@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GiPaintBucket, GiSkills, GiPadlock, GiLevelEndFlag, GiInfo, GiOpenFolder,
+import { GiPaintBucket, GiSkills, GiPadlock, GiLevelEndFlag, GiInfo, GiOpenFolder, GiFamilyTree,
          GiSettingsKnobs, GiStarsStack, GiSunrise, GiCrystalGrowth, GiScrollUnfurled } from 'react-icons/gi'
 import { api, type MemoryVocab, type ProjectMeta } from '../api'
 import { ConfigAparencia, type SecaoAparencia } from './ConfigAparencia'
 import { PainelRegras } from './PainelRegras'
+import { PainelTeses } from './PainelTeses'
 import { Switch } from './Switch'
 import { LogoNoctis } from './LogoNoctis'
 import { TFechar } from './shell/Tracos'
@@ -26,7 +27,7 @@ import { definirPreferencia, restaurarPreferencias, usePreferencias } from '../l
 type IdSecao =
   | 'sobre' | 'interface' | 'projetos'
   | 'tipos' | 'icones' | 'logo' | 'ceu' | 'aura'
-  | 'protocolo' | 'habilidades' | 'xp' | 'nocturn' | 'protecoes'
+  | 'protocolo' | 'habilidades' | 'perguntas' | 'xp' | 'organizacao-regras' | 'nocturn' | 'protecoes'
 
 type Secao = { id: IdSecao; rotulo: string; grupo: string; Icone: React.ComponentType<{ size?: number }>;
                chaves: string }
@@ -50,8 +51,12 @@ const SECOES: Secao[] = [
     chaves: 'protocolo prompt consultar registrar declarar habilidades instalar' },
   { id: 'habilidades', grupo: 'Agentes e aprendizado', rotulo: 'Habilidades', Icone: GiSkills,
     chaves: 'habilidade skill firmar broto fusão semelhança curadoria nativa' },
+  { id: 'perguntas', grupo: 'Agentes e aprendizado', rotulo: 'Perguntas e teses', Icone: GiScrollUnfurled,
+    chaves: 'pergunta tese escolha opção enquadramento descobrir habilidade frase documento' },
   { id: 'xp',         grupo: 'Agentes e aprendizado', rotulo: 'XP e níveis', Icone: GiLevelEndFlag,
     chaves: 'xp nível curva dificuldade bônus teto saturação' },
+  { id: 'organizacao-regras', grupo: 'Agentes e aprendizado', rotulo: 'Organização', Icone: GiFamilyTree,
+    chaves: 'organização papel maestro líder squad aviso cadeia comando cor' },
   { id: 'nocturn',    grupo: 'Agentes e aprendizado', rotulo: 'NOCTURN', Icone: GiInfo,
     chaves: 'nocturn supervisor ronda intervalo parado confirmação' },
   { id: 'protecoes',  grupo: 'Agentes e aprendizado', rotulo: 'Proteções', Icone: GiPadlock,
@@ -408,6 +413,9 @@ export function Configuracoes({ vocab, secaoInicial = 'interface', projetoAtual,
               )}
               {secao === 'protocolo' && <PainelRegras area="protocolo" />}
               {secao === 'habilidades' && <PainelRegras area="habilidades" mostrarProtocolo={false} />}
+              {secao === 'perguntas' && <PainelTeses />}
+              {secao === 'organizacao-regras' && <PainelRegras area="organizacao" mostrarProtocolo={false} />}
+      {secao === 'perguntas' && <PainelTeses />}
               {secao === 'xp' && <PainelRegras area="xp" mostrarProtocolo={false} />}
               {secao === 'nocturn' && <SecaoNocturn />}
               {secao === 'protecoes' && <PainelRegras area="protecoes" mostrarProtocolo={false} />}

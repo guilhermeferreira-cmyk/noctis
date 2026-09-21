@@ -28,14 +28,24 @@ import unicodedata
 from datetime import date
 from pathlib import Path
 
-PAPEIS = {
-    "maestro": {"label": "Maestro", "desc": "visão do todo: decompõe o objetivo e despacha",
-                "cor": "#a78bfa"},
-    "lider":   {"label": "Líder de squad", "desc": "manda no domínio dele e consolida o que sobe",
-                "cor": "#38bdf8"},
-    "agente":  {"label": "Agente", "desc": "executa com profundidade no que sabe fazer",
-                "cor": "#10b981"},
+_PAPEIS_BASE = {
+    "maestro": {"label": "Maestro", "desc": "visão do todo: decompõe o objetivo e despacha"},
+    "lider":   {"label": "Líder de squad", "desc": "manda no domínio dele e consolida o que sobe"},
+    "agente":  {"label": "Agente", "desc": "executa com profundidade no que sabe fazer"},
 }
+
+
+def papeis() -> dict:
+    """Os papéis com a cor que está valendo nas regras."""
+    import regras
+    try:
+        cores = regras.valor("organizacao.cores_dos_papeis")
+    except KeyError:
+        cores = {}
+    return {k: {**v, "cor": cores.get(k, "#71717a")} for k, v in _PAPEIS_BASE.items()}
+
+
+PAPEIS = _PAPEIS_BASE
 PAPEL_PADRAO = "agente"
 COR_PADRAO = "#38bdf8"
 ICONE_PADRAO = "GiFamilyTree"
@@ -244,7 +254,7 @@ def ler(base: Path) -> dict:
     soltos = [a for a in comuns if not a["squad"]]
     sem_squad_lider = [l for l in lideres if not l["squad"]]
     return {
-        "papeis": PAPEIS,
+        "papeis": papeis(),
         "maestros": maestros,
         "squads": squads,
         "soltos": soltos,
@@ -255,21 +265,30 @@ def ler(base: Path) -> dict:
 
 
 def _avisos(maestros, squads, soltos, lideres_sem_squad, total) -> list[str]:
+    import regras
+    try:
+        liga = regras.valor("organizacao.avisos")
+    except KeyError:
+        liga = {}
+
+    def on(chave: str) -> bool:
+        return liga.get(chave, True)
+
     avisos = []
-    if total and not maestros:
+    if on("sem_maestro") and total and not maestros:
         avisos.append("Nenhum Maestro: ninguém responde pela visão do todo neste projeto.")
-    if len(maestros) > 1:
+    if on("dois_maestros") and len(maestros) > 1:
         avisos.append(f"{len(maestros)} Maestros — dois donos do todo costumam virar dois planos.")
     for s in squads:
-        if not s["lider"] and len(s["membros"]) > 2:
+        if on("squad_sem_lider") and not s["lider"] and len(s["membros"]) > 2:
             avisos.append(f'A squad "{s["nome"]}" tem {len(s["membros"])} agentes e nenhum líder.')
-        if not s["lider"] and not s["membros"]:
+        if on("squad_vazia") and not s["lider"] and not s["membros"]:
             avisos.append(f'A squad "{s["nome"]}" está vazia.')
-        if s["lider"] and not s["membros"]:
+        if on("squad_vazia") and s["lider"] and not s["membros"]:
             avisos.append(f'"{s["lider"]["titulo"]}" lidera a squad "{s["nome"]}", que está vazia.')
-    for l in lideres_sem_squad:
+    for l in (lideres_sem_squad if on("lider_sem_squad") else []):
         avisos.append(f'"{l["titulo"]}" é líder sem squad: diga qual domínio ele lidera.')
-    if soltos and squads:
+    if on("fora_de_squad") and soltos and squads:
         avisos.append(f"{len(soltos)} agente(s) fora de squad — falam direto com o Maestro.")
     return avisos
 

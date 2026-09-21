@@ -97,6 +97,9 @@ def propor_hipotese(base: Path, dados: dict) -> dict:
     tipo = str(p.get("tipo") or "bool")
     if tipo not in TIPOS_PERGUNTA:
         raise ValueError(f"tipo de pergunta inválido: {tipo!r}")
+    if not regras.valor("aprendizado.tipos_de_pergunta").get(tipo, True):
+        raise ValueError(
+            f"o formato {tipo!r} está desligado nas regras do Noctis — use outro")
     ptexto = str(p.get("texto") or "").strip()
     if not ptexto:
         raise ValueError("hipótese sem pergunta: diga o que perguntar para resolvê-la")
@@ -218,8 +221,10 @@ def confianca(evidencias: int, confirmacoes: int, refutacoes: int) -> float:
     mais informativo do que sustentar, e o sistema deve desconfiar rápido.
     Nunca chega a 1: nada aqui é verdade, só probabilidade.
     """
-    return round(_lim(0.20 + 0.06 * min(evidencias, 6)
-                      + 0.20 * confirmacoes - 0.30 * refutacoes, 0.02, 0.95), 2)
+    w = regras.valor("aprendizado.pesos_da_confianca")
+    return round(_lim(w["base"] + w["por_evidencia"] * min(evidencias, 6)
+                      + w["por_confirmacao"] * confirmacoes
+                      - w["por_refutacao"] * refutacoes, 0.02, 0.95), 2)
 
 
 def estado(base: Path) -> dict:
@@ -284,7 +289,8 @@ def estado(base: Path) -> dict:
         "aprendizados": aprendizados,
         "tiposPergunta": TIPOS_PERGUNTA,
         "vereditos": list(VEREDITOS),
-        "escopos": list(ESCOPOS),
+        "escopos": [e for e in ESCOPOS
+                    if regras.valor("aprendizado.escopos").get(e, True)],
         "promoverEm": regras.valor("aprendizado.confianca_para_promover"),
         "evidenciasMinimas": regras.valor("aprendizado.evidencias_minimas"),
     }

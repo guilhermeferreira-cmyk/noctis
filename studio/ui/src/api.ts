@@ -443,7 +443,7 @@ export interface ControleView {
 export interface Regra {
   id: string
   area: string
-  tipo: 'bool' | 'int' | 'float' | 'mapa' | 'curva'
+  tipo: 'bool' | 'int' | 'float' | 'mapa' | 'curva' | 'flags' | 'cores' | 'perguntas'
   titulo: string
   faz: string
   porque: string
@@ -476,6 +476,21 @@ export interface SkillsView {
 }
 
 export interface TagSkill { tag: string; usos: number; solta: boolean }
+
+/** Uma pergunta de enquadramento como ela é editada em Configurações. */
+export interface PerguntaTese {
+  campo: string
+  titulo: string
+  tipo: 'bool' | 'radio' | 'multi'
+  texto: string
+  opcoes: string[]
+  /** Como a escolha aparece no documento que os agentes leem. */
+  frase: string
+  /** Quantas habilidades marcaram cada tese — tese com 0 é tese ruim. */
+  usos?: Record<string, number>
+  respondidaPor: number
+  dispensadaPor: number
+}
 
 // ── A organização ───────────────────────────────────────────────────────────
 // A cadeia mora nos yaml dos agentes (papel, squad). Sem índice à parte: índice
@@ -842,6 +857,7 @@ export const api = {
 
   // O vocabulário de tags: ler, fundir (renomear para uma que já existe) e tirar.
   tagsSkills:     () => req<{ tags: TagSkill[] }>('GET', `${px()}/skills-tags`),
+  teses:          () => req<{ perguntas: PerguntaTese[]; habilidades: number }>('GET', `${px()}/teses`),
 
   organizacao:    () => req<Organizacao>('GET', `${px()}/organizacao`),
   definirOrganizacao: (nome: string, patch: { papel?: string; squad?: string; reporta_a?: string }) =>

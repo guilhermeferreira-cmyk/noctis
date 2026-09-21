@@ -2698,6 +2698,8 @@ def confirmar_evento(project: str, evento_id: str, data: dict | None = None):
     por = str((data or {}).get("por") or "").strip() or "usuario"
     try:
         return {"ok": True, "confirmacao": prog.confirmar_evento(base, evento_id, por)}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
     except KeyError:
         raise HTTPException(404, f"evento '{evento_id}' não encontrado")
 
@@ -2863,6 +2865,29 @@ def criar_skill(project: str, data: dict):
 # ── O loop de aprendizado ────────────────────────────────────────────────────
 # observação → hipótese → pergunta → sua resposta → aprendizado. O agente
 # escreve só os dois primeiros; o aprendizado nasce da resposta da pessoa.
+
+@app.get("/api/projects/{project}/teses")
+def ler_teses(project: str):
+    """Cada pergunta com quantas habilidades marcaram cada tese.
+
+    Tese que ninguém nunca marca é tese ruim — ou está mal escrita, ou não
+    descreve trabalho real. O painel mostra isso para você reescrever ou cortar,
+    em vez de a lista crescer para sempre.
+    """
+    base = project_base(project)
+    skills = rep.carregar(base)
+    perguntas = enq._perguntas()
+    saida = []
+    for p in perguntas:
+        respostas = [d.get("enquadramento", {}).get(p["campo"]) for d in skills.values()]
+        marcadas = [r for r in respostas if isinstance(r, list)]
+        contagem = {o: sum(1 for r in marcadas if o in r) for o in p["opcoes"]}
+        saida.append({**p,
+                      "respondidaPor": len(marcadas),
+                      "dispensadaPor": sum(1 for r in marcadas if not r),
+                      "usos": contagem})
+    return {"perguntas": saida, "habilidades": len(skills)}
+
 
 @app.get("/api/projects/{project}/enquadramento")
 def ler_enquadramento(project: str):

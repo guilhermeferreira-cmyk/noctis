@@ -59,6 +59,43 @@ function Controle({ r, onSalvar }: { r: Regra; onSalvar: (v: unknown) => void })
     return <Numero valor={r.valor as number} min={r.min} max={r.max} passo={r.passo}
       onSalvar={n => onSalvar(n)} />
   }
+  // Liga/desliga em lote: cada chave é uma coisa que o Noctis faz ou cobra.
+  if (r.tipo === 'flags') {
+    const m = r.valor as Record<string, boolean>
+    return (
+      <div className="flex flex-col gap-1.5 items-end">
+        {Object.entries(m).map(([k, on]) => (
+          <label key={k} className="flex items-center gap-2 text-[11px] text-gray-400">
+            {k.replace(/_/g, ' ')}
+            <Switch ligado={on} cor="#38bdf8" onMudar={v => onSalvar({ ...m, [k]: v })} />
+          </label>
+        ))}
+      </div>
+    )
+  }
+  if (r.tipo === 'cores') {
+    const m = r.valor as Record<string, string>
+    return (
+      <div className="flex items-center gap-3">
+        {Object.entries(m).map(([k, cor]) => (
+          <label key={k} className="flex items-center gap-1.5 text-[11px] text-gray-400" title={k}>
+            {k}
+            <input type="color" value={cor} onChange={e => onSalvar({ ...m, [k]: e.target.value })}
+              className="w-6 h-6 bg-transparent border border-gray-700 rounded cursor-pointer" />
+          </label>
+        ))}
+      </div>
+    )
+  }
+  // A lista de perguntas tem editor próprio, em Configurações › Perguntas e teses.
+  if (r.tipo === 'perguntas') {
+    const n = (r.valor as unknown[])?.length ?? 0
+    return (
+      <span className="text-[11px] text-gray-500">
+        {n} pergunta{n !== 1 ? 's' : ''} · edite em Perguntas e teses
+      </span>
+    )
+  }
   if (r.tipo === 'mapa') {
     const m = r.valor as Record<string, number>
     return (

@@ -275,13 +275,18 @@ def relatorio(raiz: Path, projetos: list[tuple[str, Path]]) -> dict:
 
     peso = {"alta": 0, "media": 1, "baixa": 2}
     todos.sort(key=lambda a: (peso.get(a.get("urgencia", "baixa"), 3), a.get("projeto", "")))
+    # Ronda desligada nas regras não gera achado nem aba: num projeto onde a
+    # memória é intocada, a ronda de memória só produz pendência que ninguém
+    # vai resolver — e pendência eterna faz o supervisor ser ignorado.
+    ligadas = regras.valor("nocturn.rondas")
+    todos = [a for a in todos if ligadas.get(a.get("ronda"), True)]
     return {
         "quando": agora(),
         "projetos": por_projeto,
         "achados": todos,
         "rondas": [{"id": i, "rotulo": r, "desc": d,
                     "total": sum(1 for a in todos if a.get("ronda") == i)}
-                   for i, r, d in RONDAS],
+                   for i, r, d in RONDAS if ligadas.get(i, True)],
         "resumo": {
             "semDescricao": sum(1 for a in todos if a["tipo"] == "skill_sem_descricao"),
             "semConfirmacao": sum(1 for a in todos if a["tipo"] == "sem_confirmacao"),

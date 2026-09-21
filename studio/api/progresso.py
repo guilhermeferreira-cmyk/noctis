@@ -48,7 +48,7 @@ TETO_POR_EVENTO = 180
 # A partir do 4º evento da mesma habilidade no mesmo dia, ela rende metade:
 # repetir a mesma coisa dez vezes num dia não é aprender dez vezes.
 SATURACAO_DIARIA = 3
-FATOR_SATURADO = 0.5
+# O fator do trabalho repetido mora nas regras (xp.fator_saturado).
 
 # Curvas. `xp_do_nivel(n) = base * n^expo` — o degrau fica mais caro a cada
 # nível, então não há teto e ainda assim 40 entregas parecem diferentes de 4.
@@ -193,8 +193,19 @@ def confirmar_evento(base: Path, evento_id: str, por: str) -> dict:
     O log é append-only: reescrever um evento para marcá-lo confirmado destruiria
     a auditoria, que é justamente o que dá peso ao número.
     """
-    if not any(e.get("id") == evento_id for e in ler_log(base) if e.get("registro") == "evento"):
+    ev = next((e for e in ler_log(base)
+               if e.get("registro") == "evento" and e.get("id") == evento_id), None)
+    if not ev:
         raise KeyError(evento_id)
+    quem = (por or "").strip()
+    # Ninguém confirma o próprio trabalho. Com o bônus de despacho cumprido,
+    # autoconfirmação virou caminho para inflar XP — e confirmação que o próprio
+    # autor assina não prova nada.
+    if quem and quem == ev.get("agente"):
+        raise PermissionError("ninguém confirma o próprio trabalho")
+    if regras.valor("xp.confirmacao_so_do_dono") and quem not in ("usuario", ""):
+        raise PermissionError(
+            "só você confirma entrega — a regra está em Configurações › XP e níveis")
     return _anexar(base, {"id": "cfm_" + uuid.uuid4().hex[:12], "quando": agora(),
                           "registro": "confirmacao", "evento": evento_id,
                           "por": (por or "").strip()[:120]})
@@ -370,7 +381,8 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
             for chave, _, _ in alvos:
                 k = (nome, chave, _dia(ev.get("quando", "")))
                 por_dia[k] = por_dia.get(k, 0) + 1
-                f = FATOR_SATURADO if por_dia[k] > regras.valor("xp.saturacao_diaria") else 1.0
+                f = (regras.valor("xp.fator_saturado")
+                     if por_dia[k] > regras.valor("xp.saturacao_diaria") else 1.0)
                 h = hab[chave]
                 h["xp"] += fatia * f
                 h["eventos"] += 1

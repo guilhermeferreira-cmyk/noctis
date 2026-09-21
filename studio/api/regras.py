@@ -41,7 +41,9 @@ AREAS = [
     ("protocolo",   "Protocolo dos agentes", "o que todo agente é obrigado a fazer, e em que momento"),
     ("habilidades", "Habilidades",           "como uma habilidade nasce, se funde e quem pode mexer nela"),
     ("xp",          "XP e níveis",           "quanto cada trabalho vale e quanto custa subir de nível"),
+    ("perguntas",   "Perguntas e teses",     "o que o Noctis pergunta para descobrir o que uma habilidade é"),
     ("aprendizado", "Aprendizado",           "como uma hipótese do agente vira conhecimento validado por você"),
+    ("organizacao", "Organização",           "os papéis da cadeia de comando e o que a vista cobra de você"),
     ("nocturn",     "Supervisão",            "o que o NOCTURN cobra, e a partir de quando"),
     ("protecoes",   "Proteções",             "o que o Noctis nunca deixa acontecer"),
 ]
@@ -98,6 +100,25 @@ CATALOGO: list[dict] = [
      "faz": "Descrição editada por você fica marcada como curada; escrita de agente sobre ela é ignorada. Texto de agente pode ser melhorado por outro agente.",
      "porque": "Curadoria não pode ser desfeita por um despacho.",
      "onde": ["servidor"]},
+    {"id": "habilidades.max_tags", "area": "habilidades", "tipo": "int", "padrao": 8,
+     "min": 1, "max": 20,
+     "titulo": "Máximo de tags por habilidade",
+     "faz": "Tags além deste número são cortadas ao salvar.",
+     "porque": "Habilidade com dez tags não está agrupada em lugar nenhum — está em todos, o que é o mesmo que em nenhum.",
+     "onde": ["servidor"]},
+    {"id": "habilidades.peso_da_tag", "area": "habilidades", "tipo": "mapa",
+     "padrao": {"armadilha": 1.35, "padrao": 1.15},
+     "min": 0.5, "max": 3.0, "passo": 0.05,
+     "titulo": "Peso de cada tag na consulta",
+     "faz": "Multiplica a nota da habilidade na busca quando ela tem aquela tag.",
+     "porque": "Armadilha pesa mais porque é o que evita o erro — é por isso que se consulta antes de começar.",
+     "onde": ["servidor"]},
+    {"id": "habilidades.min_termo_busca", "area": "habilidades", "tipo": "int", "padrao": 3,
+     "min": 2, "max": 6,
+     "titulo": "Tamanho mínimo do termo de busca",
+     "faz": "Palavras menores que isto são ignoradas na consulta.",
+     "porque": "Palavra de duas letras casa com tudo e não diz nada — traria o repertório inteiro como resposta.",
+     "onde": ["servidor"]},
     {"id": "habilidades.skills_nativas_intocaveis", "area": "habilidades", "tipo": "bool", "padrao": True,
      "fixa": True,
      "titulo": "Agentes só mexem em skills criadas pelo Noctis",
@@ -105,6 +126,54 @@ CATALOGO: list[dict] = [
      "porque": "O Noctis não pode sobrescrever ferramenta que não é dele. Decisão de 18/09.",
      "onde": ["protocolo"],
      "estado": "valerá integralmente quando a exportação para SKILL.md existir; hoje o Noctis não escreve em pasta de skill nenhuma"},
+
+    # ── Perguntas e teses ─────────────────────────────────────────────────────
+    # A lista inteira é editável: acrescentar pergunta, reescrever tese, mudar a
+    # ordem. O `campo` é a identidade da pergunta — mudá-lo faz o Noctis perguntar
+    # de novo, porque as respostas antigas estão guardadas por ele.
+    {"id": "perguntas.habilidade", "area": "perguntas", "tipo": "perguntas",
+     "padrao": [
+         {"campo": "momento", "titulo": "Quando entra", "tipo": "multi",
+          "texto": "Em que momento do trabalho esta habilidade entra?",
+          "opcoes": ["Antes de começar, para decidir o caminho",
+                     "Durante a execução, a cada passo",
+                     "Ao fechar, antes de entregar",
+                     "Quando algo deu errado",
+                     "Só quando alguém pede"],
+          "frase": "Entra {escolhas}."},
+         {"campo": "tem_passos", "titulo": "Tem passo a passo", "tipo": "bool",
+          "texto": "Isto se faz seguindo uma sequência fixa de passos?",
+          "opcoes": ["Sim, tem sequência fixa", "Não, depende do caso"],
+          "frase": "{escolhas}."},
+         {"campo": "erro_tipico", "titulo": "Onde se erra", "tipo": "multi",
+          "texto": "Como se erra nisto, normalmente?",
+          "opcoes": ["Acreditando no que o código ou o documento declara, sem medir",
+                     "Pulando a verificação por pressa",
+                     "Copiando de um caso anterior sem conferir se cabe",
+                     "Decidindo sem consultar o que o projeto já aprendeu",
+                     "Tratando exceção como regra",
+                     "Parando no primeiro resultado que parece bom"],
+          "frase": "Erra-se {escolhas}."},
+         {"campo": "prova", "titulo": "Como se prova", "tipo": "multi",
+          "texto": "O que prova que ficou bom?",
+          "opcoes": ["Uma medida no artefato final, não no código-fonte",
+                     "Comparação com um alvo declarado antes",
+                     "Revisão de outro agente",
+                     "Teste automatizado passando",
+                     "Aprovação sua, e só ela"],
+          "frase": "Está pronto quando existe {escolhas}."},
+         {"campo": "julgamento", "titulo": "O que pesa no julgamento", "tipo": "radio",
+          "texto": "Acertar isto depende mais de quê?",
+          "opcoes": ["Seguir o procedimento com disciplina",
+                     "Sensibilidade que se apura com os casos",
+                     "Conhecer o contexto do projeto",
+                     "Domínio de uma ferramenta"],
+          "frase": "Acertar depende de {escolhas}."},
+     ],
+     "titulo": "As perguntas que descobrem o que uma habilidade é",
+     "faz": "A fila que aparece em Aprender e na doca da habilidade. Cada pergunta é uma tese ou um conjunto de teses, respondida por escolha — bool, radio ou múltipla. A `frase` é como a escolha aparece no documento que os agentes leem.",
+     "porque": "São perguntas fechadas para a resposta poder ser COMPARADA entre habilidades e projetos: cinco habilidades marcando a mesma tese são um padrão; cinco frases digitadas são cinco strings. E a lista é sua porque ela define o que o Noctis entende por habilidade.",
+     "onde": ["servidor"]},
 
     # ── Aprendizado ───────────────────────────────────────────────────────────
     {"id": "aprendizado.evidencias_minimas", "area": "aprendizado", "tipo": "int", "padrao": 2,
@@ -119,6 +188,25 @@ CATALOGO: list[dict] = [
      "faz": "Abaixo desta confiança o aprendizado aparece marcado como frágil e pede mais evidência antes de ser injetado nos despachos.",
      "porque": "Aprendizado fraco tratado como certo é pior do que aprendizado nenhum: ele desloca a decisão sem aviso.",
      "onde": ["servidor", "nocturn"]},
+    {"id": "aprendizado.pesos_da_confianca", "area": "aprendizado", "tipo": "mapa",
+     "padrao": {"base": 0.20, "por_evidencia": 0.06, "por_confirmacao": 0.20, "por_refutacao": 0.30},
+     "min": 0.0, "max": 1.0, "passo": 0.01,
+     "titulo": "Como a confiança de uma hipótese é calculada",
+     "faz": "confiança = base + por_evidencia × observações (até 6) + por_confirmacao × confirmações − por_refutacao × refutações, limitada entre 0,02 e 0,95.",
+     "porque": "Evidência conta pouco (ver junto não é causa), confirmação conta muito, e refutação conta mais ainda: derrubar é mais informativo do que sustentar, e o sistema deve desconfiar rápido. Nunca chega a 1 porque nada aqui é verdade, só probabilidade.",
+     "onde": ["servidor"]},
+    {"id": "aprendizado.tipos_de_pergunta", "area": "aprendizado", "tipo": "flags",
+     "padrao": {"bool": True, "escolha": True, "multi": True, "escala": True},
+     "titulo": "Formatos de pergunta que o agente pode propor",
+     "faz": "Desligar um formato faz a API recusar hipótese que o use.",
+     "porque": "Escala rende número e pouca causa; se ela virar o formato preferido dos agentes, você responde mais e aprende menos.",
+     "onde": ["servidor", "protocolo"]},
+    {"id": "aprendizado.escopos", "area": "aprendizado", "tipo": "flags",
+     "padrao": {"agente": True, "projeto": True, "global": True},
+     "titulo": "Até onde um aprendizado pode valer",
+     "faz": "Os escopos disponíveis ao validar: só para um agente, para o projeto, ou global entre projetos.",
+     "porque": "Aprendizado global atravessa projeto e é o mais perigoso de errar; desligá-lo obriga tudo a ficar no escopo do projeto.",
+     "onde": ["servidor"]},
     {"id": "aprendizado.no_protocolo", "area": "aprendizado", "tipo": "bool", "padrao": True,
      "titulo": "Pedir observação e hipótese aos agentes",
      "faz": "O protocolo instrui o agente a registrar o que observou nos domínios e a propor hipótese quando houver evidência bastante — e a citar qual aprendizado aplicou ao fechar o trabalho.",
@@ -140,6 +228,11 @@ CATALOGO: list[dict] = [
      "faz": "O ponto de partida de cada registro, antes dos multiplicadores. `despacho`, `resposta` e `consolidacao` são o trabalho de quem coordena: delegar, responder ao dono e consolidar o que a squad produziu.",
      "porque": "Coordenar é trabalho e não aparecia em lugar nenhum: Maestro e líderes ficavam no nível 1 para sempre, como se não fizessem nada. A base é baixa de propósito — quem coordena sobe pelo BÔNUS de o despacho dar certo, não por despachar muito.",
      "onde": ["servidor"]},
+    {"id": "xp.confirmacao_so_do_dono", "area": "xp", "tipo": "bool", "padrao": True,
+     "titulo": "Só você confirma entrega",
+     "faz": "A confirmação de trabalho é recusada a qualquer agente. Autoconfirmação é recusada sempre, mesmo com esta regra desligada.",
+     "porque": "Confirmação vale XP — e, desde que o despacho cumprido dá bônus, dois agentes poderiam confirmar um ao outro e inflar os dois. A prova de que o trabalho serviu é sua.",
+     "onde": ["servidor", "cli"]},
     {"id": "xp.mult_despacho_cumprido", "area": "xp", "tipo": "float", "padrao": 1.8,
      "min": 1.0, "max": 4.0, "passo": 0.1,
      "titulo": "Bônus quando o despacho vira entrega confirmada",
@@ -172,6 +265,17 @@ CATALOGO: list[dict] = [
      "faz": "A partir do registro seguinte a este número, a mesma habilidade no mesmo dia rende metade.",
      "porque": "Repetir a mesma coisa dez vezes num dia não é aprender dez vezes.",
      "onde": ["servidor"]},
+    {"id": "xp.fator_saturado", "area": "xp", "tipo": "float", "padrao": 0.5,
+     "min": 0.0, "max": 1.0, "passo": 0.05,
+     "titulo": "Quanto vale o trabalho repetido no mesmo dia",
+     "faz": "Depois da saturação diária, cada novo registro na mesma habilidade vale este fator do normal.",
+     "porque": "Cortar para zero puniria o dia produtivo de verdade; manter cheio premiaria picar o mesmo trabalho em dez registros.",
+     "onde": ["servidor"]},
+    {"id": "protocolo.cobrar_habilidade", "area": "protocolo", "tipo": "bool", "padrao": True,
+     "titulo": "Cobrar habilidade ao fechar entrega",
+     "faz": "O comando avisa quando entrega, output ou correção são registrados sem dizer qual habilidade foi exercitada.",
+     "porque": "É a cobrança mais barata do sistema: uma linha no terminal, no momento em que a pessoa ainda lembra o que fez.",
+     "onde": ["cli"]},
     {"id": "xp.curva_agente", "area": "xp", "tipo": "curva", "padrao": [100.0, 1.7],
      "titulo": "Curva de nível do agente",
      "faz": "XP acumulado para o nível n = base × n^expoente. Não há nível máximo.",
@@ -193,6 +297,29 @@ CATALOGO: list[dict] = [
      "titulo": "Dias até cobrar confirmação",
      "faz": "Entrega sem confirmação há mais que isto vira achado na ronda.",
      "porque": "Entrega que ninguém revisa fica sem o bônus e sem revisor.",
+     "onde": ["nocturn"]},
+
+    # ── Organização ───────────────────────────────────────────────────────────
+    {"id": "organizacao.cores_dos_papeis", "area": "organizacao", "tipo": "cores",
+     "padrao": {"maestro": "#a78bfa", "lider": "#38bdf8", "agente": "#10b981"},
+     "titulo": "Cor de cada papel",
+     "faz": "A cor da borda e do rótulo no card da vista de Organização.",
+     "porque": "Bater o olho no organograma e saber quem coordena e quem executa, sem ler.",
+     "onde": ["servidor"]},
+    {"id": "organizacao.avisos", "area": "organizacao", "tipo": "flags",
+     "padrao": {"sem_maestro": True, "dois_maestros": True, "squad_sem_lider": True,
+                "squad_vazia": True, "lider_sem_squad": True, "fora_de_squad": True},
+     "titulo": "O que a vista de Organização cobra",
+     "faz": "Cada aviso no rodapé da vista: sem Maestro, dois Maestros, squad sem líder, squad vazia, líder sem squad, agentes fora de squad.",
+     "porque": "Aviso que você já decidiu ignorar vira ruído, e ruído faz você parar de ler o rodapé inteiro.",
+     "onde": ["servidor"]},
+
+    # ── Supervisão ────────────────────────────────────────────────────────────
+    {"id": "nocturn.rondas", "area": "nocturn", "tipo": "flags",
+     "padrao": {"vocabulario": True, "trabalho": True, "agentes": True, "memoria": True},
+     "titulo": "Quais rondas o NOCTURN faz",
+     "faz": "Desligar uma ronda tira a aba dela e para de gerar achados daquele tipo.",
+     "porque": "Num projeto onde a memória é intocada, a ronda de memória só produz pendência que nunca vai ser resolvida.",
      "onde": ["nocturn"]},
 
     # ── Proteções ─────────────────────────────────────────────────────────────
@@ -244,7 +371,9 @@ def valor(rid: str):
     salvo = _valores_salvos().get(rid)
     if salvo is None:
         return r["padrao"]
-    if r["tipo"] == "mapa":
+    if r["tipo"] in ("mapa", "flags", "cores"):
+        # Mapa salvo é complemento, não substituição: chave nova que eu
+        # acrescentar no código aparece com o padrão dela, em vez de faltar.
         return {**r["padrao"], **salvo}
     return salvo
 
@@ -264,6 +393,47 @@ def _validar(r: dict, v):
             if k in v:
                 n = float(v[k])
                 out[k] = max(r.get("min", n), min(r.get("max", n), n))
+        return out
+    if t == "flags":
+        if not isinstance(v, dict):
+            raise ValueError("esperado um mapa de liga/desliga")
+        return {k: bool(v[k]) for k in r["padrao"] if k in v}
+    if t == "cores":
+        if not isinstance(v, dict):
+            raise ValueError("esperado um mapa de cores")
+        out = {}
+        for k in r["padrao"]:
+            if k in v:
+                cor = str(v[k]).strip()[:9]
+                if not cor.startswith("#"):
+                    raise ValueError(f"cor inválida em {k}: {cor!r}")
+                out[k] = cor
+        return out
+    if t == "perguntas":
+        if not isinstance(v, list) or not v:
+            raise ValueError("a lista de perguntas não pode ficar vazia")
+        vistos, out = set(), []
+        for item in v[:20]:
+            if not isinstance(item, dict):
+                raise ValueError("cada pergunta é um objeto")
+            campo = str(item.get("campo") or "").strip()[:40]
+            texto = str(item.get("texto") or "").strip()[:300]
+            tipo = str(item.get("tipo") or "multi")
+            opcoes = [str(o).strip()[:160] for o in (item.get("opcoes") or []) if str(o).strip()][:12]
+            if not campo:
+                raise ValueError("pergunta sem `campo` — ele é a identidade dela")
+            if campo in vistos:
+                raise ValueError(f"campo repetido: {campo!r}")
+            if not texto:
+                raise ValueError(f"a pergunta {campo!r} está sem texto")
+            if tipo not in ("bool", "radio", "multi"):
+                raise ValueError(f"tipo de pergunta inválido em {campo!r}: {tipo!r}")
+            if len(opcoes) < 2:
+                raise ValueError(f"a pergunta {campo!r} precisa de pelo menos duas teses")
+            vistos.add(campo)
+            out.append({"campo": campo, "titulo": str(item.get("titulo") or campo)[:60],
+                        "tipo": tipo, "texto": texto, "opcoes": opcoes,
+                        "frase": str(item.get("frase") or "{escolhas}.")[:200]})
         return out
     if t == "curva":
         base, expo = float(v[0]), float(v[1])

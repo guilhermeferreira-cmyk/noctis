@@ -41,6 +41,23 @@ TIPOS = ["entrega", "output", "correcao", "revisao", "memoria", "decisao",
          "despacho", "resposta", "consolidacao", "retrabalho"]
 
 
+def _regra(rid: str, padrao):
+    """Le uma regra do Noctis. Servidor fora do ar: vale o padrao, sem travar."""
+    try:
+        with urllib.request.urlopen(f"{API}/api/regras", timeout=4) as r:
+            for reg in json.loads(r.read().decode("utf-8"))["regras"]:
+                if reg["id"] == rid:
+                    return reg["valor"]
+    except Exception:
+        pass
+    return padrao
+
+
+def _cobrar_habilidade() -> bool:
+    """A cobranca do fim do registro e uma REGRA do Noctis, nao do comando."""
+    return bool(_regra("protocolo.cobrar_habilidade", True))
+
+
 def _slug(texto: str) -> str:
     """O mesmo slug do servidor, para o agente poder digitar o nome do dominio."""
     import re
@@ -294,7 +311,7 @@ def main() -> int:
         print(f"xp: Noctis fora do ar em {API} ({e}) — evento não registrado", file=sys.stderr)
         return 1
 
-    if a.tipo in ("entrega", "output", "correcao") and not skills:
+    if a.tipo in ("entrega", "output", "correcao") and not skills and _cobrar_habilidade():
         print("   nenhuma habilidade declarada — o que este trabalho deixou para o proximo?")
 
     # O CLI cobra na hora as duas escritas que só quem trabalhou sabe fazer.

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import regras
 import repertorio as rep
 
 NENHUMA = "nenhuma delas"
@@ -33,7 +34,11 @@ NENHUMA = "nenhuma delas"
 # As opções são genéricas de propósito: descrevem FORMAS de trabalho, e não o
 # conteúdo de um projeto. Tese que cita cliente, arquivo ou ferramenta viraria
 # exatamente o que ele recusou nas habilidades — específico demais para reusar.
-PERGUNTAS = [
+# As perguntas vivem no REGISTRO DE REGRAS (`perguntas.habilidade`), editáveis
+# em Configurações › Perguntas e teses. O que está abaixo é só o valor de fábrica
+# — `_perguntas()` lê o que está valendo agora, então mudar uma tese no painel
+# muda a pergunta seguinte, sem reiniciar nada.
+PADRAO_FABRICA = [
     {
         "campo": "momento", "titulo": "Quando entra", "tipo": "multi",
         "texto": "Em que momento do trabalho esta habilidade entra?",
@@ -89,7 +94,15 @@ PERGUNTAS = [
         "frase": "Acertar depende de {escolhas}.",
     },
 ]
-POR_CAMPO = {p["campo"]: p for p in PERGUNTAS}
+def _perguntas() -> list[dict]:
+    try:
+        return regras.valor("perguntas.habilidade") or PADRAO_FABRICA
+    except KeyError:
+        return PADRAO_FABRICA
+
+
+def _por_campo() -> dict:
+    return {p["campo"]: p for p in _perguntas()}
 
 
 def _resp(d: dict, campo: str):
@@ -103,7 +116,7 @@ def perguntas(base: Path) -> list[dict]:
         if d.get("estado") == "arquivada":
             continue
         rotulo = d.get("rotulo") or chave
-        for p in PERGUNTAS:
+        for p in _perguntas():
             if _resp(d, p["campo"]) is None:
                 out.append({
                     "id": f"enq:{chave}:{p['campo']}",
@@ -111,8 +124,8 @@ def perguntas(base: Path) -> list[dict]:
                     "rotuloSkill": rotulo, "titulo": p["titulo"],
                     "pergunta": {"tipo": p["tipo"], "texto": f"{rotulo} — {p['texto']}",
                                  "opcoes": [*p["opcoes"], NENHUMA]},
-                    "restantes": sum(1 for q in PERGUNTAS if _resp(d, q["campo"]) is None),
-                    "total": len(PERGUNTAS),
+                    "restantes": sum(1 for q in _perguntas() if _resp(d, q["campo"]) is None),
+                    "total": len(_perguntas()),
                 })
                 break
     return out
@@ -128,7 +141,7 @@ def responder(base: Path, chave: str, campo: str, escolhas, autor: str = "usuari
     d = rep.carregar(base).get(chave)
     if not d:
         raise KeyError(chave)
-    p = POR_CAMPO.get(campo)
+    p = _por_campo().get(campo)
     if not p:
         raise ValueError(f"campo desconhecido: {campo!r}")
 
@@ -163,7 +176,7 @@ def corpo_de(d: dict) -> str:
     """
     enq = d.get("enquadramento") or {}
     linhas: list[str] = []
-    for p in PERGUNTAS:
+    for p in _perguntas():
         v = enq.get(p["campo"])
         if not v:
             continue
@@ -172,9 +185,9 @@ def corpo_de(d: dict) -> str:
 
 
 def completude(d: dict) -> dict:
-    respondidos = sum(1 for p in PERGUNTAS if _resp(d, p["campo"]) is not None)
-    return {"respondidos": respondidos, "total": len(PERGUNTAS),
-            "completa": respondidos >= len(PERGUNTAS)}
+    respondidos = sum(1 for p in _perguntas() if _resp(d, p["campo"]) is not None)
+    return {"respondidos": respondidos, "total": len(_perguntas()),
+            "completa": respondidos >= len(_perguntas())}
 
 
 def estado(base: Path) -> dict:
@@ -184,4 +197,4 @@ def estado(base: Path) -> dict:
     return {"perguntas": abertas, "incompletas": len(incompletas),
             "prontas": len([c for c in todas if c not in incompletas]),
             "campos": [{"id": p["campo"], "titulo": p["titulo"], "tipo": p["tipo"]}
-                       for p in PERGUNTAS]}
+                       for p in _perguntas()]}
