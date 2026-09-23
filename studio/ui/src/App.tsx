@@ -52,7 +52,7 @@ import type { MemoryVocab, ResourceKind } from './api'
  * que se trabalha junto fica aberto junto.
  */
 
-type Pagina = 'visao' | 'estado' | 'tasks' | 'artifacts' | 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
+type Pagina = 'visao' | 'estado' | 'midias' | 'tasks' | 'artifacts' | 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
 
 type Aba =
   | { id: string; tipo: 'pagina'; pagina: Pagina }
@@ -82,6 +82,8 @@ const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType
   // O estado declarado da frente. É do Diem porque é lá que o playbook tem
   // fase e gate; no Noctis o estado de um projeto é o acervo dele.
   { id: 'estado',   label: 'Estado', icon: GiSkills, color: '#22d3ee', hubs: ['diem'] },
+  // O catálogo de formatos. Só no Diem: é onde a peça é produzida.
+  { id: 'midias',   label: 'Mídias', kind: 'midia', hubs: ['diem'] },
   { id: 'tasks',    label: 'Tarefas', kind: 'task' },
   { id: 'artifacts', label: 'Peças',  kind: 'artifact', hubs: ['diem'] },
   { id: 'agents',   label: 'Agentes',  kind: 'agent' },
@@ -567,6 +569,7 @@ export default function App() {
       case 'flows':    return <FlowsPage key={scope} />
       case 'personas': return <PersonasPage key={scope} />
       case 'estado':   return <EstadoPage key={scope} />
+      case 'midias':   return <ProducaoPage key={scope} kind="midia" />
       case 'tasks':    return <ProducaoPage key={scope} kind="task" />
       case 'artifacts': return <ProducaoPage key={scope} kind="artifact" />
       case 'memory':   return <MemoryPage key={scope} />

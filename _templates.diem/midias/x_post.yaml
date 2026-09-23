@@ -1,0 +1,12 @@
+id: x_post
+canal: X
+formato: Post
+nome: X — Post
+quando_usar: Reação rápida, recorte de dado, link. Alcance curto e vida curta.
+exige:
+- promessa
+specs:
+  corpo_max: 280
+  imagens_max: 4
+template: '{a frase — uma ideia só}'
+restricoes: []

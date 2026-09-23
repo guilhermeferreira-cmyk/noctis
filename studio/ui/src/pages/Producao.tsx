@@ -155,7 +155,21 @@ function montar(meta: Record<string, string>, corpo: string): string {
   return linhas.length ? `---\n${linhas.join('\n')}\n---\n\n${corpo}` : corpo
 }
 
-export default function ProducaoPage({ kind }: { kind: 'task' | 'artifact' }) {
+/**
+ * O YAML cru, para a mídia.
+ *
+ * Um formulário aqui seria um formulário por campo de `specs`, e `specs` muda
+ * por formato — o LinkedIn tem páginas, o Google Ads tem contagem de títulos.
+ * Cravar campos faria o editor envelhecer a cada plataforma que mexe no limite.
+ */
+function EditorBruto({ texto, onMudar }: { texto: string; onMudar: (t: string) => void }) {
+  return (
+    <textarea value={texto} onChange={e => onMudar(e.target.value)} rows={28} spellCheck={false}
+      className={`${campo} font-mono text-[12.5px] leading-relaxed max-w-4xl`} />
+  )
+}
+
+export default function ProducaoPage({ kind }: { kind: 'task' | 'artifact' | 'midia' }) {
   const meta = KIND_META[kind as ResourceKind]
   const [vista, setVista] = useState<'grid' | 'editor'>('grid')
   const [gridKey, setGridKey] = useState(0)
@@ -203,7 +217,8 @@ export default function ProducaoPage({ kind }: { kind: 'task' | 'artifact' }) {
     return (
       <ResourceGrid key={gridKey} kind={kind as ResourceKind} reloadKey={gridKey}
         subtitle={kind === 'task' ? 'O trabalho em voo — o que está sendo feito agora'
-                                  : 'O que foi produzido, com estado e versão'}
+          : kind === 'midia' ? 'As formas de peça: o que cada formato exige e os limites dele'
+          : 'O que foi produzido, com estado e versão'}
         onEdit={abrir} onNew={comecar} />
     )
   }
@@ -229,9 +244,9 @@ export default function ProducaoPage({ kind }: { kind: 'task' | 'artifact' }) {
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-5">
-        {kind === 'task'
-          ? <EditorTarefa dados={dados} onMudar={setDados} />
-          : <EditorPeca texto={texto} onMudar={setTexto} />}
+        {kind === 'task' ? <EditorTarefa dados={dados} onMudar={setDados} />
+          : kind === 'midia' ? <EditorBruto texto={texto} onMudar={setTexto} />
+            : <EditorPeca texto={texto} onMudar={setTexto} />}
       </div>
     </div>
   )

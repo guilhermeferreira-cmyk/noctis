@@ -1,0 +1,23 @@
+id: gads_pmax
+canal: Google Ads
+formato: Performance Max
+nome: Google Ads — Performance Max
+quando_usar: Um ativo, todas as superfícies do Google. Exige o conjunto completo de
+  peças.
+exige:
+- icp
+- promessa
+- oferta
+- cta
+specs:
+  titulos_curtos: 5
+  titulo_max: 30
+  titulo_longo_max: 90
+  descricoes: 5
+  descricao_max: 90
+  imagens: 1.91:1, 1:1 e 4:5
+  logo: 1:1 e 4:1
+  video_recomendado: true
+template: '{conjunto completo: títulos, descrições, imagens nas três proporções, logo
+  e vídeo}'
+restricoes: []

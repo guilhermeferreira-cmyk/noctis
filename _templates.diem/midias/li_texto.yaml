@@ -1,0 +1,24 @@
+id: li_texto
+canal: LinkedIn
+formato: Post de texto
+nome: LinkedIn — Post de texto
+quando_usar: POV, leitura de mercado, reação a notícia. O formato mais barato de testar
+  mensagem.
+exige:
+- icp
+- promessa
+specs:
+  corpo_max: 3000
+  visivel_antes_do_corte: 210
+  hashtags_max: 5
+template: '{gancho — cabe nos 210 caracteres visíveis}
+
+
+  {contexto: o problema, nomeado}
+
+
+  {o ponto de vista}
+
+
+  {o que fazer com isso}'
+restricoes: []

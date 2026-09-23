@@ -1,0 +1,26 @@
+id: news_especial
+canal: Newsletter
+formato: Edição especial / report
+nome: Newsletter — Edição especial / report
+quando_usar: Pesquisa original, report anual, análise longa. Quebra a cadência de
+  propósito.
+exige:
+- icp
+- promessa
+- prova
+- cta
+specs:
+  assunto_max: 60
+  exige_fonte: true
+  exige_metodo: true
+template: 'assunto: {o achado, não o formato}
+
+
+  {o achado principal}
+
+  {o método, em duas linhas}
+
+  {os dados}
+
+  {o que isso muda}'
+restricoes: []

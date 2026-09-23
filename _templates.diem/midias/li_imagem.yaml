@@ -1,0 +1,22 @@
+id: li_imagem
+canal: LinkedIn
+formato: Post com imagem única
+nome: LinkedIn — Post com imagem única
+quando_usar: Um dado, um gráfico, uma citação. Quando a imagem É o argumento.
+exige:
+- icp
+- promessa
+- prova
+specs:
+  corpo_max: 3000
+  visivel_antes_do_corte: 210
+  imagem: 1200x627 (1.91:1) ou 1080x1080
+  pecas: 1
+template: '{gancho}
+
+
+  {o que a imagem mostra, em uma frase}
+
+
+  {a consequência}'
+restricoes: []

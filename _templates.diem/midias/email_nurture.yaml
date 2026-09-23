@@ -1,0 +1,28 @@
+id: email_nurture
+canal: E-mail
+formato: Sequência de nurture
+nome: E-mail — Sequência de nurture
+quando_usar: Relacionamento com quem já levantou a mão. Uma ideia por e-mail, uma
+  ação por e-mail.
+exige:
+- icp
+- promessa
+- prova
+- cta
+specs:
+  assunto_max: 60
+  assunto_visivel_mobile: 35
+  preheader_max: 100
+  corpo_palavras_max: 300
+  cta_por_email: 1
+template: 'assunto: {curto, específico, sem promessa vaga}
+
+  preheader: {complementa o assunto, não repete}
+
+
+  {abertura: por que você está recebendo}
+
+  {o ponto}
+
+  {o único CTA}'
+restricoes: []

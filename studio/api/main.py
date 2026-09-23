@@ -112,6 +112,18 @@ def _pasta_dos_moldes() -> Path:
 
 
 TEMPLATES_DIR = _pasta_dos_moldes()
+
+
+def _pasta_dos_moldes_do_hub(hub: str) -> Path | None:
+    """O scaffold EXTRA de um hub, se existir: `_templates.<hub>` ao lado do comum.
+
+    Irmã e não subpasta de `_templates/`: o comum é copiado inteiro, e uma
+    subpasta viajaria junto para dentro de todo projeto.
+    """
+    if not hub:
+        return None
+    p = TEMPLATES_DIR.parent / f"_templates.{hub}"
+    return p if p.is_dir() else None
 # ── Os tipos de recurso, numa declaração só ───────────────────────────────────
 #
 # Isto era SEIS tabelas paralelas descrevendo o mesmo conjunto: ícone padrão,
@@ -132,6 +144,11 @@ KINDS: dict[str, dict] = {
     # Direito rastreiam despacho dentro de tabela em Markdown por falta delas.
     "task":     {"pasta": "tasks",     "ext": ".yaml", "label": "Tarefa",  "color": "#38bdf8", "icon": "GiCheckedShield"},
     "artifact": {"pasta": "artifacts", "ext": ".md",   "label": "Peça",    "color": "#a855f7", "icon": "GiStoneBlock"},
+    # A forma de uma peça: o que ela exige para ser escrita e como ela se parece.
+    # É o que faz a especialidade migrar do AGENTE para a MÍDIA — em vez de um
+    # agente de SEO, um agente de brand e um de ads, um catálogo que diz o que
+    # cada formato pede, e um executor que o cumpre.
+    "midia":    {"pasta": "midias",    "ext": ".yaml", "label": "Mídia",   "color": "#f472b6", "icon": "GiPaintBrush"},
 }
 
 KIND_DEFAULT_ICON = {k: v["icon"] for k, v in KINDS.items()}
@@ -528,6 +545,13 @@ def create_project(data: dict):
     if dest.exists():
         raise HTTPException(409, f"Projeto '{slug}' já existe")
 
+    # O hub é escolhido no nascimento e fica gravado no projeto: é ele que diz
+    # que superfície o abre, que regras valem lá dentro, e QUE SCAFFOLD desce.
+    hub = str(data.get("hub") or "").strip()
+    if hub and hub not in HUBS:
+        raise HTTPException(400, f"hub desconhecido: {hub!r}")
+    meta = {"name": raw_name, "slug": slug}
+
     # Cria a partir do scaffold de templates (se existir), senão estrutura vazia.
     if TEMPLATES_DIR.is_dir():
         shutil.copytree(TEMPLATES_DIR, dest)
@@ -536,14 +560,14 @@ def create_project(data: dict):
     for d in RESOURCE_DIRS:
         (dest / d).mkdir(parents=True, exist_ok=True)
 
-    # O hub é escolhido no nascimento e fica gravado no projeto: é ele que diz
-    # que superfície o abre e que regras valem lá dentro. Sem escolha, nasce no
-    # hub de origem — ninguém precisa saber que existem hubs para criar projeto.
-    hub = str(data.get("hub") or "").strip()
-    meta = {"name": raw_name, "slug": slug}
+    # Scaffold do HUB, por cima do comum. É o que faz um projeto de produção
+    # nascer sabendo o que é uma landing page, um anúncio de busca e uma
+    # newsletter — sem você recriar o catálogo a cada projeto.
+    extra = _pasta_dos_moldes_do_hub(hub or HUB_PADRAO)
+    if extra and extra.is_dir():
+        shutil.copytree(extra, dest, dirs_exist_ok=True)
+
     if hub and hub != HUB_PADRAO:
-        if hub not in HUBS:
-            raise HTTPException(400, f"hub desconhecido: {hub!r}")
         meta["hub"] = hub
     save_yaml(_project_meta_path(dest), meta)
     return {"ok": True, "slug": slug, "displayName": raw_name, "hub": hub or HUB_PADRAO}
@@ -1978,6 +2002,7 @@ def _cor_valida(v, padrao: str) -> str:
 SISTEMA_PADRAO: dict[str, dict] = {
     # seções da faixa de ícones
     "secao.estado":      {"grupo": "Seções", "label": "Estado", "icon": "GiCompass", "color": "#22d3ee"},
+    "secao.midias":      {"grupo": "Seções", "label": "Mídias", "icon": "GiPaintBrush", "color": "#f472b6"},
     "secao.tasks":       {"grupo": "Seções", "label": "Tarefas", "icon": "GiCheckedShield", "color": "#38bdf8"},
     "secao.artifacts":   {"grupo": "Seções", "label": "Peças", "icon": "GiStoneBlock", "color": "#a855f7"},
     "secao.agents":      {"grupo": "Seções", "label": "Agentes", "icon": "GiRobotGolem", "color": "#10b981"},
@@ -2619,6 +2644,18 @@ def _node_summary(base: Path, kind: str, name: str, usage: dict) -> dict:
                 "excerpt": (linhas[0][:200] if linhas else ""),
                 "badge": " · ".join(str(x) for x in [est, f"v{ver}", meta.get("task") or ""] if x),
                 "estado": est, "lines": len(linhas), "chars": len(corpo), "usedBy": []}
+
+    if kind == "midia":
+        cfg = load_yaml(base / "midias" / f"{name}.yaml")
+        exige = cfg.get("exige") or []
+        return {"title": cfg.get("nome", name),
+                "excerpt": (cfg.get("quando_usar") or "").strip(),
+                # O canal primeiro: numa grade de 32 formatos, o que se procura
+                # é "o que eu tenho de LinkedIn", não o nome exato da peça.
+                "badge": " · ".join(x for x in [cfg.get("canal", ""),
+                                                f"exige {len(exige)}" if exige else ""] if x),
+                "canal": cfg.get("canal", ""), "exige": exige,
+                "lines": 0, "chars": 0, "usedBy": []}
 
     return {"title": name, "excerpt": "", "badge": "", "lines": 0, "chars": 0, "usedBy": []}
 

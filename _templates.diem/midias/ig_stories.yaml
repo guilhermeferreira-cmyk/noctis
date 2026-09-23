@@ -1,0 +1,19 @@
+id: ig_stories
+canal: Instagram
+formato: Stories
+nome: Instagram — Stories
+quando_usar: Efêmero, 24h. Bastidor, enquete, link. Não carrega argumento longo.
+exige:
+- promessa
+specs:
+  duracao_s_por_card: 15
+  proporcao: '9:16'
+  cards_ideal:
+  - 3
+  - 5
+template: 'card 1: {gancho}
+
+  cards 2-n: {um ponto por card}
+
+  último: {link ou enquete}'
+restricoes: []

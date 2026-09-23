@@ -1,0 +1,22 @@
+id: li_enquete
+canal: LinkedIn
+formato: Enquete
+nome: LinkedIn — Enquete
+quando_usar: Coletar sinal de ICP e vocabulário. É pesquisa barata disfarçada de post.
+exige:
+- icp
+specs:
+  opcoes_min: 2
+  opcoes_max: 4
+  opcao_max_chars: 30
+  pergunta_max: 140
+  duracao_dias:
+  - 1
+  - 3
+  - 7
+  - 14
+template: '{a pergunta, na linguagem do cliente}
+
+
+  opções: {2 a 4, até 30 caracteres cada}'
+restricoes: []

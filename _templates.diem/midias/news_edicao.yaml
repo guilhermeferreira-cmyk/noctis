@@ -1,0 +1,27 @@
+id: news_edicao
+canal: Newsletter
+formato: Edição regular
+nome: Newsletter — Edição regular
+quando_usar: Cadência fixa. O ativo de audiência própria — não depende de algoritmo.
+exige:
+- icp
+- promessa
+specs:
+  assunto_max: 60
+  preheader_max: 100
+  blocos_min: 2
+  blocos_max: 5
+  cadencia: fixa
+template: 'assunto: {a ideia da edição}
+
+
+  {abertura: a ideia em um parágrafo}
+
+
+  ## {bloco 1}
+
+  ## {bloco 2}
+
+
+  {o que vem na próxima}'
+restricoes: []

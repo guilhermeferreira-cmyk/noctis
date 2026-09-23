@@ -1,0 +1,20 @@
+id: ig_feed
+canal: Instagram
+formato: Post de feed
+nome: Instagram — Post de feed
+quando_usar: Marca e cultura. Em B2B serve reputação, não captura.
+exige:
+- promessa
+specs:
+  legenda_max: 2200
+  visivel_antes_do_corte: 125
+  imagem: 1080x1080 (1:1) ou 1080x1350 (4:5)
+  hashtags_max: 30
+template: '{primeira linha — é o que aparece antes do ''mais''}
+
+
+  {corpo}
+
+
+  {cta}'
+restricoes: []

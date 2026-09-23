@@ -1,0 +1,18 @@
+id: gads_display
+canal: Google Ads
+formato: Display responsivo
+nome: Google Ads — Display responsivo
+quando_usar: Alcance e remarketing. Barato de rodar, fácil de desperdiçar sem recorte.
+exige:
+- icp
+- promessa
+- cta
+specs:
+  titulos_curtos: 5
+  titulo_max: 30
+  titulo_longo_max: 90
+  descricoes: 5
+  descricao_max: 90
+  imagens: 1.91:1 e 1:1
+template: '{títulos, descrições e as duas proporções de imagem}'
+restricoes: []

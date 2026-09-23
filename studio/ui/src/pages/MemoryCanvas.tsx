@@ -1186,11 +1186,13 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
     memory: api.renameMemory, agent: api.renameAgent, flow: api.renameFlow, persona: api.renamePersona,
     task: (n, nv) => api.renomearRecurso('task', n, nv),
     artifact: (n, nv) => api.renomearRecurso('artifact', n, nv),
+    midia: (n, nv) => api.renomearRecurso('midia', n, nv),
   }
   const DELETE: Record<ResourceKind, (n: string) => Promise<unknown>> = {
     memory: api.deleteMemory, agent: api.deleteAgent, flow: api.deleteFlow, persona: api.deletePersona,
     task: n => api.apagarRecurso('task', n),
     artifact: n => api.apagarRecurso('artifact', n),
+    midia: n => api.apagarRecurso('midia', n),
   }
 
   const actions: NodeActions = {

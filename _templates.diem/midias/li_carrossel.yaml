@@ -1,0 +1,24 @@
+id: li_carrossel
+canal: LinkedIn
+formato: Carrossel (documento)
+nome: LinkedIn — Carrossel (documento)
+quando_usar: Explicar um método ou uma arquitetura em passos. O formato de maior alcance
+  orgânico em B2B.
+exige:
+- icp
+- promessa
+- prova
+specs:
+  formato_arquivo: PDF
+  pagina: 1080x1080 ou 1080x1350
+  paginas_min: 6
+  paginas_max: 12
+  corpo_max: 3000
+template: 'capa: {a promessa}
+
+  p2: {o problema}
+
+  p3-pN: {um passo por página}
+
+  final: {o que fazer agora}'
+restricoes: []

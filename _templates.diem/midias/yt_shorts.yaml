@@ -1,0 +1,18 @@
+id: yt_shorts
+canal: YouTube
+formato: Shorts
+nome: YouTube — Shorts
+quando_usar: Recorte vertical de um vídeo longo, ou peça própria. Porta de entrada
+  para o canal.
+exige:
+- promessa
+specs:
+  duracao_s_max: 60
+  proporcao: '9:16'
+  titulo_max: 100
+template: '0-2s: {gancho}
+
+  2-50s: {um ponto só}
+
+  fim: {para o vídeo completo}'
+restricoes: []

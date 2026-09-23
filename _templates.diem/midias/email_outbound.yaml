@@ -1,0 +1,22 @@
+id: email_outbound
+canal: E-mail
+formato: Outbound frio
+nome: E-mail — Outbound frio
+quando_usar: Primeiro contato com quem não pediu. Curto, específico, com uma pergunta.
+exige:
+- icp
+- prova
+specs:
+  assunto_max: 50
+  corpo_palavras_max: 120
+  cta_por_email: 1
+  sem_anexo: true
+template: 'assunto: {sem parecer campanha}
+
+
+  {a razão de estar escrevendo — específica desta conta}
+
+  {a observação que prova que você olhou}
+
+  {uma pergunta, não um pedido de reunião}'
+restricoes: []

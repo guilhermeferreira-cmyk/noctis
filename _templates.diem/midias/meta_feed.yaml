@@ -1,0 +1,20 @@
+id: meta_feed
+canal: Meta Ads
+formato: Feed — imagem ou vídeo
+nome: Meta Ads — Feed — imagem ou vídeo
+quando_usar: Alcance barato. Em B2B serve remarketing e topo, não captura de intenção.
+exige:
+- icp
+- promessa
+- cta
+specs:
+  texto_principal_visivel: 125
+  titulo_max: 40
+  descricao_max: 30
+  imagem: 1080x1080 (1:1) ou 1080x1350 (4:5)
+template: 'texto: {os 125 visíveis carregam o argumento}
+
+  título: {até 40}
+
+  descrição: {até 30}'
+restricoes: []

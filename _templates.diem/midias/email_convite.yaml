@@ -1,0 +1,24 @@
+id: email_convite
+canal: E-mail
+formato: Convite (webinar / evento)
+nome: E-mail — Convite (webinar / evento)
+quando_usar: Chamar para algo com data. Precisa de data, hora, o que a pessoa leva
+  e quanto custa do tempo dela.
+exige:
+- icp
+- promessa
+- cta
+specs:
+  assunto_max: 60
+  corpo_palavras_max: 200
+  exige_data: true
+  exige_duracao: true
+template: 'assunto: {o tema e a data}
+
+
+  {o que é, quando, quanto tempo}
+
+  {o que a pessoa sai sabendo}
+
+  {inscrever-se}'
+restricoes: []

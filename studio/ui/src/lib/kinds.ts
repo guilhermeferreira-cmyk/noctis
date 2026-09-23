@@ -63,6 +63,10 @@ export const KIND_META: Record<ResourceKind, { label: string; ext: string; icon:
   // observável em lugar nenhum, e a peça produzida não tinha estado nem versão.
   task:     { label: 'Tarefa', ext: '.yaml', icon: 'GiCheckedShield', color: '#38bdf8' },
   artifact: { label: 'Peça',   ext: '.md',   icon: 'GiStoneBlock',    color: '#a855f7' },
+  // A forma de uma peça. É o que faz a especialidade migrar do agente para a
+  // mídia: em vez de um agente de SEO e um de ads, um catálogo que diz o que
+  // cada formato exige, e um executor que o cumpre.
+  midia:    { label: 'Mídia',  ext: '.yaml', icon: 'GiPaintBrush',    color: '#f472b6' },
 }
 
 /**
@@ -207,7 +211,7 @@ export function aplicarVocabulario(kinds?: Record<string, { color?: string; icon
   }
   avisarSeMudou(_antes, JSON.stringify(KIND_META))
 }
-export const KIND_ORDER: ResourceKind[] = ['agent', 'flow', 'persona', 'memory', 'task', 'artifact']
+export const KIND_ORDER: ResourceKind[] = ['agent', 'flow', 'persona', 'memory', 'task', 'artifact', 'midia']
 
 /** Todos os kinds que existem, derivados de `KIND_META`. Quem precisa iterar
  *  tipos usa isto — uma lista à parte envelheceria no dia em que o servidor

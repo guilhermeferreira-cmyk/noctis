@@ -1,0 +1,20 @@
+id: meta_carrossel
+canal: Meta Ads
+formato: Carrossel
+nome: Meta Ads — Carrossel
+quando_usar: 2 a 10 cartões, cada um com link próprio. Bom para catálogo e para passo
+  a passo.
+exige:
+- icp
+- promessa
+- cta
+specs:
+  cartoes_min: 2
+  cartoes_max: 10
+  titulo_cartao_max: 40
+  texto_principal_visivel: 125
+  imagem: 1080x1080
+template: 'texto: {até 125 visíveis}
+
+  cartões: {2 a 10}'
+restricoes: []

@@ -1,0 +1,19 @@
+id: meta_reels
+canal: Meta Ads
+formato: Reels / Stories
+nome: Meta Ads — Reels / Stories
+quando_usar: Vertical, tela cheia. Precisa funcionar sem som e sem clique.
+exige:
+- promessa
+- cta
+specs:
+  proporcao: '9:16'
+  duracao_s_max: 60
+  duracao_s_ideal: 15
+  area_segura: 14% topo e 20% base
+template: '0-2s: {gancho visual}
+
+  corpo: {um ponto}
+
+  fim: {cta}'
+restricoes: []

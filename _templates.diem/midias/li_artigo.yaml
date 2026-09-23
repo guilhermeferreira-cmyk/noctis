@@ -1,0 +1,25 @@
+id: li_artigo
+canal: LinkedIn
+formato: Artigo
+nome: LinkedIn — Artigo
+quando_usar: Peça de autoridade que precisa durar e ser linkada. Não é post longo.
+exige:
+- icp
+- promessa
+- prova
+- cta
+specs:
+  titulo_max: 100
+  corpo_max: 110000
+  imagem_capa: 1920x1080
+template: '# {título}
+
+
+  {lead: o problema e a aposta}
+
+
+  ## {seções}
+
+
+  {fecho e CTA}'
+restricoes: []

@@ -1,0 +1,25 @@
+id: gads_search
+canal: Google Ads
+formato: Search (anúncio responsivo)
+nome: Google Ads — Search (anúncio responsivo)
+quando_usar: Captura de demanda existente. Quem já está procurando o problema.
+exige:
+- icp
+- promessa
+- oferta
+- cta
+specs:
+  titulos_qtd: 15
+  titulo_max: 30
+  descricoes_qtd: 4
+  descricao_max: 90
+  caminhos_qtd: 2
+  caminho_max: 15
+  exige_keyword: true
+  exige_lp: true
+template: 'títulos: {15, até 30 caracteres, cobrindo a keyword e a promessa}
+
+  descrições: {4, até 90}
+
+  caminho: {2, até 15}'
+restricoes: []

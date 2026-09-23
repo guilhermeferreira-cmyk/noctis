@@ -296,7 +296,7 @@ export interface ImportResult {
   counts: Record<string, number>
 }
 
-export type ResourceKind = 'memory' | 'agent' | 'flow' | 'persona' | 'task' | 'artifact'
+export type ResourceKind = 'memory' | 'agent' | 'flow' | 'persona' | 'task' | 'artifact' | 'midia'
 
 /** Os estados de uma tarefa e os de uma peça. Dois conjuntos que NÃO se
  *  misturam: um é o andamento do trabalho, o outro é a vida da coisa produzida

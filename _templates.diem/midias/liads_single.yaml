@@ -1,0 +1,22 @@
+id: liads_single
+canal: LinkedIn Ads
+formato: Sponsored — imagem única
+nome: LinkedIn Ads — Sponsored — imagem única
+quando_usar: Paid B2B com segmentação por cargo, empresa e setor. O mais caro por
+  clique, e o mais preciso.
+exige:
+- icp
+- promessa
+- oferta
+- cta
+specs:
+  texto_principal_max: 150
+  titulo_max: 70
+  imagem: 1200x627
+  exige_lp: true
+template: 'texto: {até 150}
+
+  título: {até 70}
+
+  imagem: {1200x627}'
+restricoes: []

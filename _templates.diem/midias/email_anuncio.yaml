@@ -1,0 +1,24 @@
+id: email_anuncio
+canal: E-mail
+formato: Anúncio / release
+nome: E-mail — Anúncio / release
+quando_usar: Novidade de produto, resultado, evento. Vai para a base inteira ou para
+  um recorte.
+exige:
+- promessa
+- prova
+- cta
+specs:
+  assunto_max: 60
+  preheader_max: 100
+  corpo_palavras_max: 250
+  cta_por_email: 1
+template: 'assunto: {o que mudou}
+
+
+  {o que é}
+
+  {por que importa para quem lê}
+
+  {cta}'
+restricoes: []

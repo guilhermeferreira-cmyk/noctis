@@ -1,0 +1,20 @@
+id: x_thread
+canal: X
+formato: Thread
+nome: X — Thread
+quando_usar: Desdobrar um argumento em sequência. Quando 280 não cabe e o artigo é
+  pesado demais.
+exige:
+- icp
+- promessa
+- prova
+specs:
+  post_max: 280
+  posts_min: 5
+  posts_max: 15
+template: '1/ {a tese}
+
+  2-n/ {um passo por post}
+
+  final/ {o convite}'
+restricoes: []

@@ -1,0 +1,19 @@
+id: ig_reels
+canal: Instagram
+formato: Reels
+nome: Instagram — Reels
+quando_usar: Vídeo vertical curto, o formato de maior distribuição da plataforma.
+exige:
+- promessa
+specs:
+  duracao_s_max: 180
+  duracao_s_ideal: 30
+  proporcao: '9:16'
+  legenda_max: 2200
+  legenda_queimada: true
+template: '0-2s: {gancho visual}
+
+  2-20s: {o conteúdo}
+
+  fim: {cta falado e escrito}'
+restricoes: []

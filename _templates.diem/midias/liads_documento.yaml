@@ -1,0 +1,25 @@
+id: liads_documento
+canal: LinkedIn Ads
+formato: Sponsored — documento
+nome: LinkedIn Ads — Sponsored — documento
+quando_usar: Material rico dentro do feed, com captura de lead na abertura. O formato
+  de geração de lead do LinkedIn.
+exige:
+- icp
+- promessa
+- prova
+- oferta
+specs:
+  formato_arquivo: PDF
+  paginas_max: 300
+  paginas_ideal:
+  - 8
+  - 12
+  texto_principal_max: 150
+  exige_formulario: true
+template: 'texto: {até 150}
+
+  documento: {8 a 12 páginas}
+
+  formulário: {os campos mínimos}'
+restricoes: []

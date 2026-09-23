@@ -1,0 +1,20 @@
+id: liads_carrossel
+canal: LinkedIn Ads
+formato: Sponsored — carrossel
+nome: LinkedIn Ads — Sponsored — carrossel
+quando_usar: Sequência paga. Um argumento por cartão, com CTA por cartão.
+exige:
+- icp
+- promessa
+- oferta
+- cta
+specs:
+  cartoes_min: 2
+  cartoes_max: 10
+  titulo_cartao_max: 45
+  texto_principal_max: 150
+  imagem: 1080x1080
+template: 'texto: {até 150}
+
+  cartões: {2 a 10, título até 45}'
+restricoes: []

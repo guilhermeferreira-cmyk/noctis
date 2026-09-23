@@ -1,0 +1,22 @@
+id: li_video
+canal: LinkedIn
+formato: Vídeo
+nome: LinkedIn — Vídeo
+quando_usar: Demonstração, bastidor, recorte de fala. Quando ver acontecer vale mais
+  que ler.
+exige:
+- icp
+- promessa
+specs:
+  duracao_s_max: 600
+  duracao_s_ideal: 90
+  proporcao: 1:1, 4:5 ou 9:16
+  legenda_obrigatoria: true
+template: '0-3s: {o gancho, antes de o som ligar}
+
+  3-15s: {o problema}
+
+  15s+: {a demonstração}
+
+  fim: {o próximo passo}'
+restricoes: []

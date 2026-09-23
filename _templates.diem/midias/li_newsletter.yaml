@@ -1,0 +1,25 @@
+id: li_newsletter
+canal: LinkedIn
+formato: Newsletter do LinkedIn
+nome: LinkedIn — Newsletter do LinkedIn
+quando_usar: Cadência fixa com base inscrita dentro da plataforma. Complementa, não
+  substitui, a newsletter por e-mail.
+exige:
+- icp
+- promessa
+- cta
+specs:
+  titulo_max: 100
+  corpo_max: 110000
+  cadencia: fixa — semanal ou quinzenal
+template: '# {título da edição}
+
+
+  {a ideia da edição em uma frase}
+
+
+  ## {blocos}
+
+
+  {convite}'
+restricoes: []

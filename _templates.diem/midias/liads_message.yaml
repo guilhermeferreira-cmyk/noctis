@@ -1,0 +1,21 @@
+id: liads_message
+canal: LinkedIn Ads
+formato: Message / Conversation Ads
+nome: LinkedIn Ads — Message / Conversation Ads
+quando_usar: Mensagem direta na caixa. Alta intrusão — só com oferta específica e
+  recorte estreito.
+exige:
+- icp
+- oferta
+- cta
+specs:
+  assunto_max: 60
+  corpo_max: 1500
+  cta_max: 25
+  botoes_max: 5
+template: 'assunto: {até 60}
+
+  corpo: {curto, pessoal, uma oferta}
+
+  botões: {até 5, até 25 caracteres}'
+restricoes: []

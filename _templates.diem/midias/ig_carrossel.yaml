@@ -1,0 +1,18 @@
+id: ig_carrossel
+canal: Instagram
+formato: Carrossel
+nome: Instagram — Carrossel
+quando_usar: Sequência visual de até 10 peças. Explicar em imagens o que o texto alongaria.
+exige:
+- promessa
+specs:
+  pecas_min: 3
+  pecas_max: 10
+  imagem: 1080x1350
+  legenda_max: 2200
+template: 'capa: {gancho}
+
+  2-9: {um ponto por peça}
+
+  10: {cta}'
+restricoes: []

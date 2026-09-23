@@ -1,0 +1,22 @@
+id: gads_youtube
+canal: Google Ads
+formato: YouTube in-stream
+nome: Google Ads — YouTube in-stream
+quando_usar: Vídeo antes do conteúdo. Os 5 primeiros segundos são os únicos garantidos.
+exige:
+- icp
+- promessa
+- cta
+specs:
+  duracao_s_ideal:
+  - 15
+  - 30
+  proporcao: '16:9'
+  primeiros_s_decisivos: 5
+  cta_sobreposto: true
+template: '0-5s: {a promessa, antes do botão de pular}
+
+  5-25s: {o argumento}
+
+  fim: {cta}'
+restricoes: []
