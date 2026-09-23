@@ -116,12 +116,12 @@ function iconeDaAba(a: Aba): { I: React.ComponentType<{ size?: number; className
  * Nada se mistura entre projetos. O que atravessa é o arquétipo de um agente,
  * enviado de propósito, sem papel, sem squad e sem histórico.
  */
-function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo, onZen }: {
+function AbasDeProjeto({ projetos, atual, naVisao, onVisao, onAbrir, onNovo, onZen }: {
   projetos: ProjectMeta[]
   atual: string
-  /** A home do Warden está aberta: nenhum projeto está em foco. */
-  casa: boolean
-  onCasa: () => void
+  /** A Visão geral do Warden está em foco. */
+  naVisao: boolean
+  onVisao: () => void
   onAbrir: (slug: string) => void
   onNovo: () => void
   onZen: () => void
@@ -130,10 +130,12 @@ function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo, onZen }
     <div className="relative z-10 h-8 shrink-0 flex items-center gap-1 px-2 overflow-x-auto
                     border-b border-white/[0.05]">
       {/* A casa fica antes de tudo, como na home do Figma: é para onde se volta
-          quando a pergunta é sobre o conjunto, e não sobre um projeto. */}
-      <button onClick={onCasa} title="A tela do Warden — todos os projetos"
+          quando a pergunta é sobre o conjunto, e não sobre um projeto. Ela NÃO
+          obedece a `secoesOcultas`: esconder a seção não pode tornar a Visão
+          inalcançável. */}
+      <button onClick={onVisao} title="A tela do Warden — todos os projetos"
         className={`h-6 w-6 shrink-0 grid place-items-center rounded-md border transition-colors ${
-          casa ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
+          naVisao ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
                : 'text-gray-500 hover:text-amber-300/80 border-transparent hover:bg-white/[0.06]'}`}>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -147,7 +149,7 @@ function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo, onZen }
           <div key={p.slug} onClick={() => onAbrir(p.slug)} title="Abrir este projeto"
             className={`group/pj h-6 shrink-0 flex items-center gap-1.5 px-2 rounded-md cursor-pointer
                         text-[11.5px] transition-colors border
-                        ${aberto && !casa ? 'text-gray-100 bg-white/[0.07] border-white/[0.10]'
+                        ${aberto && !naVisao ? 'text-gray-100 bg-white/[0.07] border-white/[0.10]'
                                           : 'text-gray-500 hover:text-gray-200 border-transparent'}`}>
             <span className="truncate max-w-[12rem]">{p.displayName}</span>
           </div>
@@ -184,10 +186,16 @@ function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo, onZen }
 
 // ── Estado das abas, lembrado por projeto ────────────────────────────────────
 const chaveAbas = (proj: string) => `noctis.abas.${proj}`
-const PADRAO_ABAS = {
-  abas: [{ id: 'pagina:agents', tipo: 'pagina', pagina: 'agents' }] as Aba[],
-  ativa: 'pagina:agents',
-}
+/**
+ * A aba com que um projeto abre quando não há nada lembrado.
+ *
+ * O base abre na Visão geral — ela É a entrada do Warden, e cair numa grade de
+ * agentes ao abrir o Noctis seria começar pelo detalhe. Projeto de trabalho
+ * abre em Agentes, que é por onde o trabalho começa.
+ */
+const padraoAbas = (proj: string): { abas: Aba[]; ativa: string } => proj === 'noctis'
+  ? { abas: [{ id: 'pagina:visao', tipo: 'pagina', pagina: 'visao' }], ativa: 'pagina:visao' }
+  : { abas: [{ id: 'pagina:agents', tipo: 'pagina', pagina: 'agents' }], ativa: 'pagina:agents' }
 
 /**
  * As abas de um projeto, como ficaram na última vez — peneiradas.
@@ -206,20 +214,24 @@ const PADRAO_ABAS = {
 function lerAbas(proj: string): { abas: Aba[]; ativa: string } {
   try {
     const d = JSON.parse(localStorage.getItem(chaveAbas(proj)) || 'null')
-    if (!d || !Array.isArray(d.abas)) return PADRAO_ABAS
+    if (!d || !Array.isArray(d.abas)) return padraoAbas(proj)
     const validas: Aba[] = d.abas.filter((a: Aba | null) => {
       if (!a || typeof a !== 'object' || !a.id) return false
+      // A Visão geral é do projeto base. Uma aba dela presa num projeto cliente
+      // renderizaria a grade de TODOS os projetos lá dentro — dado de outro
+      // contexto na tela, que é o pior defeito possível aqui.
       if (a.tipo === 'pagina') return PAGINAS.some(x => x.id === a.pagina)
+        && (a.pagina !== 'visao' || proj === 'noctis')
       if (a.tipo === 'recurso') return !!a.kind && !!KIND_META[a.kind] && !!a.nome
       if (a.tipo === 'skill') return !!a.chave
       if (a.tipo === 'mapa') return !!a.mapa
       return false
     })
-    if (!validas.length) return PADRAO_ABAS
+    if (!validas.length) return padraoAbas(proj)
     const ativa = validas.some(a => a.id === d.ativa) ? d.ativa : validas[0].id
     return { abas: validas, ativa }
   } catch { /* sem storage */ }
-  return PADRAO_ABAS
+  return padraoAbas(proj)
 }
 
 export default function App() {
@@ -252,16 +264,9 @@ export default function App() {
   const [abas, setAbas] = useState<Aba[]>(() => lerAbas(getProject()).abas)
   const [ativa, setAtiva] = useState<string>(() => lerAbas(getProject()).ativa)
   const [historico, setHistorico] = useState<{ pilha: string[]; pos: number }>({ pilha: [], pos: -1 })
-  // A home é a tela inicial do sistema. Ela não é um projeto: é o andar de
-  // cima, e por isso vive fora do escopo de projeto — abrir um projeto sai
-  // dela, e o botão de casa volta sem fechar nada do que estava aberto.
-  const [casa, setCasa] = useState(() => localStorage.getItem('noctis.casa') !== '0')
   // Modo zen NÃO é lembrado entre sessões de propósito: abrir o Noctis e cair
   // numa tela sem informação nenhuma pareceria defeito, não escolha.
   const [zen, setZen] = useState(false)
-  useEffect(() => {
-    try { localStorage.setItem('noctis.casa', casa ? '1' : '0') } catch { /* sem storage */ }
-  }, [casa])
   const [esq, setEsq] = useState(() => localStorage.getItem('noctis.esq') !== '0')
   const [larguraEsq, setLarguraEsq] = useState(() => Number(localStorage.getItem('noctis.larguraEsq')) || 250)
   const [larguraDir, setLarguraDir] = useState(() => Number(localStorage.getItem('noctis.larguraDir')) || 300)
@@ -290,7 +295,15 @@ export default function App() {
     setProjects(list)
     const wanted = select || getProject()
     const chosen = list.some(p => p.slug === wanted) ? wanted : (list[0]?.slug ?? 'noctis')
-    trocarDeProjeto(chosen, false)
+    trocarDeProjeto(chosen)
+    // Migração da tela do Warden, que era um ramo (`noctis.casa`) e virou a
+    // página 'visao'. Sem isto, quem fechou o app na home reabriria numa grade
+    // de agentes e acharia que a tela sumiu. Roda uma vez e apaga a chave.
+    try {
+      const naHome = localStorage.getItem('noctis.casa')
+      localStorage.removeItem('noctis.casa')
+      if (naHome !== null && naHome !== '0') irParaVisao()
+    } catch { /* sem storage */ }
   }
   useEffect(() => { loadProjects() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -311,14 +324,16 @@ export default function App() {
     return () => { vivo = false }
   }, [projects])
 
-  // `sair` diz se este gesto tira você da home. A carga inicial escolhe um
-  // projeto para o escopo existir, e isso NÃO é um pedido para sair da tela do
-  // Warden — era assim que a home sumia sozinha no arranque.
-  function trocarDeProjeto(slug: string, sair = true) {
-    if (sair) setCasa(false)
+  // Trocar de projeto troca o escopo e as abas. Não existe mais "sair da home":
+  // a tela do Warden é a página 'visao' do projeto base, e chega-se a ela como
+  // a qualquer outra página — abrindo a aba.
+  function trocarDeProjeto(slug: string) {
     setProject(slug)
     setCurrent(slug)
-    const salvo = preferencias().restaurarAbas ? lerAbas(slug) : { abas: [], ativa: '' }
+    // Sem restaurar abas, ainda assim abre no padrão do projeto: devolver
+    // `{abas:[]}` deixava o Noctis numa tela vazia em vez da Visão, e fazia o
+    // mesmo com quem chega pelo Controle ou pelas Configurações.
+    const salvo = preferencias().restaurarAbas ? lerAbas(slug) : padraoAbas(slug)
     setAbas(salvo.abas)
     setAtiva(salvo.ativa)
     setHistorico({ pilha: [salvo.ativa], pos: 0 })
@@ -373,6 +388,20 @@ export default function App() {
 
   const abrirPagina = useCallback((p: string) =>
     abrir({ id: `pagina:${p}`, tipo: 'pagina', pagina: p as Pagina }), [abrir])
+
+  /**
+   * Voltar para a casa: o projeto base, na Visão geral.
+   *
+   * Funciona apesar de `trocarDeProjeto` fazer `setAbas(salvo.abas)` logo antes
+   * porque `abrir` usa updater funcional — no mesmo lote ele recebe as abas já
+   * restauradas. Trocar aquilo por `setAbas([...abas, nova])` faria a Visão ser
+   * engolida em silêncio.
+   */
+  const irParaVisao = useCallback(() => {
+    trocarDeProjeto('noctis')
+    abrirPagina('visao')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abrirPagina])
 
   const abrirItem = useCallback((i: AbrirItem) => {
     if (i.tipo === 'recurso') {
@@ -513,25 +542,10 @@ export default function App() {
       {CEU.ativo && <FundoEstrelado cores={KIND_ORDER.map(k => KIND_META[k].color)} />}
 
       <AbasDeProjeto projetos={projects} atual={current}
-        casa={casa} onCasa={() => setCasa(true)}
+        naVisao={current === 'noctis' && abaAtiva?.tipo === 'pagina' && abaAtiva.pagina === 'visao'}
+        onVisao={irParaVisao}
         onAbrir={trocarDeProjeto} onNovo={createProject} onZen={() => setZen(true)} />
 
-      {casa && (
-        <div className="relative z-10 flex-1 min-h-0">
-          {/* Ramo de saída: a Visão já é uma página do workspace (case 'visao').
-              Este bloco cai junto com o estado `casa`. */}
-          <Suspense fallback={<CarregandoNoctis />}>
-          <VisaoPage projetos={projects}
-            onAbrirProjeto={trocarDeProjeto}
-            onAbrirLearnings={slug => { trocarDeProjeto(slug); abrirPagina('learning') }}
-            onRecarregarProjetos={() => loadProjects(current)}
-            onConfigurar={() => setConfigAberta('tipos')}
-            onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject}
-            onZen={() => setZen(true)} />
-          </Suspense>
-        </div>
-      )}
-      {!casa && (<>
 
       {/* ── Barra de cima: painéis e abas ──────────────────────────────────── */}
       <div className="relative z-10 h-10 shrink-0 flex items-center gap-1 px-2">
@@ -686,7 +700,6 @@ export default function App() {
         )}
       </div>
 
-      </>)}
 
       {prefs.mostrarBarraStatus && <div className="relative z-10">
         <BarraStatus projetoNome={nomeProjeto}
