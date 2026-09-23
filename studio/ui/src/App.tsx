@@ -21,7 +21,7 @@ import { api, getProject, setProject, type ProjectMeta } from './api'
 import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse, GiSpikedShield } from './iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
-         aplicarLogo, aplicarCeu, aplicarVidro, ICON_SIZES, CEU, VIDRO, LOGO, classePainel } from './lib/kinds'
+         aplicarLogo, aplicarCeu, aplicarVidro, useAparencia, ICON_SIZES, CEU, VIDRO, LOGO, classePainel } from './lib/kinds'
 import { FundoEstrelado } from './components/FundoEstrelado'
 import { CarregandoNoctis } from './components/Esqueleto'
 import { getIcon } from './memoryIcons'
@@ -60,9 +60,14 @@ type Aba =
 
 // As quatro primeiras herdam ícone e cor do próprio tipo de recurso: a faixa e o
 // card falam do mesmo objeto, então trocar a cor de "Agente" repinta os dois.
-const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType; color?: string }[] = [
+// `chave` existe para a Visão geral: a aparência dela é a do WARDEN, e o Warden
+// já tem chave própria no painel. Sem isto haveria duas chaves disputando o
+// mesmo nome — e mudar a errada não pintaria nada, que é o pior defeito de um
+// painel de configuração.
+const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType; color?: string; chave?: string }[] = [
   // A entrada do Warden. Só aparece no projeto base — ver o filtro da faixa.
-  { id: 'visao',    label: 'Visão geral', icon: GiSpikedShield, color: '#f59e0b' },
+  { id: 'visao',    label: 'Visão geral', icon: GiSpikedShield, color: '#f59e0b',
+    chave: 'warden.identidade' },
   { id: 'agents',   label: 'Agentes',  kind: 'agent' },
   { id: 'organizacao', label: 'Organização', icon: GiFamilyTree, color: '#a78bfa' },
   { id: 'memory',   label: 'Memória',  kind: 'memory' },
@@ -97,7 +102,7 @@ function iconeDaAba(a: Aba): { I: React.ComponentType<{ size?: number; className
   // O fallback existe porque o custo de errar é a tela inteira preta, e o de
   // acertar é um ícone genérico por um instante.
   const p = PAGINAS.find(x => x.id === a.pagina)
-  const s = doSistema(`secao.${a.pagina}`,
+  const s = doSistema(p?.chave || `secao.${a.pagina}`,
     p?.kind ? KIND_META[p.kind].icon : '', p?.kind ? KIND_META[p.kind].color : (p?.color || '#8b5cf6'))
   if (s.icon) return { I: getIcon(s.icon), cor: s.color }
   return { I: p?.icon ?? GiSkills, cor: s.color }
@@ -133,15 +138,26 @@ function AbasDeProjeto({ projetos, atual, naVisao, onVisao, onAbrir, onNovo, onZ
           quando a pergunta é sobre o conjunto, e não sobre um projeto. Ela NÃO
           obedece a `secoesOcultas`: esconder a seção não pode tornar a Visão
           inalcançável. */}
-      <button onClick={onVisao} title="A tela do Warden — todos os projetos"
-        className={`h-6 w-6 shrink-0 grid place-items-center rounded-md border transition-colors ${
-          naVisao ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
-               : 'text-gray-500 hover:text-amber-300/80 border-transparent hover:bg-white/[0.06]'}`}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V21h13V9.5" />
-        </svg>
-      </button>
+      {(() => {
+        // O ícone e a cor vêm de Aparência › Warden, como toda seção. Era uma
+        // casinha desenhada à mão em âmbar cravado: o único símbolo do sistema
+        // que não obedecia a você.
+        const w = doSistema('warden.identidade', 'GiSpikedShield', '#f59e0b')
+        const IconeWarden = getIcon(w.icon)
+        return (
+          <button onClick={onVisao} title="A tela do Warden — todos os projetos"
+            className="h-6 w-6 shrink-0 grid place-items-center rounded-md border transition-colors"
+            style={naVisao
+              ? { color: w.color, background: w.color + '26', borderColor: w.color + '66' }
+              : { color: '#71717a', borderColor: 'transparent' }}
+            onMouseEnter={e => { if (!naVisao) { e.currentTarget.style.color = w.color
+                                                 e.currentTarget.style.background = 'rgba(255,255,255,0.06)' } }}
+            onMouseLeave={e => { if (!naVisao) { e.currentTarget.style.color = '#71717a'
+                                                 e.currentTarget.style.background = '' } }}>
+            <IconeWarden size={13} />
+          </button>
+        )
+      })()}
       <span className="w-px h-4 bg-white/[0.08] mx-1 shrink-0" />
       {projetos.map(p => {
         const aberto = p.slug === atual
@@ -249,6 +265,10 @@ export default function App() {
   // Abriu algo na doca (grade, mapa, repertório): a doca aparece, e larga o
   // bastante para ler — o detalhe que antes era drawer mora nela agora.
   const { pedido } = useDoca()
+  // Assina a aparência: ícone e cor são lidos de um módulo mutável, e sem isto
+  // mudá-los no painel não repintava nada até algo mais causar um render.
+  // Aqui basta o App — as páginas são renderizadas dentro dele.
+  useAparencia()
   useEffect(() => {
     if (!pedido) return
     setDir(true)
@@ -596,7 +616,7 @@ export default function App() {
                      && (p.id !== 'visao' || current === 'noctis')).map(p => {
             // O ícone e a cor de cada seção são escolha sua (Aparência › Ícones
             // do sistema); o padrão do código é só a reserva.
-            const s = doSistema(`secao.${p.id}`,
+            const s = doSistema(p.chave || `secao.${p.id}`,
               p.kind ? KIND_META[p.kind].icon : '', p.kind ? KIND_META[p.kind].color : (p.color || '#8b5cf6'))
             const cor = s.color
             const Icone = s.icon ? getIcon(s.icon) : (p.icon || getIcon('GiSkills'))

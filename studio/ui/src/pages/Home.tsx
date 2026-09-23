@@ -3,7 +3,6 @@ import { api, type PerguntasSkillClaude, type ProjectMeta, type PropostaLearning
          type ResourceItem } from '../api'
 import { KIND_META, ICON_SIZES, doSistema, classePainel } from '../lib/kinds'
 import { getIcon } from '../memoryIcons'
-import { LogoNoctis } from '../components/LogoNoctis'
 import { CarregandoNoctis, EsqueletoLinhas } from '../components/Esqueleto'
 import { catalogoLocal } from '../components/FiltroProjetos'
 import { desde } from '../components/Ordenar'
@@ -276,8 +275,23 @@ export default function VisaoGeral({ projetos, onAbrirProjeto, onAbrirLearnings,
     <div className="h-full flex flex-col min-h-0 px-3 pb-2 gap-3">
 
       {/* ── Zona 0: a crista. Sem painel: sangra no céu. ─────────────────── */}
-      <header className="shrink-0 flex items-center gap-4 pt-3 pb-1">
-        <LogoNoctis size={ICON_SIZES.organizacao + 18} gradiente />
+      <header className="shrink-0 flex items-center gap-3.5 pt-3 pb-1">
+        {/* O símbolo do WARDEN, não o sol do Noctis: o sol já está no cabeçalho
+            da árvore, dizendo qual projeto está aberto. Dois sóis na mesma tela
+            diziam a mesma coisa duas vezes. Ícone e cor vêm de Aparência ›
+            Warden — a mesma chave que pinta a faixa, a aba e o botão de casa. */}
+        {(() => {
+          const w = doSistema('warden.identidade', 'GiSpikedShield', '#f59e0b')
+          const I = getIcon(w.icon)
+          const t = ICON_SIZES.organizacao + 10
+          return (
+            <span className="grid place-items-center rounded-xl shrink-0"
+              style={{ width: t + 16, height: t + 16, color: w.color,
+                       background: w.color + '14', border: `1px solid ${w.color}33` }}>
+              <I size={t} />
+            </span>
+          )
+        })()}
         <div className="min-w-0">
           <h1 className="text-[15px] text-gray-100 leading-tight">Warden</h1>
           <p className="text-[11.5px] text-gray-600">todos os projetos, de cima</p>

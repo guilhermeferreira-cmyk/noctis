@@ -1741,10 +1741,6 @@ def _cor_valida(v, padrao: str) -> str:
 # do Learning. Grupo/chave é o que a tela usa para agrupar os controles.
 SISTEMA_PADRAO: dict[str, dict] = {
     # seções da faixa de ícones
-    # A Visão geral é seção só no projeto base: é a entrada do Warden. Tem chave
-    # própria porque `warden.identidade` é marca (não pinta nada), e toda seção
-    # da faixa precisa de ícone e cor que VOCÊ escolhe.
-    "secao.visao":       {"grupo": "Seções", "label": "Visão geral", "icon": "GiSpikedShield", "color": "#f59e0b"},
     "secao.agents":      {"grupo": "Seções", "label": "Agentes", "icon": "GiRobotGolem", "color": "#10b981"},
     "secao.organizacao": {"grupo": "Seções", "label": "Organização", "icon": "GiFamilyTree", "color": "#a78bfa"},
     "secao.memory":      {"grupo": "Seções", "label": "Memória", "icon": "GiBrain", "color": "#3b82f6"},
@@ -1760,9 +1756,13 @@ SISTEMA_PADRAO: dict[str, dict] = {
     "secao.config":      {"grupo": "Seções", "label": "Configurações", "icon": "GiGears", "color": "#71717a"},
     "secao.zen":         {"grupo": "Seções", "label": "Modo zen", "icon": "GiMeditation", "color": "#a78bfa"},
     # a casa: o Warden e as camadas dele
+    # A ÚNICA chave do Warden. Ela pinta tudo que é Warden na tela: o ícone da
+    # seção na faixa, a aba da Visão geral, o botão de casa e a crista do hub.
+    # Era `marca: True` com a nota de que não pintava nada — mas o painel a
+    # oferecia assim mesmo, então mudá-la não fazia efeito nenhum e parecia
+    # defeito. Ou a chave pinta, ou não se oferece; agora ela pinta.
     "warden.identidade": {"grupo": "Warden", "label": "Warden", "icon": "GiSpikedShield",
-                         "color": "#f59e0b", "marca": True},   # a marca é o logo do Noctis:
-                         # cor e ícone daqui não pintam nada, e o painel não os oferece.
+                         "color": "#f59e0b"},
     "warden.projetos":   {"grupo": "Warden", "label": "Projetos", "icon": "GiEmptyChessboard", "color": "#10b981"},
     # os papéis da organização
     "pnick.warden":      {"grupo": "Papéis", "label": "Warden", "icon": "GiSpikedShield", "color": "#f59e0b"},

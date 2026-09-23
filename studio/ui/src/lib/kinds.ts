@@ -1,4 +1,46 @@
+import { useSyncExternalStore } from 'react'
 import type { ResourceKind } from '../api'
+
+/**
+ * A aparência do Noctis é um MÓDULO MUTÁVEL, não estado do React — `KIND_META`,
+ * `SISTEMA`, `ICON_SIZES` e companhia são lidos na renderização por qualquer
+ * componente, sem prop e sem contexto. Isso é barato e é de propósito.
+ *
+ * O preço era este: mudar uma cor no painel mutava o objeto e NADA
+ * re-renderizava. A tela só se atualizava se outra coisa, por acaso, causasse
+ * um render — então trocar o ícone de uma seção às vezes pegava, às vezes não,
+ * e parecia defeito aleatório. Era o mesmo bug reaparecendo a cada superfície
+ * nova que lesse `doSistema`.
+ *
+ * Agora todo `aplicar*` avisa, e quem quiser acompanhar chama `useAparencia()`.
+ * No `App` isso basta para repintar o app inteiro: as páginas são renderizadas
+ * dentro dele.
+ */
+const ouvintesDaAparencia = new Set<() => void>()
+let versaoDaAparencia = 0
+
+/**
+ * Avisa — mas SÓ se algo mudou de verdade.
+ *
+ * A comparação não é zelo: sem ela isto vira um laço. O painel de aparência
+ * salva sozinho a cada mudança, o App aplica o que voltou do servidor, o aviso
+ * re-renderiza o painel, e o efeito de salvar dispara outra vez. Foi exatamente
+ * o "Maximum update depth exceeded" que apareceu na primeira versão disto.
+ *
+ * Aplicar o MESMO valor é um não-evento, e tratá-lo como tal fecha o ciclo.
+ */
+function avisarSeMudou(antes: string, depois: string) {
+  if (antes === depois) return
+  versaoDaAparencia++
+  ouvintesDaAparencia.forEach(f => f())
+}
+
+/** Re-renderiza quem chama sempre que a aparência muda. */
+export function useAparencia(): number {
+  return useSyncExternalStore(
+    f => { ouvintesDaAparencia.add(f); return () => { ouvintesDaAparencia.delete(f) } },
+    () => versaoDaAparencia, () => versaoDaAparencia)
+}
 
 export const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#84cc16', '#64748b']
 export const DRAWER_W_KEY = 'agentStudio.drawerWidth'
@@ -40,11 +82,13 @@ export const ICON_SIZES = {
 }
 
 export function aplicarTamanhos(t?: Partial<typeof ICON_SIZES>) {
+  const _antes = JSON.stringify(ICON_SIZES)
   if (!t) return
   for (const k of Object.keys(ICON_SIZES) as (keyof typeof ICON_SIZES)[]) {
     const v = t[k]
     if (typeof v === 'number' && v > 0) ICON_SIZES[k] = v
   }
+  avisarSeMudou(_antes, JSON.stringify(ICON_SIZES))
 }
 
 /** Ícone e cor de cada lugar do sistema — seções, doca, papéis, estados.
@@ -56,8 +100,10 @@ export function aplicarTamanhos(t?: Partial<typeof ICON_SIZES>) {
 export const SISTEMA: Record<string, { grupo: string; label: string; icon: string; color: string }> = {}
 
 export function aplicarSistema(s?: Record<string, { grupo: string; label: string; icon: string; color: string }>) {
+  const _antes = JSON.stringify(SISTEMA)
   if (!s) return
   for (const k of Object.keys(s)) SISTEMA[k] = { ...s[k] }
+  avisarSeMudou(_antes, JSON.stringify(SISTEMA))
 }
 
 /** O ícone e a cor de um lugar, com o padrão de reserva se ele ainda não veio. */
@@ -70,16 +116,20 @@ export function doSistema(chave: string, iconePadrao = 'GiSkills', corPadrao = '
 export const PONTILHADO = { ativo: true, opacidade: 22, espaco: 20, tamanho: 1, cor: '#8b8b8b' }
 
 export function aplicarPontilhado(p?: Partial<typeof PONTILHADO>) {
+  const _antes = JSON.stringify(PONTILHADO)
   if (!p) return
   Object.assign(PONTILHADO, p)
+  avisarSeMudou(_antes, JSON.stringify(PONTILHADO))
 }
 
 /** Ajustes da aura, mutáveis pelo mesmo motivo de `KIND_META`. */
 export const AURA = { difusao: 26, tamanho: 24, ativo: true }
 
 export function aplicarAura(a?: Partial<typeof AURA>) {
+  const _antes = JSON.stringify(AURA)
   if (!a) return
   Object.assign(AURA, a)
+  avisarSeMudou(_antes, JSON.stringify(AURA))
 }
 
 /** Aparência do logo. Mutável pelo mesmo motivo de `KIND_META`. */
@@ -89,8 +139,10 @@ export const LOGO = {
 }
 
 export function aplicarLogo(l?: Partial<typeof LOGO>) {
+  const _antes = JSON.stringify(LOGO)
   if (!l) return
   Object.assign(LOGO, l)
+  avisarSeMudou(_antes, JSON.stringify(LOGO))
 }
 
 /** O céu do canvas. Mutável pelo mesmo motivo de `KIND_META`. */
@@ -99,8 +151,10 @@ export const CEU = { estrelas: 314, movimento: 90, nebulosas: 5, movNebulosa: 40
                      ativo: true, estilo: 'estrelas' as 'estrelas' | 'malha' }
 
 export function aplicarCeu(c?: Partial<typeof CEU>) {
+  const _antes = JSON.stringify(CEU)
   if (!c) return
   Object.assign(CEU, c)
+  avisarSeMudou(_antes, JSON.stringify(CEU))
 }
 
 /** Efeito vidro nos cards. Mutável como os demais. */
@@ -117,7 +171,9 @@ export const classePainel = () => VIDRO.ativo
   ? 'bg-[#141417]/70 backdrop-blur-xl border border-white/[0.07] rounded-xl overflow-hidden shadow-2xl shadow-black/40'
   : 'bg-[#141417] border border-white/[0.07] rounded-xl overflow-hidden'
 export function aplicarVidro(v?: boolean) {
+  const _antes = JSON.stringify(VIDRO)
   if (typeof v === 'boolean') VIDRO.ativo = v
+  avisarSeMudou(_antes, JSON.stringify(VIDRO))
 }
 
 /**
@@ -129,12 +185,15 @@ export function aplicarVidro(v?: boolean) {
 export const TIPO_META: Record<string, { label: string; color: string; icon: string; desc: string; prompt: string }> = {}
 
 export function aplicarTipos(types?: Record<string, { label: string; color: string; icon: string; desc: string; prompt: string }>) {
+  const _antes = JSON.stringify(TIPO_META)
   if (!types) return
   for (const k of Object.keys(TIPO_META)) delete TIPO_META[k]
   Object.assign(TIPO_META, types)
+  avisarSeMudou(_antes, JSON.stringify(TIPO_META))
 }
 
 export function aplicarVocabulario(kinds?: Record<string, { color?: string; icon?: string }>) {
+  const _antes = JSON.stringify(KIND_META)
   if (!kinds) return
   for (const [k, v] of Object.entries(kinds)) {
     const alvo = KIND_META[k as ResourceKind]
@@ -142,6 +201,7 @@ export function aplicarVocabulario(kinds?: Record<string, { color?: string; icon
     if (v.color) alvo.color = v.color
     if (v.icon) alvo.icon = v.icon
   }
+  avisarSeMudou(_antes, JSON.stringify(KIND_META))
 }
 export const KIND_ORDER: ResourceKind[] = ['agent', 'flow', 'persona', 'memory']
 
