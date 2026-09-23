@@ -36,6 +36,9 @@ from pathlib import Path
 
 import yaml
 
+# Os tipos que viram molde. É um SUBCONJUNTO dos kinds, de propósito: molde é
+# coisa destilada para descer em qualquer projeto, e tarefa e peça são trabalho
+# de um projeto só — um molde de tarefa seria um molde de um dia específico.
 TIPOS = {"agent": ("agents", ".yaml"), "memory": ("memory", ".md"),
          "flow": ("flows", ".yaml"), "persona": ("personas", ".yaml")}
 

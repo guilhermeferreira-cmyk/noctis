@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { api, getProject, type ResourceItem } from '../api'
+import { api, getProject, type ResourceItem, type ResourceList } from '../api'
+import { KINDS_TODOS } from '../lib/kinds'
 
 /**
  * O filtro por projeto — a barra que só existe no andar de cima.
@@ -36,9 +37,10 @@ export function ehVisaoGlobal(): boolean {
  */
 export async function catalogoLocal(
   projetos: Projeto[],
-): Promise<Record<'agent' | 'memory' | 'flow' | 'persona', ResourceItem[]>> {
-  const fora: Record<'agent' | 'memory' | 'flow' | 'persona', ResourceItem[]> =
-    { agent: [], memory: [], flow: [], persona: [] }
+): Promise<ResourceList> {
+  // Todos os kinds, e não uma lista à parte: uma lista aqui envelheceria no dia
+  // em que o servidor ganhasse um tipo novo, e a grade dele viria vazia.
+  const fora = Object.fromEntries(KINDS_TODOS.map(k => [k, [] as ResourceItem[]])) as ResourceList
   const listas = await Promise.all(projetos.map(async p => {
     try { return { p, r: await api.recursosDoProjeto(p.slug) } }
     catch { return null }

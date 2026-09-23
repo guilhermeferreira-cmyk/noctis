@@ -1179,11 +1179,18 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
   const closeMenu  = useCallback(() => setOpenMenuId(null), [])
   const nodeOf = (id: string) => nodes.find(n => n.id === id)
 
+  // Tipo sem rota própria cai na genérica. Antes isto era um Record fechado nos
+  // quatro kinds — e um tipo novo quebrava a compilação aqui, que é o melhor
+  // jeito de descobrir, mas exigia uma entrada a mais a cada vez.
   const RENAME: Record<ResourceKind, (n: string, nv: string) => Promise<unknown>> = {
     memory: api.renameMemory, agent: api.renameAgent, flow: api.renameFlow, persona: api.renamePersona,
+    task: (n, nv) => api.renomearRecurso('task', n, nv),
+    artifact: (n, nv) => api.renomearRecurso('artifact', n, nv),
   }
   const DELETE: Record<ResourceKind, (n: string) => Promise<unknown>> = {
     memory: api.deleteMemory, agent: api.deleteAgent, flow: api.deleteFlow, persona: api.deletePersona,
+    task: n => api.apagarRecurso('task', n),
+    artifact: n => api.apagarRecurso('artifact', n),
   }
 
   const actions: NodeActions = {

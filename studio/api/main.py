@@ -111,7 +111,38 @@ def _pasta_dos_moldes() -> Path:
 
 
 TEMPLATES_DIR = _pasta_dos_moldes()
-RESOURCE_DIRS = ("agents", "flows", "memory", "personas", "outputs")
+# ── Os tipos de recurso, numa declaração só ───────────────────────────────────
+#
+# Isto era SEIS tabelas paralelas descrevendo o mesmo conjunto: ícone padrão,
+# aparência, cor, pasta→kind, kind→(pasta, glob) e mais uma em `templates.py`.
+# Acrescentar um tipo exigia lembrar das seis, e esquecer uma dava ícone
+# genérico ou card sem cor — sem erro nenhum, só errado na tela.
+#
+# Agora há uma fonte e cinco derivações. `label`, `color` e `icon` continuam
+# sendo apenas o PADRÃO: o que vale de fato sai de `_vocabulario()`, que mescla
+# com o que você escolheu em config/aparencia.json.
+KINDS: dict[str, dict] = {
+    "memory":   {"pasta": "memory",    "ext": ".md",   "label": "Memória", "color": "#3b82f6", "icon": "GiBrain"},
+    "agent":    {"pasta": "agents",    "ext": ".yaml", "label": "Agente",  "color": "#10b981", "icon": "GiRobotGolem"},
+    "flow":     {"pasta": "flows",     "ext": ".yaml", "label": "Fluxo",   "color": "#f59e0b", "icon": "GiDirectionSigns"},
+    "persona":  {"pasta": "personas",  "ext": ".yaml", "label": "Persona", "color": "#ec4899", "icon": "GiPublicSpeaker"},
+    # As duas que faltavam ao Noctis, e que não são de marketing: o trabalho em
+    # voo não era observável em lugar nenhum — o Maestro do Overhaul e o Braço
+    # Direito rastreiam despacho dentro de tabela em Markdown por falta delas.
+    "task":     {"pasta": "tasks",     "ext": ".yaml", "label": "Tarefa",  "color": "#38bdf8", "icon": "GiCheckedShield"},
+    "artifact": {"pasta": "artifacts", "ext": ".md",   "label": "Peça",    "color": "#a855f7", "icon": "GiStoneBlock"},
+}
+
+KIND_DEFAULT_ICON = {k: v["icon"] for k, v in KINDS.items()}
+KIND_META_PADRAO  = {k: {"label": v["label"], "ext": v["ext"],
+                         "color": v["color"], "icon": v["icon"]} for k, v in KINDS.items()}
+KIND_META_COLOR   = {k: v["color"] for k, v in KINDS.items()}
+KIND_POR_PASTA    = {v["pasta"]: k for k, v in KINDS.items()}
+KIND_DIRS         = {k: (v["pasta"], f'*{v["ext"]}') for k, v in KINDS.items()}
+
+# As pastas que todo projeto tem. Derivada dos kinds mais `outputs`, que é
+# depósito e não tipo de recurso.
+RESOURCE_DIRS = tuple(list(dict.fromkeys(v["pasta"] for v in KINDS.values())) + ["outputs"])
 
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1125,6 +1156,90 @@ def rename_memory(project: str, name: str, data: dict):
     return {"ok": True, "agentesAtualizados": agentes}
 
 
+# ── CRUD genérico por kind ────────────────────────────────────────────────────
+#
+# `agents`, `memory`, `flows` e `personas` têm cada um a sua família de rotas,
+# escritas à mão e quase idênticas. Duplicar isso a cada tipo novo é como as
+# seis tabelas de kind nasceram.
+#
+# Estas rotas servem QUALQUER kind declarado em `KINDS`, e são as que `task` e
+# `artifact` usam. As antigas continuam onde estão: elas têm particularidades
+# reais (a ficha do agente, os anexos da memória) e reescrevê-las agora seria
+# mexer no que funciona para ganhar simetria.
+
+def _kind_valido(kind: str) -> dict:
+    k = KINDS.get(kind)
+    if not k:
+        raise HTTPException(404, f"tipo de recurso desconhecido: {kind!r}")
+    return k
+
+
+@app.get("/api/projects/{project}/recursos/{kind}")
+def listar_recursos_do_kind(project: str, kind: str):
+    k = _kind_valido(kind)
+    pasta = project_base(project) / k["pasta"]
+    if not pasta.is_dir():
+        return []
+    return [{"name": f.stem, "filename": f.name} for f in sorted(pasta.glob(f'*{k["ext"]}'))]
+
+
+@app.get("/api/projects/{project}/recursos/{kind}/{name}")
+def ler_recurso(project: str, kind: str, name: str):
+    k = _kind_valido(kind)
+    path = caminho_de_recurso(project_base(project), k["pasta"], name, k["ext"])
+    if not path.exists():
+        raise HTTPException(404)
+    texto = path.read_text(encoding="utf-8")
+    # YAML volta estruturado e Markdown volta como texto, que é a diferença que
+    # o editor de cada um espera — e ela sai da declaração, não de um `if` por
+    # tipo espalhado pelas telas.
+    if k["ext"] == ".yaml":
+        return {"content": texto, "dados": load_yaml(path) or {}}
+    return {"content": texto}
+
+
+@app.put("/api/projects/{project}/recursos/{kind}/{name}")
+def gravar_recurso(project: str, kind: str, name: str, data: dict):
+    k = _kind_valido(kind)
+    path = caminho_de_recurso(project_base(project), k["pasta"], name, k["ext"])
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if k["ext"] == ".yaml" and isinstance(data.get("dados"), dict):
+        save_yaml(path, data["dados"])
+    else:
+        path.write_text(data.get("content", ""), encoding="utf-8")
+    return {"ok": True}
+
+
+@app.delete("/api/projects/{project}/recursos/{kind}/{name}")
+def apagar_recurso(project: str, kind: str, name: str):
+    k = _kind_valido(kind)
+    path = caminho_de_recurso(project_base(project), k["pasta"], name, k["ext"])
+    if not path.exists():
+        raise HTTPException(404)
+    path.unlink()
+    return {"ok": True}
+
+
+@app.post("/api/projects/{project}/recursos/{kind}/{name}/rename")
+def renomear_recurso(project: str, kind: str, name: str, data: dict):
+    k = _kind_valido(kind)
+    novo_nome = (data.get("new_name") or "").strip()
+    if not novo_nome:
+        raise HTTPException(400, "new_name obrigatório")
+    base = project_base(project)
+    old = caminho_de_recurso(base, k["pasta"], name, k["ext"])
+    new = caminho_de_recurso(base, k["pasta"], novo_nome, k["ext"])
+    if not old.exists():
+        raise HTTPException(404)
+    if new.exists():
+        raise HTTPException(409, f"'{novo_nome}' já existe")
+    old.rename(new)
+    # O mapa e o índice de identidade seguem o nome, como em qualquer recurso:
+    # sem isto o card perderia cor e tags ao ser renomeado.
+    _rename_em_todos_mapas(base, kind, name, novo_nome)
+    return {"ok": True}
+
+
 # ── Anexos de memória ─────────────────────────────────────────────────────────
 #
 # Os anexos de uma memória vivem em `memory/<nome>.anexos/`, pasta irmã do `.md`.
@@ -1277,27 +1392,6 @@ def delete_attachment(project: str, name: str, filename: str):
 CANVAS_PALETTE = ["#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b",
                   "#10b981", "#06b6d4", "#ef4444", "#84cc16"]
 
-KIND_DEFAULT_ICON = {
-    "memory":  "GiBrain",
-    "agent":   "GiRobotGolem",
-    "flow":    "GiDirectionSigns",
-    "persona": "GiPublicSpeaker",
-}
-# Aparência dos quatro tipos de recurso. São os PADRÕES: o que valer de fato sai
-# de `_vocabulario()`, que mescla estes com o que a pessoa escolheu em
-# config/aparencia.json. Recurso que já tem cor/ícone próprios não é afetado —
-# isto governa o padrão de quem nasce e a identidade da seção na interface.
-KIND_META_PADRAO = {
-    "memory":  {"label": "Memória", "ext": ".md",   "color": "#3b82f6", "icon": "GiBrain"},
-    "agent":   {"label": "Agente",  "ext": ".yaml", "color": "#10b981", "icon": "GiRobotGolem"},
-    "flow":    {"label": "Fluxo",   "ext": ".yaml", "color": "#f59e0b", "icon": "GiDirectionSigns"},
-    "persona": {"label": "Persona", "ext": ".yaml", "color": "#ec4899", "icon": "GiPublicSpeaker"},
-}
-KIND_META_COLOR = {k: v["color"] for k, v in KIND_META_PADRAO.items()}
-KIND_POR_PASTA = {"memory": "memory", "agents": "agent",
-                  "flows": "flow", "personas": "persona"}
-KIND_DIRS = {"memory": ("memory", "*.md"), "agent": ("agents", "*.yaml"),
-             "flow": ("flows", "*.yaml"), "persona": ("personas", "*.yaml")}
 
 
 # ── Mapas ─────────────────────────────────────────────────────────────────────
@@ -1794,6 +1888,8 @@ def _cor_valida(v, padrao: str) -> str:
 # do Learning. Grupo/chave é o que a tela usa para agrupar os controles.
 SISTEMA_PADRAO: dict[str, dict] = {
     # seções da faixa de ícones
+    "secao.tasks":       {"grupo": "Seções", "label": "Tarefas", "icon": "GiCheckedShield", "color": "#38bdf8"},
+    "secao.artifacts":   {"grupo": "Seções", "label": "Peças", "icon": "GiStoneBlock", "color": "#a855f7"},
     "secao.agents":      {"grupo": "Seções", "label": "Agentes", "icon": "GiRobotGolem", "color": "#10b981"},
     "secao.organizacao": {"grupo": "Seções", "label": "Organização", "icon": "GiFamilyTree", "color": "#a78bfa"},
     "secao.memory":      {"grupo": "Seções", "label": "Memória", "icon": "GiBrain", "color": "#3b82f6"},
@@ -2330,6 +2426,38 @@ def _memory_summary(path: Path) -> dict:
             "lines": non_empty, "chars": len(text)}
 
 
+# ── Tarefa e peça ─────────────────────────────────────────────────────────────
+#
+# Os dois conjuntos de estado NÃO se misturam, e confundi-los seria bug: aprovar
+# a produção de uma peça não valida a aposta que ela contém. Um é o andamento do
+# trabalho; o outro é a vida da coisa produzida.
+ESTADOS_TASK = ("backlog", "active", "review", "done", "blocked")
+ESTADOS_ARTIFACT = ("draft", "generated", "in_review", "approved", "rejected", "superseded")
+
+
+def _frente_materia(path: Path) -> tuple[dict, str]:
+    """O front-matter YAML de um `.md`, e o corpo depois dele.
+
+    A peça é um arquivo de texto legível fora do Noctis — é o princípio que faz
+    um projeto ser uma pasta. Os metadados moram no topo, no formato que todo
+    editor de Markdown já entende, em vez de num índice paralelo que sairia de
+    sincronia com o arquivo no dia em que alguém editasse por fora.
+    """
+    if not path.is_file():
+        return {}, ""
+    texto = path.read_text(encoding="utf-8")
+    if not texto.startswith("---"):
+        return {}, texto
+    fim = texto.find("\n---", 3)
+    if fim < 0:
+        return {}, texto
+    try:
+        meta = yaml.safe_load(texto[3:fim]) or {}
+    except yaml.YAMLError:
+        meta = {}
+    return (meta if isinstance(meta, dict) else {}), texto[fim + 4:].lstrip("\n")
+
+
 def _node_summary(base: Path, kind: str, name: str, usage: dict) -> dict:
     """Resumo exibido no card, conforme o tipo do recurso."""
     if kind == "memory":
@@ -2364,6 +2492,27 @@ def _node_summary(base: Path, kind: str, name: str, usage: dict) -> dict:
                 "excerpt": (bio[0] if bio else role),
                 "badge": " · ".join(str(x) for x in [role, age] if x),
                 "lines": 0, "chars": 0, "usedBy": []}
+
+    if kind == "task":
+        cfg = load_yaml(base / "tasks" / f"{name}.yaml")
+        est = str(cfg.get("estado") or ESTADOS_TASK[0])
+        quem = cfg.get("agente") or ""
+        return {"title": cfg.get("titulo", name),
+                "excerpt": (cfg.get("resumo") or "").strip(),
+                # O estado vem PRIMEIRO no badge: numa grade de tarefas, o que
+                # se procura é o que está travado, não quem é o dono.
+                "badge": " · ".join(x for x in [est, quem, cfg.get("despacho") or ""] if x),
+                "estado": est, "lines": 0, "chars": 0, "usedBy": []}
+
+    if kind == "artifact":
+        meta, corpo = _frente_materia(base / "artifacts" / f"{name}.md")
+        est = str(meta.get("estado") or ESTADOS_ARTIFACT[0])
+        ver = meta.get("versao") or 1
+        linhas = [l for l in corpo.splitlines() if l.strip()]
+        return {"title": meta.get("titulo", name),
+                "excerpt": (linhas[0][:200] if linhas else ""),
+                "badge": " · ".join(str(x) for x in [est, f"v{ver}", meta.get("task") or ""] if x),
+                "estado": est, "lines": len(linhas), "chars": len(corpo), "usedBy": []}
 
     return {"title": name, "excerpt": "", "badge": "", "lines": 0, "chars": 0, "usedBy": []}
 
@@ -2675,7 +2824,10 @@ def list_resources(project: str):
             })
         return out
 
-    return {k: items(k) for k in ("memory", "agent", "flow", "persona")}
+    # Todos os kinds declarados, e não uma lista à parte: uma segunda lista aqui
+    # era o sexto espelho da tabela de kinds, e quem acrescentasse um tipo
+    # veria a grade vazia sem erro nenhum.
+    return {k: items(k) for k in KINDS}
 
 
 # ── A visão de todos os projetos ─────────────────────────────────────────────
@@ -3051,7 +3203,7 @@ def list_resources_todos(projetos: str = ""):
     """
     escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
     alvo = [p for p in _projetos_visiveis() if not escolhidos or p in escolhidos]
-    fora: dict[str, list] = {k: [] for k in ("memory", "agent", "flow", "persona")}
+    fora: dict[str, list] = {k: [] for k in KINDS}
     for slug in alvo:
         try:
             um = list_resources(slug)

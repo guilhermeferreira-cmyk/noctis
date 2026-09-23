@@ -247,9 +247,17 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
         valor: it.name, confirmar: 'renomear',
       })
       if (!nv || nv === it.name) return
-      const fn = { memory: api.renameMemory, agent: api.renameAgent,
-                   flow: api.renameFlow, persona: api.renamePersona }[kind]
-      try { await fn(it.name, nv); await recarregar() }
+      // Tipo sem rota própria cai na genérica: o mapa deixa de precisar de uma
+      // entrada por kind, que era mais um espelho a manter.
+      const mapa: Record<string, ((n: string, nn: string) => Promise<unknown>) | undefined> =
+        { memory: api.renameMemory, agent: api.renameAgent,
+          flow: api.renameFlow, persona: api.renamePersona }
+      const fn = mapa[kind]
+      try {
+        if (fn) await fn(it.name, nv)
+        else await api.renomearRecurso(kind, it.name, nv)
+        await recarregar()
+      }
       catch (e) { aviso.erro(e) }
     },
     onDelete: async it => {
@@ -258,9 +266,15 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
         corpo: `Apaga o arquivo ${it.name}${meta.ext}.`,
         confirmar: 'excluir', perigo: true,
       })) return
-      const fn = { memory: api.deleteMemory, agent: api.deleteAgent,
-                   flow: api.deleteFlow, persona: api.deletePersona }[kind]
-      try { await fn(it.name); await recarregar() }
+      const mapaDel: Record<string, ((n: string) => Promise<unknown>) | undefined> =
+        { memory: api.deleteMemory, agent: api.deleteAgent,
+          flow: api.deleteFlow, persona: api.deletePersona }
+      const fn = mapaDel[kind]
+      try {
+        if (fn) await fn(it.name)
+        else await api.apagarRecurso(kind, it.name)
+        await recarregar()
+      }
       catch (e) { aviso.erro(e) }
     },
     onToggleChoice: async (it, optionId) => {

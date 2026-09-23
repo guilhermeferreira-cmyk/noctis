@@ -59,6 +59,10 @@ export const KIND_META: Record<ResourceKind, { label: string; ext: string; icon:
   agent:   { label: 'Agente',  ext: '.yaml', icon: 'GiRobotGolem',     color: '#10b981' },
   flow:    { label: 'Fluxo',   ext: '.yaml', icon: 'GiDirectionSigns', color: '#f59e0b' },
   persona: { label: 'Persona', ext: '.yaml', icon: 'GiPublicSpeaker',  color: '#ec4899' },
+  // As duas que faltavam ao sistema inteiro: o trabalho em voo não era
+  // observável em lugar nenhum, e a peça produzida não tinha estado nem versão.
+  task:     { label: 'Tarefa', ext: '.yaml', icon: 'GiCheckedShield', color: '#38bdf8' },
+  artifact: { label: 'Peça',   ext: '.md',   icon: 'GiStoneBlock',    color: '#a855f7' },
 }
 
 /**
@@ -203,7 +207,12 @@ export function aplicarVocabulario(kinds?: Record<string, { color?: string; icon
   }
   avisarSeMudou(_antes, JSON.stringify(KIND_META))
 }
-export const KIND_ORDER: ResourceKind[] = ['agent', 'flow', 'persona', 'memory']
+export const KIND_ORDER: ResourceKind[] = ['agent', 'flow', 'persona', 'memory', 'task', 'artifact']
+
+/** Todos os kinds que existem, derivados de `KIND_META`. Quem precisa iterar
+ *  tipos usa isto — uma lista à parte envelheceria no dia em que o servidor
+ *  ganhasse um tipo novo, e a grade dele viria vazia sem erro nenhum. */
+export const KINDS_TODOS = Object.keys(KIND_META) as ResourceKind[]
 
 export type DrawerTarget = { kind: ResourceKind; name: string }
 

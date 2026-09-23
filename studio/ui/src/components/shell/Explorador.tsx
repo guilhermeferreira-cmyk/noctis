@@ -138,9 +138,11 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
     if (!novo) return
     try {
       if (a.tipo === 'recurso') {
-        const fn = { agent: api.renameAgent, memory: api.renameMemory, flow: api.renameFlow,
-                     persona: api.renamePersona }[a.kind]
-        await fn(a.nome, novo)
+        const fn: Record<string, ((n: string, nn: string) => Promise<unknown>) | undefined> =
+          { agent: api.renameAgent, memory: api.renameMemory, flow: api.renameFlow,
+            persona: api.renamePersona }
+        // Tipo sem rota própria vai pela genérica.
+        await (fn[a.kind] ? fn[a.kind]!(a.nome, novo) : api.renomearRecurso(a.kind, a.nome, novo))
       } else if (a.tipo === 'mapa') {
         await api.renameCanvas(a.mapa, novo)
       } else {

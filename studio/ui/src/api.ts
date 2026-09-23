@@ -274,7 +274,13 @@ export interface ImportResult {
   counts: Record<string, number>
 }
 
-export type ResourceKind = 'memory' | 'agent' | 'flow' | 'persona'
+export type ResourceKind = 'memory' | 'agent' | 'flow' | 'persona' | 'task' | 'artifact'
+
+/** Os estados de uma tarefa e os de uma peça. Dois conjuntos que NÃO se
+ *  misturam: um é o andamento do trabalho, o outro é a vida da coisa produzida
+ *  — aprovar a produção de uma peça não valida a aposta que ela contém. */
+export const ESTADOS_TASK = ['backlog', 'active', 'review', 'done', 'blocked'] as const
+export const ESTADOS_ARTIFACT = ['draft', 'generated', 'in_review', 'approved', 'rejected', 'superseded'] as const
 
 export interface CanvasLane {
   id: string
@@ -1031,12 +1037,7 @@ export interface MemoryVocab {
   defaultOrigin: string
 }
 
-export interface ResourceList {
-  memory: ResourceItem[]
-  agent: ResourceItem[]
-  flow: ResourceItem[]
-  persona: ResourceItem[]
-}
+export type ResourceList = Record<ResourceKind, ResourceItem[]>
 
 export interface CanvasEdge {
   id: string
@@ -1154,6 +1155,16 @@ export const api = {
   saveMemory:   (name: string, content: string)     => req<{ok: boolean}>('PUT',  `${px()}/memory/${encodeURIComponent(name)}`, { content }),
   deleteMemory: (name: string)                      => req<{ok: boolean}>('DELETE',`${px()}/memory/${encodeURIComponent(name)}`),
   renameMemory: (name: string, newName: string)     => req<{ok: boolean}>('POST', `${px()}/memory/${encodeURIComponent(name)}/rename`, { new_name: newName }),
+
+  // ── Recurso genérico, por kind ──────────────────────────────────────────
+  // Serve qualquer tipo declarado no servidor, e é por onde `task` e
+  // `artifact` passam. Os quatro tipos antigos mantêm as rotas próprias
+  // porque têm particularidades reais (a ficha do agente, os anexos da
+  // memória); reescrevê-las agora seria mexer no que funciona por simetria.
+  lerRecurso:      (kind: ResourceKind, name: string) => req<{content: string; dados?: Record<string, unknown>}>('GET', `${px()}/recursos/${kind}/${encodeURIComponent(name)}`),
+  gravarRecurso:   (kind: ResourceKind, name: string, corpo: {content?: string; dados?: Record<string, unknown>}) => req<{ok: boolean}>('PUT', `${px()}/recursos/${kind}/${encodeURIComponent(name)}`, corpo),
+  apagarRecurso:   (kind: ResourceKind, name: string) => req<{ok: boolean}>('DELETE', `${px()}/recursos/${kind}/${encodeURIComponent(name)}`),
+  renomearRecurso: (kind: ResourceKind, name: string, newName: string) => req<{ok: boolean}>('POST', `${px()}/recursos/${kind}/${encodeURIComponent(name)}/rename`, { new_name: newName }),
 
   listAttachments: (name: string) =>
     req<Attachment[]>('GET', `${px()}/memory/${encodeURIComponent(name)}/anexos`),
