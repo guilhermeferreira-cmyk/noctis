@@ -478,10 +478,8 @@ export default function App() {
         <VisaoPage key={scope} projetos={projects}
           onAbrirProjeto={trocarDeProjeto}
           onAbrirLearnings={slug => { trocarDeProjeto(slug); abrirPagina('learning') }}
-          onRecarregarProjetos={() => loadProjects(current)}
-          onConfigurar={() => setConfigAberta('tipos')}
           onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject}
-          onZen={() => setZen(true)} />
+          onNovoProjeto={createProject} onAbrirPagina={abrirPagina} />
       )
       case 'agents':   return <AgentsPage key={scope} />
       case 'organizacao': return <OrganizacaoPage key={scope} />

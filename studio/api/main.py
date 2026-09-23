@@ -1763,9 +1763,6 @@ SISTEMA_PADRAO: dict[str, dict] = {
     "warden.identidade": {"grupo": "Warden", "label": "Warden", "icon": "GiSpikedShield",
                          "color": "#f59e0b", "marca": True},   # a marca é o logo do Noctis:
                          # cor e ícone daqui não pintam nada, e o painel não os oferece.
-    "warden.catalogo":   {"grupo": "Warden", "label": "Catálogo", "icon": "GiArchiveResearch", "color": "#38bdf8"},
-    "warden.propria":    {"grupo": "Warden", "label": "Camada do Warden", "icon": "GiCastle", "color": "#f59e0b"},
-    "warden.templates":  {"grupo": "Warden", "label": "Templates", "icon": "GiStoneBlock", "color": "#a78bfa"},
     "warden.projetos":   {"grupo": "Warden", "label": "Projetos", "icon": "GiEmptyChessboard", "color": "#10b981"},
     # os papéis da organização
     "pnick.warden":      {"grupo": "Papéis", "label": "Warden", "icon": "GiSpikedShield", "color": "#f59e0b"},
