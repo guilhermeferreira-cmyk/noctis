@@ -162,12 +162,15 @@ function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo, onZen }
         const z = doSistema('secao.zen', 'GiMeditation', '#a78bfa')
         const IconeZen = getIcon(z.icon)
         return (
-          <button onClick={onZen} title="Modo zen — só o relógio"
-            className="h-6 w-6 shrink-0 grid place-items-center rounded-md text-gray-600
-                       hover:bg-white/[0.06] transition-colors"
+          // Ícone sozinho de 13px encostado na borda é invisível na prática: o
+          // modo zen existia na home do Warden e ninguém o achava. Ganha rótulo.
+          <button onClick={onZen} title="Modo zen — só o relógio (Esc sai)"
+            className="h-6 shrink-0 flex items-center gap-1.5 px-2 rounded-md text-[11px]
+                       text-gray-500 border border-white/[0.07] hover:bg-white/[0.06]
+                       hover:text-gray-200 transition-colors"
             onMouseEnter={e => { e.currentTarget.style.color = z.color }}
             onMouseLeave={e => { e.currentTarget.style.color = '' }}>
-            <IconeZen size={13} />
+            <IconeZen size={13} /> zen
           </button>
         )
       })()}
@@ -496,7 +499,8 @@ export default function App() {
             onAbrirLearnings={slug => { trocarDeProjeto(slug); abrirPagina('learning') }}
             onRecarregarProjetos={() => loadProjects(current)}
             onConfigurar={() => setConfigAberta('tipos')}
-            onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject} />
+            onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject}
+            onZen={() => setZen(true)} />
         </div>
       )}
       {!casa && (<>

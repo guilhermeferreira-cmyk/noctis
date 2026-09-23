@@ -152,7 +152,7 @@ function CardItem({ it, onAbrir }: { it: ResourceItem; onAbrir: () => void }) {
 
 export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
                                     onRecarregarProjetos, onConfigurar, onRenomearProjeto,
-                                    onExcluirProjeto }: {
+                                    onExcluirProjeto, onZen }: {
   projetos: ProjectMeta[]
   onAbrirProjeto: (slug: string) => void
   /** Abre o projeto JÁ na página de Learning, onde o card de decisão vive. */
@@ -161,6 +161,9 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
   onConfigurar: () => void
   onRenomearProjeto: (slug: string) => void
   onExcluirProjeto: (slug: string) => void
+  /** O modo zen vale da home também: parar de trabalhar é um gesto sobre o
+   *  sistema inteiro, não sobre um projeto aberto. */
+  onZen: () => void
 }) {
   const [vista, setVista] = useState<Vista>(() =>
     (sessionStorage.getItem('noctis.home.vista') as Vista) || 'projetos')
@@ -371,6 +374,20 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
             {VISTAS.find(v => v.id === vista)!.dica}
           </span>
           <span className="flex-1" />
+          {(() => {
+            const z = doSistema('secao.zen', 'GiMeditation', '#a78bfa')
+            const IconeZen = getIcon(z.icon)
+            return (
+              <button onClick={onZen} title="Modo zen — só o relógio (Esc sai)"
+                className="flex items-center gap-1.5 text-[11px] text-gray-600 hover:text-gray-200
+                           border border-white/[0.07] rounded-md px-2 py-1 hover:bg-white/[0.06]
+                           transition-colors"
+                onMouseEnter={e => { e.currentTarget.style.color = z.color }}
+                onMouseLeave={e => { e.currentTarget.style.color = '' }}>
+                <IconeZen size={13} /> zen
+              </button>
+            )
+          })()}
           {vista === 'projetos' ? (
             <button onClick={onRecarregarProjetos}
               className="text-[11px] text-gray-600 hover:text-gray-200">recarregar</button>
