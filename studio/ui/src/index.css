@@ -150,3 +150,28 @@ textarea, input, select {
 @media (prefers-reduced-motion: reduce) {
   .esqueleto-sol { animation: none; opacity: .75; }
 }
+
+
+/* ── Modo zen ────────────────────────────────────────────────────────────────
+   O fundo gira devagar, em torno do próprio centro. A rotação é `transform`,
+   composta na GPU: animar as posições do gradiente obrigaria o navegador a
+   repintar a tela inteira a cada quadro, e numa tela que fica ABERTA por horas
+   isso é ventoinha ligada sem motivo.
+
+   A escala maior que 1 existe para o canto do retângulo não entrar em campo ao
+   girar — sem ela, apareceria um vinco escuro varrendo a borda. */
+@keyframes zen-girar { to { transform: rotate(360deg) scale(1.6); } }
+
+.zen-fundo {
+  transform: scale(1.6);
+  animation-name: zen-girar;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* Quem pediu menos movimento no sistema não quer um gradiente girando na cara
+   por horas. O fundo fica, a rotação não. */
+@media (prefers-reduced-motion: reduce) {
+  .zen-fundo { animation: none; }
+}

@@ -1754,6 +1754,7 @@ SISTEMA_PADRAO: dict[str, dict] = {
     "secao.controle":    {"grupo": "Seções", "label": "Controle", "icon": "GiControlTower", "color": "#38bdf8"},
     "secao.setup":       {"grupo": "Seções", "label": "Gerar Setup", "icon": "GiMagicSwirl", "color": "#a855f7"},
     "secao.config":      {"grupo": "Seções", "label": "Configurações", "icon": "GiGears", "color": "#71717a"},
+    "secao.zen":         {"grupo": "Seções", "label": "Modo zen", "icon": "GiMeditation", "color": "#a78bfa"},
     # a casa: o Warden e as camadas dele
     "warden.identidade": {"grupo": "Warden", "label": "Warden", "icon": "GiSpikedShield",
                          "color": "#f59e0b", "marca": True},   # a marca é o logo do Noctis:

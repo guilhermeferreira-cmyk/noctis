@@ -14,6 +14,7 @@ const SkillsPage       = lazy(() => import('./pages/Skills'))
 const RuntimePage      = lazy(() => import('./pages/Runtime'))
 const ControlePage     = lazy(() => import('./pages/Controle'))
 const CosmosPage       = lazy(() => import('./pages/Cosmos'))
+const ZenPage          = lazy(() => import('./pages/Zen'))
 import ProjectsModal from './ProjectsModal'
 import { api, getProject, setProject, type ProjectMeta } from './api'
 import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse } from './iconesEssenciais'
@@ -111,7 +112,7 @@ function iconeDaAba(a: Aba): { I: React.ComponentType<{ size?: number; className
  * Nada se mistura entre projetos. O que atravessa é o arquétipo de um agente,
  * enviado de propósito, sem papel, sem squad e sem histórico.
  */
-function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo }: {
+function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo, onZen }: {
   projetos: ProjectMeta[]
   atual: string
   /** A home do Warden está aberta: nenhum projeto está em foco. */
@@ -119,6 +120,7 @@ function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo }: {
   onCasa: () => void
   onAbrir: (slug: string) => void
   onNovo: () => void
+  onZen: () => void
 }) {
   return (
     <div className="relative z-10 h-8 shrink-0 flex items-center gap-1 px-2 overflow-x-auto
@@ -151,6 +153,24 @@ function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo }: {
         className="w-6 h-6 shrink-0 grid place-items-center rounded-md text-gray-600 hover:text-gray-200 hover:bg-white/[0.06]">
         +
       </button>
+
+      <span className="flex-1" />
+      {/* O zen mora na tira de cima, e não na faixa de seções, porque a faixa
+          só existe DENTRO de um projeto — e parar de trabalhar é um gesto sobre
+          o sistema, que se toma de qualquer lugar, inclusive da home. */}
+      {(() => {
+        const z = doSistema('secao.zen', 'GiMeditation', '#a78bfa')
+        const IconeZen = getIcon(z.icon)
+        return (
+          <button onClick={onZen} title="Modo zen — só o relógio"
+            className="h-6 w-6 shrink-0 grid place-items-center rounded-md text-gray-600
+                       hover:bg-white/[0.06] transition-colors"
+            onMouseEnter={e => { e.currentTarget.style.color = z.color }}
+            onMouseLeave={e => { e.currentTarget.style.color = '' }}>
+            <IconeZen size={13} />
+          </button>
+        )
+      })()}
     </div>
   )
 }
@@ -229,6 +249,9 @@ export default function App() {
   // cima, e por isso vive fora do escopo de projeto — abrir um projeto sai
   // dela, e o botão de casa volta sem fechar nada do que estava aberto.
   const [casa, setCasa] = useState(() => localStorage.getItem('noctis.casa') !== '0')
+  // Modo zen NÃO é lembrado entre sessões de propósito: abrir o Noctis e cair
+  // numa tela sem informação nenhuma pareceria defeito, não escolha.
+  const [zen, setZen] = useState(false)
   useEffect(() => {
     try { localStorage.setItem('noctis.casa', casa ? '1' : '0') } catch { /* sem storage */ }
   }, [casa])
@@ -464,7 +487,7 @@ export default function App() {
 
       <AbasDeProjeto projetos={projects} atual={current}
         casa={casa} onCasa={() => setCasa(true)}
-        onAbrir={trocarDeProjeto} onNovo={createProject} />
+        onAbrir={trocarDeProjeto} onNovo={createProject} onZen={() => setZen(true)} />
 
       {casa && (
         <div className="relative z-10 flex-1 min-h-0">
@@ -633,6 +656,15 @@ export default function App() {
           onAbrirControle={() => abrirPagina('controle')}
           onAbrirNocturn={() => setDir(true)} />
       </div>}
+
+      {/* O zen cobre a tela inteira e vem por último na árvore: ele não desmonta
+          o que está aberto atrás, só esconde. Sair devolve exatamente o que
+          estava — é o que faz entrar nele ser barato. */}
+      {zen && (
+        <Suspense fallback={<CarregandoNoctis />}>
+          <ZenPage onSair={() => setZen(false)} />
+        </Suspense>
+      )}
 
       {configAberta && vocab && (
         <Configuracoes vocab={vocab} secaoInicial={configAberta} projetoAtual={current}
