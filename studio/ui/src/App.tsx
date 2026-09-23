@@ -15,9 +15,10 @@ const RuntimePage      = lazy(() => import('./pages/Runtime'))
 const ControlePage     = lazy(() => import('./pages/Controle'))
 const CosmosPage       = lazy(() => import('./pages/Cosmos'))
 const ZenPage          = lazy(() => import('./pages/Zen'))
+const VisaoPage        = lazy(() => import('./pages/Home'))
 import ProjectsModal from './ProjectsModal'
 import { api, getProject, setProject, type ProjectMeta } from './api'
-import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse } from './iconesEssenciais'
+import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse, GiSpikedShield } from './iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
          aplicarLogo, aplicarCeu, aplicarVidro, ICON_SIZES, CEU, VIDRO, LOGO, classePainel } from './lib/kinds'
@@ -37,7 +38,6 @@ import { PainelDireito, type Contexto } from './components/shell/PainelDireito'
 import { BarraStatus } from './components/shell/BarraStatus'
 import { TPainelEsq, TPainelDir, TVoltar, TAvancar, TFechar } from './components/shell/Tracos'
 import type { MemoryVocab, ResourceKind } from './api'
-import HomeWarden from './pages/Home'
 
 /**
  * A casca do Noctis, no desenho do Obsidian.
@@ -50,7 +50,7 @@ import HomeWarden from './pages/Home'
  * que se trabalha junto fica aberto junto.
  */
 
-type Pagina = 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
+type Pagina = 'visao' | 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
 
 type Aba =
   | { id: string; tipo: 'pagina'; pagina: Pagina }
@@ -61,6 +61,8 @@ type Aba =
 // As quatro primeiras herdam ícone e cor do próprio tipo de recurso: a faixa e o
 // card falam do mesmo objeto, então trocar a cor de "Agente" repinta os dois.
 const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType; color?: string }[] = [
+  // A entrada do Warden. Só aparece no projeto base — ver o filtro da faixa.
+  { id: 'visao',    label: 'Visão geral', icon: GiSpikedShield, color: '#f59e0b' },
   { id: 'agents',   label: 'Agentes',  kind: 'agent' },
   { id: 'organizacao', label: 'Organização', icon: GiFamilyTree, color: '#a78bfa' },
   { id: 'memory',   label: 'Memória',  kind: 'memory' },
@@ -443,6 +445,15 @@ export default function App() {
       return <MemoryCanvasPage key={`${scope}-${a.id}`} mapaInicial={a.mapa} />
     }
     switch (a.pagina) {
+      case 'visao':    return (
+        <VisaoPage key={scope} projetos={projects}
+          onAbrirProjeto={trocarDeProjeto}
+          onAbrirLearnings={slug => { trocarDeProjeto(slug); abrirPagina('learning') }}
+          onRecarregarProjetos={() => loadProjects(current)}
+          onConfigurar={() => setConfigAberta('tipos')}
+          onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject}
+          onZen={() => setZen(true)} />
+      )
       case 'agents':   return <AgentsPage key={scope} />
       case 'organizacao': return <OrganizacaoPage key={scope} />
       case 'flows':    return <FlowsPage key={scope} />
@@ -507,13 +518,17 @@ export default function App() {
 
       {casa && (
         <div className="relative z-10 flex-1 min-h-0">
-          <HomeWarden projetos={projects}
+          {/* Ramo de saída: a Visão já é uma página do workspace (case 'visao').
+              Este bloco cai junto com o estado `casa`. */}
+          <Suspense fallback={<CarregandoNoctis />}>
+          <VisaoPage projetos={projects}
             onAbrirProjeto={trocarDeProjeto}
             onAbrirLearnings={slug => { trocarDeProjeto(slug); abrirPagina('learning') }}
             onRecarregarProjetos={() => loadProjects(current)}
             onConfigurar={() => setConfigAberta('tipos')}
             onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject}
             onZen={() => setZen(true)} />
+          </Suspense>
         </div>
       )}
       {!casa && (<>
@@ -561,7 +576,12 @@ export default function App() {
         {/* Faixa de ícones: cada seção na própria cor, como a barra antiga */}
         {prefs.mostrarFaixa && <nav className="shrink-0 flex flex-col items-center gap-1 py-1 mr-1.5" style={{ width: larguraFaixa }}>
           {!esq && <div className="mb-2" title="Noctis"><LogoNoctis size={Math.min(28, tamIcone + 6)} /></div>}
-          {PAGINAS.filter(p => !prefs.secoesOcultas.includes(p.id)).map(p => {
+          {PAGINAS.filter(p => !prefs.secoesOcultas.includes(p.id)
+                     // A Visão geral é a entrada do WARDEN: dentro de um projeto
+                     // cliente ela mostraria a grade de todos, que é dado de outro
+                     // contexto na tela. `current` (estado) e não getProject(),
+                     // senão a faixa não re-renderiza ao trocar de projeto.
+                     && (p.id !== 'visao' || current === 'noctis')).map(p => {
             // O ícone e a cor de cada seção são escolha sua (Aparência › Ícones
             // do sistema); o padrão do código é só a reserva.
             const s = doSistema(`secao.${p.id}`,

@@ -1741,6 +1741,10 @@ def _cor_valida(v, padrao: str) -> str:
 # do Learning. Grupo/chave é o que a tela usa para agrupar os controles.
 SISTEMA_PADRAO: dict[str, dict] = {
     # seções da faixa de ícones
+    # A Visão geral é seção só no projeto base: é a entrada do Warden. Tem chave
+    # própria porque `warden.identidade` é marca (não pinta nada), e toda seção
+    # da faixa precisa de ícone e cor que VOCÊ escolhe.
+    "secao.visao":       {"grupo": "Seções", "label": "Visão geral", "icon": "GiSpikedShield", "color": "#f59e0b"},
     "secao.agents":      {"grupo": "Seções", "label": "Agentes", "icon": "GiRobotGolem", "color": "#10b981"},
     "secao.organizacao": {"grupo": "Seções", "label": "Organização", "icon": "GiFamilyTree", "color": "#a78bfa"},
     "secao.memory":      {"grupo": "Seções", "label": "Memória", "icon": "GiBrain", "color": "#3b82f6"},
