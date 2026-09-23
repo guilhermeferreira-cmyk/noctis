@@ -110,6 +110,9 @@ def dizer(raiz: Path, texto: str, autor: str = "nocturn", projeto: str = "",
 def varrer_projeto(base: Path, slug: str) -> dict:
     """O que este projeto tem a dizer. Só leitura — varredura não muda nada."""
     achados: list[dict] = []
+    # As regras deste projeto: um hub de produção não é cobrado pelas mesmas
+    # coisas que um hub de governança.
+    esc = regras.escopo_de_base(base)
     eventos = prog.ler_log(base)
     # Não sair cedo quando o projeto não tem trabalho registrado: memória sem
     # autor e memória que ninguém lê existem com ou sem XP. A saída antecipada
@@ -132,7 +135,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
     # 1b. Proposta de Learning sem veredito. Recusar É resposta — é aprendizado
     #     sobre o que NÃO é a competência. O que não pode existir é o silêncio
     #     para sempre: o agente propôs a partir de trabalho real e nunca soube.
-    if regras.valor("learning.proposta_exige_resposta"):
+    if regras.valor("learning.proposta_exige_resposta", esc):
         try:
             propostas_ = tse.propostas(base)
         except Exception:
@@ -158,7 +161,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
         if ev.get("tipo") not in ("entrega", "output"):
             continue
         dias = _idade_em_dias(ev.get("quando"))
-        if dias is not None and dias >= regras.valor("nocturn.dias_para_cobrar_confirmacao"):
+        if dias is not None and dias >= regras.valor("nocturn.dias_para_cobrar_confirmacao", esc):
             achados.append({
                 "ronda": "trabalho", "tipo": "sem_confirmacao", "urgencia": "media", "projeto": slug,
                 "evento": ev["id"], "agente": ev.get("agente", ""), "dias": round(dias),
@@ -177,7 +180,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
             })
             continue
         dias = _idade_em_dias(ficha.get("ultima"))
-        if dias is not None and dias >= regras.valor("nocturn.dias_para_ocioso"):
+        if dias is not None and dias >= regras.valor("nocturn.dias_para_ocioso", esc):
             achados.append({
                 "ronda": "agentes", "tipo": "agente_parado", "urgencia": "baixa", "projeto": slug,
                 "agente": f.stem, "dias": round(dias),
@@ -220,7 +223,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
     for i, a in enumerate(chaves):
         for b in chaves[i + 1:]:
             razao = prog._semelhanca(a, b)
-            if regras.valor("learning.faixa_parecidas") <= razao < regras.valor("learning.limiar_fusao"):
+            if regras.valor("learning.faixa_parecidas", esc) <= razao < regras.valor("learning.limiar_fusao", esc):
                 achados.append({
                     "ronda": "vocabulario", "tipo": "skill_parecida", "urgencia": "media",
                     "projeto": slug, "chave": a, "outra": b,

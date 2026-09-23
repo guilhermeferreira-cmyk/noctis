@@ -81,7 +81,7 @@ def _semelhanca(a: str, b: str) -> float:
     return SequenceMatcher(None, a, b).ratio()
 
 
-def casar_habilidade(rotulo: str, conhecidas: dict) -> str | None:
+def casar_habilidade(rotulo: str, conhecidas: dict, esc=None) -> str | None:
     """Em qual Learning já existente este nome cai — ou None se for novo.
 
     A cascata é: slug exato → apelido conhecido → semelhança alta. É ela que
@@ -102,7 +102,7 @@ def casar_habilidade(rotulo: str, conhecidas: dict) -> str | None:
             r = _semelhanca(s, candidato)
             if r > nota:
                 melhor, nota = chave, r
-    return melhor if nota >= regras.valor("learning.limiar_fusao") else None
+    return melhor if nota >= regras.valor("learning.limiar_fusao", esc) else None
 
 
 # ── Níveis ────────────────────────────────────────────────────────────────────
@@ -176,9 +176,10 @@ def _anexar(base: Path, registro: dict) -> dict:
 
 def registrar_evento(base: Path, dados: dict) -> dict:
     """Valida e grava um evento. O XP não vem daqui — vem da fórmula, na leitura."""
+    esc = regras.escopo_de_base(base)
     tipo = str(dados.get("tipo") or "").strip()
     agente = str(dados.get("agente") or "").strip()
-    if tipo not in regras.valor("xp.base_por_tipo"):
+    if tipo not in regras.valor("xp.base_por_tipo", esc):
         raise ValueError(f"tipo inválido: {tipo!r}; use um de {', '.join(TIPOS)}")
     if not agente:
         raise ValueError("evento sem agente")
@@ -202,7 +203,7 @@ def registrar_evento(base: Path, dados: dict) -> dict:
         # que o Runtime vive. Fica no mesmo evento porque um Skill se consome
         # dentro de um turno de trabalho — não há "comecei" e "terminei".
         "skills": [str(x).strip()[:80] for x in (dados.get("skills") or []) if str(x).strip()][:8],
-        "dificuldade": dados["dificuldade"] if dados.get("dificuldade") in regras.valor("xp.dificuldade") else "media",
+        "dificuldade": dados["dificuldade"] if dados.get("dificuldade") in regras.valor("xp.dificuldade", esc) else "media",
         "evidencia": {
             "arquivos": [str(a)[:300] for a in (ev.get("arquivos") or [])][:40],
             "memorias": [str(m)[:300] for m in (ev.get("memorias") or [])][:40],
@@ -230,7 +231,7 @@ def confirmar_evento(base: Path, evento_id: str, por: str) -> dict:
     # autor assina não prova nada.
     if quem and quem == ev.get("agente"):
         raise PermissionError("ninguém confirma o próprio trabalho")
-    if regras.valor("xp.confirmacao_so_do_dono") and quem not in ("usuario", ""):
+    if regras.valor("xp.confirmacao_so_do_dono", regras.escopo_de_base(base)) and quem not in ("usuario", ""):
         raise PermissionError(
             "só você confirma entrega — a regra está em Configurações › XP e níveis")
     return _anexar(base, {"id": "cfm_" + uuid.uuid4().hex[:12], "quando": agora(),
@@ -284,9 +285,10 @@ def fundir_habilidades(base: Path, de: list[str], para: str, rotulo: str = "") -
 # ── Estado ────────────────────────────────────────────────────────────────────
 
 def _xp_do_evento(ev: dict, confirmado: bool, descoberta: bool,
-                  despacho_cumprido: bool = False) -> float:
+                  despacho_cumprido: bool = False, esc=None) -> float:
     # Tudo aqui vem do registro de regras: o que o painel mostra é o que conta.
-    base = regras.valor("xp.base_por_tipo").get(ev["tipo"], 0)
+    # E `esc` diz de QUE hub — produzir e governar não valem o mesmo.
+    base = regras.valor("xp.base_por_tipo", esc).get(ev["tipo"], 0)
     if base == 0:
         return 0.0
     e = ev.get("evidencia") or {}
@@ -296,16 +298,16 @@ def _xp_do_evento(ev: dict, confirmado: bool, descoberta: bool,
                        (e.get("linhas") or 0) / 1200.0
                        + len(e.get("arquivos") or []) * 0.04
                        + len(e.get("memorias") or []) * 0.06)
-    xp = base * regras.valor("xp.dificuldade").get(ev.get("dificuldade", "media"), 1.3) * volume
+    xp = base * regras.valor("xp.dificuldade", esc).get(ev.get("dificuldade", "media"), 1.3) * volume
     if confirmado:
-        xp *= regras.valor("xp.mult_confirmado")
+        xp *= regras.valor("xp.mult_confirmado", esc)
     if descoberta:
-        xp *= regras.valor("xp.mult_descoberta")
+        xp *= regras.valor("xp.mult_descoberta", esc)
     # Coordenar bem é o despacho virar entrega confirmada. Quem só distribui
     # tarefa fica com a base, que é baixa de propósito.
     if despacho_cumprido:
-        xp *= regras.valor("xp.mult_despacho_cumprido")
-    return min(regras.valor("xp.teto_por_evento"), xp)
+        xp *= regras.valor("xp.mult_despacho_cumprido", esc)
+    return min(regras.valor("xp.teto_por_evento", esc), xp)
 
 
 def _dia(iso: str) -> str:
@@ -321,6 +323,9 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
     sem ele, o casamento acontece só dentro de cada agente, e a mesma competência
     vira duas coisas que nunca se encontram.
     """
+    # As regras deste projeto, que podem não ser as do sistema: um hub que
+    # produz não firma Learning por repetição nem penaliza volume diário.
+    esc = regras.escopo_de_base(base)
     indice = indice or {}
     mortas = destruidas(base)
     # Quem decide se um nome já é Learning é o PROJETO, no repertório: três
@@ -379,7 +384,7 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
         alvos: list[tuple[str, str, bool]] = []   # (chave, rótulo, é descoberta)
         for rotulo in ev.get("habilidades", []):
             s_rot = slug(rotulo)
-            chave = destino(indice.get(s_rot) or casar_habilidade(rotulo, hab) or s_rot)
+            chave = destino(indice.get(s_rot) or casar_habilidade(rotulo, hab, esc) or s_rot)
             if not chave or chave in mortas or s_rot in mortas:
                 continue
             nova = chave not in hab
@@ -394,7 +399,7 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
         # O despacho de quem coordena vale mais quando virou entrega confirmada.
         cumprido = (ev.get("tipo") == "despacho"
                     and (ev.get("despacho") or "").strip().lower() in despachos_cumpridos)
-        xp = _xp_do_evento(ev, ev["id"] in confirmados, descoberta, cumprido)
+        xp = _xp_do_evento(ev, ev["id"] in confirmados, descoberta, cumprido, esc)
 
         a["xp"] += xp
         a["eventos"] += 1
@@ -408,8 +413,8 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
             for chave, _, _ in alvos:
                 k = (nome, chave, _dia(ev.get("quando", "")))
                 por_dia[k] = por_dia.get(k, 0) + 1
-                f = (regras.valor("xp.fator_saturado")
-                     if por_dia[k] > regras.valor("xp.saturacao_diaria") else 1.0)
+                f = (regras.valor("xp.fator_saturado", esc)
+                     if por_dia[k] > regras.valor("xp.saturacao_diaria", esc) else 1.0)
                 h = hab[chave]
                 h["xp"] += fatia * f
                 h["eventos"] += 1
@@ -424,23 +429,23 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
 
     # Fechamento: níveis, promoção de brotos e ordenação.
     for a in agentes.values():
-        n, ini, fim, frac = nivel_de(a["xp"], tuple(regras.valor("xp.curva_agente")))
+        n, ini, fim, frac = nivel_de(a["xp"], tuple(regras.valor("xp.curva_agente", esc)))
         a.update(xp=round(a["xp"], 1), nivel=n, inicio_nivel=round(ini),
                  proximo_nivel=round(fim), progresso=round(frac, 3))
         learnings, brotos = {}, {}
         for chave, h in a["habilidades"].items():
             h["marcos"] = marcos.get((a["agente"], chave), [])
-            hn, hini, hfim, hfrac = nivel_de(h["xp"], tuple(regras.valor("xp.curva_learning")))
+            hn, hini, hfim, hfrac = nivel_de(h["xp"], tuple(regras.valor("xp.curva_learning", esc)))
             h.update(xp=round(h["xp"], 1), nivel=hn, inicio_nivel=round(hini),
                      proximo_nivel=round(hfim), progresso=round(hfrac, 3),
                      rotulo=rotulos_fundidos.get(chave, h["rotulo"]))
             h["marcos"] = marcos.get((a["agente"], chave), [])
-            if not regras.valor("learning.usar_firmar"):
+            if not regras.valor("learning.usar_firmar", esc):
                 firme = True
             elif firmadas is not None:
                 firme = chave in firmadas
             else:
-                firme = h["eventos"] >= regras.valor("learning.eventos_para_firmar")
+                firme = h["eventos"] >= regras.valor("learning.eventos_para_firmar", esc)
             (learnings if firme else brotos)[chave] = h
         a["habilidades"] = dict(sorted(learnings.items(),
                                        key=lambda kv: (-kv[1]["xp"], kv[0])))
@@ -471,6 +476,7 @@ def aptidao(base: Path, desejadas: list[str]) -> list[dict]:
     Sem isto, XP é vitrine; com isto, "quem está mais apto" vira uma pergunta
     com resposta.
     """
+    esc = regras.escopo_de_base(base)
     estado = estado_do_projeto(base)
     alvos = [slug(d) for d in desejadas if slug(d)]
     saida = []
@@ -478,14 +484,14 @@ def aptidao(base: Path, desejadas: list[str]) -> list[dict]:
         tudo = {**a["habilidades"], **a["brotos"]}
         nota, casadas, faltando = 0.0, [], []
         for alvo in alvos:
-            chave = alvo if alvo in tudo else casar_habilidade(alvo, tudo)
+            chave = alvo if alvo in tudo else casar_habilidade(alvo, tudo, esc)
             if not chave:
                 faltando.append(alvo)
                 continue
             h = tudo[chave]
             # Brotos contam menos: poucos eventos ainda não são competência.
-            peso = 1.0 if (not regras.valor("learning.usar_firmar")
-                           or h["eventos"] >= regras.valor("learning.eventos_para_firmar")) else 0.45
+            peso = 1.0 if (not regras.valor("learning.usar_firmar", esc)
+                           or h["eventos"] >= regras.valor("learning.eventos_para_firmar", esc)) else 0.45
             nota += (h["nivel"] + h["progresso"]) * peso * _recencia(h.get("ultima"))
             casadas.append({"chave": chave, "rotulo": h["rotulo"], "nivel": h["nivel"],
                             "broto": peso < 1.0})

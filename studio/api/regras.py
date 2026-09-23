@@ -23,12 +23,101 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 _CONFIG: Path | None = None
-_cache: dict = {"mtime": None, "valores": {}}
+_PROJECTS: Path | None = None
+# Um cache por ARQUIVO de override, não um só: agora são vários (o global, o de
+# cada hub, o de cada projeto) e eles mudam em momentos diferentes.
+_cache: dict[str, dict] = {}
 
 
 def configurar(raiz: Path) -> None:
-    global _CONFIG
+    global _CONFIG, _PROJECTS
     _CONFIG = raiz / "config" / "regras.json"
+    _PROJECTS = raiz / "projects"
+
+
+# ── Escopo ────────────────────────────────────────────────────────────────────
+#
+# O Noctis virou suíte: o mesmo motor serve mais de um hub, e um hub cujo
+# objetivo é PRODUZIR não pode herdar as regras de um hub cujo objetivo é
+# GOVERNAR. Saturação diária é anomalia num e meta no outro.
+#
+# Uma regra passa a ser resolvida em cascata, do mais específico para o mais
+# geral:
+#
+#     fixa → projeto → hub → global → padrão do catálogo
+#
+# O global continua sendo `config/regras.json`, exatamente como era: quem já
+# ajustou alguma coisa não perde nada.
+#
+# **Nem toda regra pode ser escopada, e isso não é opcional.** Escopar uma
+# proteção reabriria o buraco que `fixa` fechou — por isso a área `protecoes`
+# nunca escapa, e qualquer regra pode se recusar com `escopavel: False`.
+
+AREAS_NAO_ESCOPAVEIS = {"protecoes"}
+
+
+class Escopo:
+    """Onde uma regra está sendo lida: um hub, um projeto, ou nada."""
+
+    __slots__ = ("hub", "projeto")
+
+    def __init__(self, hub: str = "", projeto: str = ""):
+        self.hub = (hub or "").strip()
+        self.projeto = (projeto or "").strip()
+
+    def __repr__(self) -> str:
+        return f"Escopo(hub={self.hub!r}, projeto={self.projeto!r})"
+
+    def __bool__(self) -> bool:
+        return bool(self.hub or self.projeto)
+
+
+def _hub_do_dir(d: Path) -> str:
+    """O hub declarado no `project.yaml`. Ausente = o hub de origem, `noctis`."""
+    p = d / "project.yaml"
+    try:
+        for linha in p.read_text(encoding="utf-8").splitlines():
+            if linha.startswith("hub:"):
+                return linha.split(":", 1)[1].strip().strip("'\"")
+    except OSError:
+        pass
+    return "noctis"
+
+
+def escopo_de_projeto(slug: str) -> Escopo:
+    """O escopo de um projeto pelo slug — o hub sai do `project.yaml` dele."""
+    if not slug or not _PROJECTS:
+        return Escopo()
+    return Escopo(hub=_hub_do_dir(_PROJECTS / slug), projeto=slug)
+
+
+def escopo_de_base(base: Path) -> Escopo:
+    """O mesmo, para quem só tem o caminho da pasta do projeto na mão.
+
+    `progresso.py` e `repertorio.py` recebem `base: Path` e não o slug; derivar
+    daí é mais barato do que mudar a assinatura de todas as funções deles.
+    """
+    if not base:
+        return Escopo()
+    return Escopo(hub=_hub_do_dir(base), projeto=base.name)
+
+
+def _escopavel(r: dict) -> bool:
+    return (not r.get("fixa")
+            and r.get("area") not in AREAS_NAO_ESCOPAVEIS
+            and r.get("escopavel", True) is not False)
+
+
+def _arquivos_de(esc: Escopo | None) -> list[Path]:
+    """Os arquivos de override, do MAIS específico para o mais geral."""
+    fora: list[Path] = []
+    if esc and esc.projeto and _PROJECTS:
+        fora.append(_PROJECTS / esc.projeto / "config" / "regras.json")
+    if esc and esc.hub and _CONFIG:
+        fora.append(_CONFIG.parent / f"regras.{esc.hub}.json")
+    if _CONFIG:
+        fora.append(_CONFIG)
+    return fora
 
 
 # ── O catálogo ────────────────────────────────────────────────────────────────
@@ -422,32 +511,59 @@ _POR_ID = {r["id"]: r for r in CATALOGO}
 
 # ── Leitura e escrita ─────────────────────────────────────────────────────────
 
-def _valores_salvos() -> dict:
-    if not _CONFIG or not _CONFIG.exists():
+def _ler_arquivo(p: Path) -> dict:
+    if not p or not p.exists():
         return {}
-    mtime = _CONFIG.stat().st_mtime
-    if _cache["mtime"] != mtime:
+    chave = str(p)
+    try:
+        mtime = p.stat().st_mtime
+    except OSError:
+        return {}
+    c = _cache.get(chave)
+    if not c or c["mtime"] != mtime:
         try:
-            _cache["valores"] = json.loads(_CONFIG.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            _cache["valores"] = {}
-        _cache["mtime"] = mtime
-    return _cache["valores"]
+            valores = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            valores = {}
+        c = {"mtime": mtime, "valores": valores if isinstance(valores, dict) else {}}
+        _cache[chave] = c
+    return c["valores"]
 
 
-def valor(rid: str):
-    """O valor que o código deve usar AGORA. É a única forma de ler uma regra."""
+def _valores_salvos(esc: Escopo | None = None) -> dict:
+    """Os overrides já compostos, do mais geral para o mais específico."""
+    fora: dict = {}
+    for p in reversed(_arquivos_de(esc)):
+        fora.update(_ler_arquivo(p))
+    return fora
+
+
+def valor(rid: str, esc: Escopo | None = None):
+    """O valor que o código deve usar AGORA. É a única forma de ler uma regra.
+
+    Sem `esc`, lê o global — que é o que todo chamador antigo continua fazendo,
+    e por isso nada muda para quem não passou a escopar ainda.
+    """
     r = _POR_ID[rid]
     if r.get("fixa"):
         return r["padrao"]
-    salvo = _valores_salvos().get(rid)
-    if salvo is None:
-        return r["padrao"]
+    arquivos = _arquivos_de(esc if _escopavel(r) else None)
     if r["tipo"] in ("mapa", "flags", "cores"):
         # Mapa salvo é complemento, não substituição: chave nova que eu
         # acrescentar no código aparece com o padrão dela, em vez de faltar.
-        return {**r["padrao"], **salvo}
-    return salvo
+        # Com escopo, as camadas se empilham na mesma lógica — o projeto
+        # complementa o hub, que complementa o global.
+        out = dict(r["padrao"])
+        for p in reversed(arquivos):
+            salvo = _ler_arquivo(p).get(rid)
+            if isinstance(salvo, dict):
+                out.update(salvo)
+        return out
+    for p in arquivos:
+        salvo = _ler_arquivo(p).get(rid)
+        if salvo is not None:
+            return salvo
+    return r["padrao"]
 
 
 def _validar(r: dict, v):
@@ -523,7 +639,7 @@ def _rastro_path() -> Path | None:
     return (_CONFIG.parent / "config.jsonl") if _CONFIG else None
 
 
-def _anotar(rid: str, de, para, por: str, acao: str) -> None:
+def _anotar(rid: str, de, para, por: str, acao: str, esc: Escopo | None = None) -> None:
     p = _rastro_path()
     if not p:
         return
@@ -532,6 +648,10 @@ def _anotar(rid: str, de, para, por: str, acao: str) -> None:
         "regra": rid, "acao": acao, "de": de, "para": para,
         "por": (por or "usuario")[:120],
     }
+    # Sem o escopo o rastro fica ambíguo: "o XP mudou ontem" deixaria de dizer
+    # se mudou para todo mundo ou só para um hub.
+    if esc and (esc.hub or esc.projeto):
+        linha["escopo"] = {"hub": esc.hub, "projeto": esc.projeto}
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         with p.open("a", encoding="utf-8") as f:
@@ -565,44 +685,80 @@ def ultima_mudanca(rid: str) -> dict | None:
     return h[0] if h else None
 
 
-def definir(rid: str, v, por: str = "usuario") -> dict:
+def _alvo_da_escrita(r: dict, esc: Escopo | None) -> Path:
+    """Em QUE arquivo a mudança é gravada.
+
+    Escopo pedido mas regra não escopável não vira erro silencioso nem grava no
+    lugar errado: levanta, porque gravar no global o que se pediu para um hub é
+    mudar o sistema inteiro sem avisar.
+    """
+    if esc and (esc.projeto or esc.hub):
+        if not _escopavel(r):
+            raise PermissionError(f"{r['id']} não pode ser escopada")
+        if esc.projeto and _PROJECTS:
+            return _PROJECTS / esc.projeto / "config" / "regras.json"
+        return _CONFIG.parent / f"regras.{esc.hub}.json"
+    return _CONFIG
+
+
+def _gravar(p: Path, valores: dict) -> None:
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(valores, ensure_ascii=False, indent=2), encoding="utf-8")
+    _cache.pop(str(p), None)
+
+
+def definir(rid: str, v, por: str = "usuario", esc: Escopo | None = None) -> dict:
     r = _POR_ID.get(rid)
     if not r:
         raise KeyError(rid)
     if r.get("fixa"):
         raise PermissionError(rid)
-    antes = valor(rid)
-    valores = dict(_valores_salvos())
+    alvo = _alvo_da_escrita(r, esc)
+    antes = valor(rid, esc)
+    valores = dict(_ler_arquivo(alvo))
     valores[rid] = _validar(r, v)
-    _CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG.write_text(json.dumps(valores, ensure_ascii=False, indent=2), encoding="utf-8")
-    _cache["mtime"] = None
-    depois = valor(rid)
+    _gravar(alvo, valores)
+    depois = valor(rid, esc)
     if depois != antes:
-        _anotar(rid, antes, depois, por, "mudou")
-    return listar_uma(rid)
+        _anotar(rid, antes, depois, por, "mudou", esc)
+    return listar_uma(rid, esc)
 
 
-def restaurar(rid: str, por: str = "usuario") -> dict:
-    antes = valor(rid)
-    valores = dict(_valores_salvos())
+def restaurar(rid: str, por: str = "usuario", esc: Escopo | None = None) -> dict:
+    r = _POR_ID[rid]
+    alvo = _alvo_da_escrita(r, esc)
+    antes = valor(rid, esc)
+    valores = dict(_ler_arquivo(alvo))
     tinha = rid in valores
     valores.pop(rid, None)
-    _CONFIG.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG.write_text(json.dumps(valores, ensure_ascii=False, indent=2), encoding="utf-8")
-    _cache["mtime"] = None
+    _gravar(alvo, valores)
     if tinha:
-        _anotar(rid, antes, valor(rid), por, "voltou ao padrão")
-    return listar_uma(rid)
+        _anotar(rid, antes, valor(rid, esc), por, "voltou ao padrão", esc)
+    return listar_uma(rid, esc)
 
 
-def listar_uma(rid: str) -> dict:
+def listar_uma(rid: str, esc: Escopo | None = None) -> dict:
     r = _POR_ID[rid]
-    atual = valor(rid)
-    return {**r, "valor": atual, "alterada": (not r.get("fixa")) and atual != r["padrao"],
+    atual = valor(rid, esc)
+    escopavel = _escopavel(r)
+    # `alterada` compara com o PADRÃO. `escopada` responde outra pergunta: existe
+    # um override ESCRITO neste hub ou neste projeto? Comparar valores não serve
+    # — um override que por acaso coincide com o global apareceria como ausente,
+    # e você não teria como restaurá-lo.
+    onde = ""
+    if escopavel and esc:
+        for p in _arquivos_de(esc)[:-1]:      # todos menos o global
+            if rid in _ler_arquivo(p):
+                onde = "projeto" if (esc.projeto and p.parent.parent.name == esc.projeto) else "hub"
+                break
+    return {**r, "valor": atual,
+            "alterada": (not r.get("fixa")) and atual != r["padrao"],
+            "escopavel": escopavel,
+            "escopada": bool(onde), "escopadaEm": onde,
             "ultimaMudanca": ultima_mudanca(rid)}
 
 
-def listar() -> dict:
+def listar(esc: Escopo | None = None) -> dict:
     return {"areas": [{"id": i, "titulo": t, "desc": d} for i, t, d in AREAS],
-            "regras": [listar_uma(r["id"]) for r in CATALOGO]}
+            "escopo": {"hub": esc.hub, "projeto": esc.projeto} if esc else None,
+            "regras": [listar_uma(r["id"], esc) for r in CATALOGO]}

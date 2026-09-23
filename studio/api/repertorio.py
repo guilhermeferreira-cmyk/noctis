@@ -305,6 +305,7 @@ def sincronizar(base: Path) -> dict:
     É idempotente e barato: o repertório nasce do que já aconteceu, sem inventar
     nada. Chamado depois de cada evento e ao abrir a página.
     """
+    esc = regras.escopo_de_base(base)
     rep = carregar(base)
     idx = indice(rep)
     mudou = False
@@ -341,7 +342,7 @@ def sincronizar(base: Path) -> dict:
             # Sem parente: NÃO abre entrada. Quem crio Learning é o dono.
             # O nome fica como citação órfã (`orfas()`), e o NOCTURN a traz na
             # ronda para ele decidir: criar, apelidar de outra, ou ignorar.
-            if not regras.valor("learning.so_o_dono_cria"):
+            if not regras.valor("learning.so_o_dono_cria", esc):
                 rep[s] = _nova(rotulo, r.get("quando", ""), r.get("agente", ""))
                 idx = indice(rep)
                 mudou = True
@@ -358,8 +359,8 @@ def sincronizar(base: Path) -> dict:
     for chave, d in rep.items():
         if d.get("estado") == "arquivada":
             continue
-        novo = "firmada" if (not regras.valor("learning.usar_firmar")
-                             or contagem.get(chave, 0) >= regras.valor("learning.eventos_para_firmar")) \
+        novo = "firmada" if (not regras.valor("learning.usar_firmar", esc)
+                             or contagem.get(chave, 0) >= regras.valor("learning.eventos_para_firmar", esc)) \
             else "broto"
         # Só sobe sozinha. Quem firmou na mão não volta a ser broto.
         if novo == "firmada" and d.get("estado") != "firmada":
@@ -423,7 +424,7 @@ def atualizar(base: Path, chave: str, patch: dict, autor: str = "usuario") -> di
     if "rotulo" in patch and str(patch["rotulo"]).strip():
         d["rotulo"] = str(patch["rotulo"]).strip()[:80]
     if "descricao" in patch:
-        curada = bool(d.get("curada")) and regras.valor("learning.curadoria_protegida")
+        curada = bool(d.get("curada")) and regras.valor("learning.curadoria_protegida", regras.escopo_de_base(base))
         de_agente = autor not in ("usuario", "")
         if not (curada and de_agente):
             d["descricao"] = str(patch["descricao"]).strip()[:600]
@@ -548,7 +549,7 @@ def visao(base: Path) -> dict:
                                                   s["estado"] == "broto",
                                                   -s["xp"], s["rotulo"].lower()))
     return {"skills": {s["chave"]: s for s in ordem},
-            "firmarEm": regras.valor("learning.eventos_para_firmar"), "estados": list(ESTADOS),
+            "firmarEm": regras.valor("learning.eventos_para_firmar", regras.escopo_de_base(base)), "estados": list(ESTADOS),
             "especies": ESPECIES, "naturezas": NATUREZAS,
             "tags": tags_do_projeto(base)}
 
@@ -633,6 +634,7 @@ def parecidas(base: Path, rotulo: str) -> tuple[str | None, list[str]]:
     Devolve (a mesma, se houver) e (as parecidas). "A mesma" bloqueia a criação;
     "parecidas" só avisa — pode ser distinta de fato, e quem decide é quem escreve.
     """
+    esc = regras.escopo_de_base(base)
     rep = carregar(base)
     idx = indice(rep)
     s = prog.slug(rotulo)
@@ -641,8 +643,8 @@ def parecidas(base: Path, rotulo: str) -> tuple[str | None, list[str]]:
     proximas = []
     if not mesma:
         for chave in rep:
-            if regras.valor("learning.faixa_parecidas") <= prog._semelhanca(s, chave) \
-                    < regras.valor("learning.limiar_fusao"):
+            if regras.valor("learning.faixa_parecidas", esc) <= prog._semelhanca(s, chave) \
+                    < regras.valor("learning.limiar_fusao", esc):
                 proximas.append(rep[chave].get("rotulo", chave))
     return mesma, proximas[:3]
 

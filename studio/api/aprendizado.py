@@ -97,7 +97,8 @@ def propor_hipotese(base: Path, dados: dict) -> dict:
     tipo = str(p.get("tipo") or "bool")
     if tipo not in TIPOS_PERGUNTA:
         raise ValueError(f"tipo de pergunta inválido: {tipo!r}")
-    if not regras.valor("aprendizado.tipos_de_pergunta").get(tipo, True):
+    esc = regras.escopo_de_base(base)
+    if not regras.valor("aprendizado.tipos_de_pergunta", esc).get(tipo, True):
         raise ValueError(
             f"o formato {tipo!r} está desligado nas regras do Noctis — use outro")
     ptexto = str(p.get("texto") or "").strip()
@@ -108,7 +109,7 @@ def propor_hipotese(base: Path, dados: dict) -> dict:
         raise ValueError("pergunta de escolha precisa de pelo menos duas opções")
 
     evid = [str(e)[:40] for e in (dados.get("evidencias") or [])][:20]
-    minimo = regras.valor("aprendizado.evidencias_minimas")
+    minimo = regras.valor("aprendizado.evidencias_minimas", esc)
     if len(evid) < minimo:
         raise ValueError(
             f"hipótese com {len(evid)} evidência(s): o mínimo é {minimo}. "
@@ -213,7 +214,7 @@ def ler_aprendizados_crus(base: Path) -> list[dict]:
     return [r for r in prog.ler_log(base) if r.get("registro") == "aprendizado"]
 
 
-def confianca(evidencias: int, confirmacoes: int, refutacoes: int) -> float:
+def confianca(evidencias: int, confirmacoes: int, refutacoes: int, esc=None) -> float:
     """Quanto se pode contar com esta hipótese, entre 0 e 1.
 
     Deliberadamente simples e legível: evidência conta pouco (ver junto não é
@@ -221,7 +222,7 @@ def confianca(evidencias: int, confirmacoes: int, refutacoes: int) -> float:
     mais informativo do que sustentar, e o sistema deve desconfiar rápido.
     Nunca chega a 1: nada aqui é verdade, só probabilidade.
     """
-    w = regras.valor("aprendizado.pesos_da_confianca")
+    w = regras.valor("aprendizado.pesos_da_confianca", esc)
     return round(_lim(w["base"] + w["por_evidencia"] * min(evidencias, 6)
                       + w["por_confirmacao"] * confirmacoes
                       - w["por_refutacao"] * refutacoes, 0.02, 0.95), 2)
@@ -229,6 +230,7 @@ def confianca(evidencias: int, confirmacoes: int, refutacoes: int) -> float:
 
 def estado(base: Path) -> dict:
     """Tudo do loop, recalculado: observações, hipóteses com confiança e aprendizados."""
+    esc = regras.escopo_de_base(base)
     log = prog.ler_log(base)
     obs = [r for r in log if r.get("registro") == "observacao"]
     respostas = [r for r in log if r.get("registro") == "resposta"]
@@ -247,7 +249,7 @@ def estado(base: Path) -> dict:
         corrigida = any(r["veredito"] == "corrige" for r in minhas)
         hipoteses.append({
             **h,
-            "confianca": confianca(len(h.get("evidencias") or []), conf, ref),
+            "confianca": confianca(len(h.get("evidencias") or []), conf, ref, esc),
             "confirmacoes": conf, "refutacoes": ref,
             "invalida": invalida, "corrigida": corrigida,
             # Pendente é o que ainda vale perguntar: ninguém respondeu, e a
@@ -267,7 +269,7 @@ def estado(base: Path) -> dict:
             reusos.setdefault(aid, []).append(
                 {"evento": e["id"], "agente": e.get("agente"), "quando": e.get("quando")})
 
-    limiar = regras.valor("aprendizado.confianca_para_promover")
+    limiar = regras.valor("aprendizado.confianca_para_promover", esc)
     porHip = {h["id"]: h for h in hipoteses}
     aprendizados = []
     for a in ler_aprendizados_crus(base):
@@ -290,9 +292,9 @@ def estado(base: Path) -> dict:
         "tiposPergunta": TIPOS_PERGUNTA,
         "vereditos": list(VEREDITOS),
         "escopos": [e for e in ESCOPOS
-                    if regras.valor("aprendizado.escopos").get(e, True)],
-        "promoverEm": regras.valor("aprendizado.confianca_para_promover"),
-        "evidenciasMinimas": regras.valor("aprendizado.evidencias_minimas"),
+                    if regras.valor("aprendizado.escopos", esc).get(e, True)],
+        "promoverEm": regras.valor("aprendizado.confianca_para_promover", esc),
+        "evidenciasMinimas": regras.valor("aprendizado.evidencias_minimas", esc),
     }
 
 

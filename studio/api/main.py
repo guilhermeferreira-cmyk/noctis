@@ -125,6 +125,49 @@ BASE_NOME = "Noctis — base de conhecimento"
 LIXEIRA = PROJECTS_DIR / ".lixeira"
 
 
+# ── Hubs: o Noctis é uma suíte ────────────────────────────────────────────────
+#
+# O mesmo motor serve mais de uma superfície. O hub `noctis` governa conhecimento;
+# o hub `diem` produz. Eles precisam de REGRAS diferentes — saturação diária é
+# anomalia num e meta no outro — e por isso o hub é o escopo que `regras.py`
+# resolve.
+#
+# Hub é propriedade do PROJETO, declarada no `project.yaml`. Projeto sem
+# declaração é do hub de origem: nada que já existe muda de lugar.
+HUB_PADRAO = "noctis"
+HUBS = ("noctis", "diem")
+
+
+def hub_do_projeto(slug: str) -> str:
+    return _hub_do_dir(PROJECTS_DIR / slug)
+
+
+def _hub_do_dir(base: Path) -> str:
+    # Pasta sem `project.yaml` não é projeto do Noctis — é repositório de código
+    # dentro de `projects/`. Ela aparece na lista, então precisa de resposta.
+    p = base / "project.yaml"
+    if not p.is_file():
+        return HUB_PADRAO
+    cfg = load_yaml(p) or {}
+    h = str(cfg.get("hub") or "").strip()
+    return h if h in HUBS else HUB_PADRAO
+
+
+def _escopo(projeto: str = "", hub: str = "") -> "regras.Escopo | None":
+    """O escopo de uma leitura de regra, vindo da query da rota.
+
+    `projeto` basta: o hub sai do `project.yaml` dele. `hub` sozinho serve para
+    ajustar o hub inteiro, sem escolher projeto.
+    """
+    projeto = (projeto or "").strip()
+    hub = (hub or "").strip()
+    if projeto:
+        return regras.Escopo(hub=hub_do_projeto(projeto), projeto=projeto)
+    if hub in HUBS:
+        return regras.Escopo(hub=hub)
+    return None
+
+
 def _e_repositorio(base: Path) -> bool:
     """Pasta que é repositório de código, e não projeto do Noctis.
 
@@ -412,6 +455,7 @@ def list_projects(incluir_ocultos: bool = False):
             "displayName": _project_display_name(base),
             "permanente":  base.name == BASE_SLUG,
             "repositorio": _e_repositorio(base),
+            "hub":         _hub_do_dir(base),
             "counts": {
                 "agents":   len(list((base / "agents").glob("*.yaml")))   if (base / "agents").is_dir()   else 0,
                 "flows":    len(list((base / "flows").glob("*.yaml")))    if (base / "flows").is_dir()    else 0,
@@ -460,8 +504,17 @@ def create_project(data: dict):
     for d in RESOURCE_DIRS:
         (dest / d).mkdir(parents=True, exist_ok=True)
 
-    save_yaml(_project_meta_path(dest), {"name": raw_name, "slug": slug})
-    return {"ok": True, "slug": slug, "displayName": raw_name}
+    # O hub é escolhido no nascimento e fica gravado no projeto: é ele que diz
+    # que superfície o abre e que regras valem lá dentro. Sem escolha, nasce no
+    # hub de origem — ninguém precisa saber que existem hubs para criar projeto.
+    hub = str(data.get("hub") or "").strip()
+    meta = {"name": raw_name, "slug": slug}
+    if hub and hub != HUB_PADRAO:
+        if hub not in HUBS:
+            raise HTTPException(400, f"hub desconhecido: {hub!r}")
+        meta["hub"] = hub
+    save_yaml(_project_meta_path(dest), meta)
+    return {"ok": True, "slug": slug, "displayName": raw_name, "hub": hub or HUB_PADRAO}
 
 
 @app.delete("/api/projects/{project}")
@@ -3589,8 +3642,9 @@ def ler_progresso(project: str):
     base = project_base(project)
     r = rep.sincronizar(base)
     estado = prog.estado_do_projeto(base, rep.indice(r), rep.firmadas(r))
-    estado["curvas"] = {"agente": regras.valor("xp.curva_agente"), "skill": regras.valor("xp.curva_learning")}
-    estado["tipos"] = regras.valor("xp.base_por_tipo")
+    esc = regras.escopo_de_projeto(project)
+    estado["curvas"] = {"agente": regras.valor("xp.curva_agente", esc), "skill": regras.valor("xp.curva_learning", esc)}
+    estado["tipos"] = regras.valor("xp.base_por_tipo", esc)
     return estado
 
 
@@ -3602,7 +3656,7 @@ def ler_progresso_agente(project: str, agente: str):
     if agente not in fichas:
         # Agente sem evento ainda existe: devolve a ficha zerada em vez de 404,
         # senão a UI teria de tratar dois mundos.
-        n, ini, fim, frac = prog.nivel_de(0, tuple(regras.valor("xp.curva_agente")))
+        n, ini, fim, frac = prog.nivel_de(0, tuple(regras.valor("xp.curva_agente", regras.escopo_de_projeto(project))))
         return {"agente": agente, "xp": 0, "eventos": 0, "nivel": n,
                 "inicio_nivel": round(ini), "proximo_nivel": round(fim),
                 "progresso": frac, "habilidades": {}, "brotos": {},
@@ -3624,7 +3678,7 @@ def registrar_evento(project: str, data: dict):
         raise HTTPException(404, f"agente '{nome}' não existe neste projeto")
     # Escrita de Learnings pausada nas Regras: o trabalho é registrado e rende
     # XP, mas os nomes de Learning são descartados antes de entrar no log.
-    if not regras.valor("protocolo.declarar_learnings"):
+    if not regras.valor("protocolo.declarar_learnings", regras.escopo_de_projeto(project)):
         data = {**data, "habilidades": [], "descricoes": {}}
 
     # Nível ANTES do evento: é a comparação que revela a subida, e é ela que
@@ -3709,7 +3763,7 @@ def registrar_marco(project: str, data: dict):
     if not (agente and hab and texto):
         raise HTTPException(400, "informe agente, Learning e texto")
     autor_de_agente = True
-    if autor_de_agente and not regras.valor("protocolo.declarar_learnings"):
+    if autor_de_agente and not regras.valor("protocolo.declarar_learnings", regras.escopo_de_projeto(project)):
         raise HTTPException(403, "A escrita de Learnings por agentes está pausada nas Regras do Noctis.")
     r = rep.carregar(base)
     chave = rep.indice(r).get(prog.slug(hab)) or prog.slug(hab)
@@ -3765,7 +3819,7 @@ def anexar_corpo_skill(project: str, chave: str, data: dict):
         raise HTTPException(400, "texto vazio")
     autor = str(data.get("autor") or "usuario").strip()
     autor_de_agente = autor != "usuario"
-    if autor_de_agente and not regras.valor("protocolo.declarar_learnings"):
+    if autor_de_agente and not regras.valor("protocolo.declarar_learnings", regras.escopo_de_projeto(project)):
         raise HTTPException(403, "A escrita de Learnings por agentes está pausada nas Regras do Noctis.")
 
     return {"ok": True, "corpo": rep.anexar_ao_corpo(base, chave, texto, autor)}
@@ -3875,7 +3929,7 @@ def ler_propostas(project: str, so_pendentes: bool = False):
 @app.post("/api/projects/{project}/propostas")
 def propor_habilidade(project: str, data: dict):
     """O agente propõe. Nada nasce daqui sem a sua resposta."""
-    if not regras.valor("learning.agente_propoe"):
+    if not regras.valor("learning.agente_propoe", regras.escopo_de_projeto(project)):
         raise HTTPException(403, "propor Learning está desligado nas regras do Noctis")
     try:
         return {"ok": True, "proposta": tse.propor_habilidade(project_base(project), data)}
@@ -4267,17 +4321,26 @@ def controle():
 # Tudo que o Noctis exige, num lugar só, com o valor que está valendo agora.
 
 @app.get("/api/regras")
-def listar_regras():
-    return regras.listar()
+def listar_regras(projeto: str = "", hub: str = ""):
+    """As regras como valem AQUI.
+
+    Sem escopo, o global — que é o que o painel sempre mostrou. Com `projeto`
+    ou `hub`, o valor já resolvido pela cascata, mais de onde ele vem.
+    """
+    return regras.listar(_escopo(projeto, hub))
 
 
 @app.put("/api/regras/{rid}")
-def definir_regra(rid: str, data: dict):
+def definir_regra(rid: str, data: dict, projeto: str = "", hub: str = ""):
     try:
-        r = regras.definir(rid, data.get("valor"), str(data.get("por") or "usuario"))
+        r = regras.definir(rid, data.get("valor"), str(data.get("por") or "usuario"),
+                           esc=_escopo(projeto, hub))
     except KeyError:
         raise HTTPException(404, f"regra '{rid}' não existe")
-    except PermissionError:
+    except PermissionError as e:
+        # Duas recusas diferentes: proteção fixa, ou regra que não se escopa.
+        if str(e) and "escopada" in str(e):
+            raise HTTPException(403, f"{rid} vale para o sistema inteiro e não se ajusta por hub ou projeto")
         raise HTTPException(403, "esta regra é uma proteção fixa e não se edita")
     except (TypeError, ValueError, IndexError) as e:
         raise HTTPException(400, f"valor inválido: {e}")
@@ -4289,9 +4352,9 @@ def definir_regra(rid: str, data: dict):
 
 
 @app.delete("/api/regras/{rid}")
-def restaurar_regra(rid: str):
+def restaurar_regra(rid: str, projeto: str = "", hub: str = ""):
     try:
-        r = regras.restaurar(rid)
+        r = regras.restaurar(rid, esc=_escopo(projeto, hub))
     except KeyError:
         raise HTTPException(404, f"regra '{rid}' não existe")
     return {"ok": True, "regra": r, "protocoloAtualizadoEm": {}}
