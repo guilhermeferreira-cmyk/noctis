@@ -3,6 +3,7 @@ import { Bloco, CarregandoNoctis } from './Esqueleto'
 import { FiltroProjetos, catalogoLocal, ehVisaoGlobal, useFiltroProjetos, useProjetos } from './FiltroProjetos'
 import type { TemplateItem } from '../api'
 import { BarraOrdem, aplicar, useOrdem, type CampoOrdem, type Recorte } from './Ordenar'
+import { confirmar, pedirTexto, aviso } from '../lib/dialogos'
 
 /** Por que ordenar por coisas diferentes em cada tipo.
  *
@@ -108,11 +109,11 @@ function CardTemplate({ t, projetos, onMudou }: {
             setIndo(true)
             try {
               const r = await api.instanciarTemplate(t.kind, t.slug, para)
-              alert(r.renomeado
+              aviso.ok(r.renomeado
                 ? `Chegou como "${r.nome}" — já havia um com o nome do molde.`
                 : `"${t.nome}" foi criado em ${projetos.find(p => p.slug === para)?.nome || para}.`)
               onMudou()
-            } catch (err) { alert((err as Error).message) } finally { setIndo(false) }
+            } catch (err) { aviso.erro(err) } finally { setIndo(false) }
           }}
           className="nodrag flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[11px]
                      text-gray-300 focus:outline-none focus:border-sky-500">
@@ -120,9 +121,13 @@ function CardTemplate({ t, projetos, onMudou }: {
           {projetos.map(p => <option key={p.slug} value={p.slug}>{p.nome}</option>)}
         </select>
         <button onClick={async () => {
-            if (!window.confirm(`Apagar o molde "${t.nome}"? Quem já nasceu dele não é afetado.`)) return
+            if (!await confirmar({
+              titulo: `Apagar o molde "${t.nome}"?`,
+              corpo: 'Quem já nasceu dele não é afetado.',
+              confirmar: 'apagar o molde', perigo: true,
+            })) return
             try { await api.apagarTemplate(t.kind, t.slug); onMudou() }
-            catch (e) { alert((e as Error).message) }
+            catch (e) { aviso.erro(e) }
           }}
           className="text-[11px] text-gray-600 hover:text-red-400 px-1.5">apagar</button>
       </div>
@@ -237,19 +242,26 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
     onRename: async it => {
       // O nome vai como a pessoa escreveu: acento, espaço e maiúscula ficam.
       // Quem recusa caractere impossível é o backend, em nome_de_recurso().
-      const nv = window.prompt(`Novo nome (${meta.label}):`, it.name)?.trim()
+      const nv = await pedirTexto({
+        titulo: `Renomear ${meta.label.toLowerCase()}`, rotulo: 'Novo nome',
+        valor: it.name, confirmar: 'renomear',
+      })
       if (!nv || nv === it.name) return
       const fn = { memory: api.renameMemory, agent: api.renameAgent,
                    flow: api.renameFlow, persona: api.renamePersona }[kind]
       try { await fn(it.name, nv); await recarregar() }
-      catch (e) { alert('Erro ao renomear:\n' + (e as Error).message) }
+      catch (e) { aviso.erro(e) }
     },
     onDelete: async it => {
-      if (!window.confirm(`Excluir ${meta.label.toLowerCase()} "${it.name}${meta.ext}"? Apaga o arquivo.`)) return
+      if (!await confirmar({
+        titulo: `Excluir ${meta.label.toLowerCase()} "${it.name}"?`,
+        corpo: `Apaga o arquivo ${it.name}${meta.ext}.`,
+        confirmar: 'excluir', perigo: true,
+      })) return
       const fn = { memory: api.deleteMemory, agent: api.deleteAgent,
                    flow: api.deleteFlow, persona: api.deletePersona }[kind]
       try { await fn(it.name); await recarregar() }
-      catch (e) { alert('Erro ao excluir:\n' + (e as Error).message) }
+      catch (e) { aviso.erro(e) }
     },
     onToggleChoice: async (it, optionId) => {
       // O servidor decide o resultado (radio desmarca as outras), então o card
@@ -261,14 +273,18 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
     },
     onEditDecision: it => setEditandoDecisao(it),
     onTemplate: global ? async (it: ResourceItem) => {
-      const rotulo = window.prompt('Nome do molde:', it.displayName || it.name)?.trim()
+      const rotulo = await pedirTexto({
+        titulo: 'Guardar como molde',
+        corpo: 'O molde nasce independente: mudar o original depois não muda ele.',
+        rotulo: 'Nome do molde', valor: it.displayName || it.name, confirmar: 'guardar',
+      })
       if (!rotulo) return
       try {
         const r = await api.guardarTemplate({
           kind, projeto: it.projeto || getProject(), nome: it.name, rotulo })
-        alert(r.template.novo ? `Molde "${r.template.nome}" guardado.`
-                              : `Molde "${r.template.nome}" atualizado.`)
-      } catch (e) { alert((e as Error).message) }
+        aviso.ok(r.template.novo ? `Molde "${r.template.nome}" guardado.`
+                                 : `Molde "${r.template.nome}" atualizado.`)
+      } catch (e) { aviso.erro(e) }
     } : undefined,
     onIdentity: async (it, patch) => {
       patchLocal(it.name, patch)

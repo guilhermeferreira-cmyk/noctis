@@ -27,6 +27,8 @@ import { getIcon } from './memoryIcons'
 import { Configuracoes } from './components/Configuracoes'
 import { usePreferencias, preferencias } from './lib/preferencias'
 import { useDoca } from './lib/doca'
+import { confirmar, pedirTexto, aviso } from './lib/dialogos'
+import { Dialogos } from './components/dialogos/Dialogos'
 import { LogoNoctis } from './components/LogoNoctis'
 import { Drawer } from './components/Drawer'
 import { DrawerLearning } from './components/DrawerLearning'
@@ -322,23 +324,34 @@ export default function App() {
   }
 
   async function createProject() {
-    const name = window.prompt('Nome do novo projeto:')?.trim()
+    const name = await pedirTexto({
+      titulo: 'Novo projeto', rotulo: 'Nome',
+      dica: 'como você chamaria numa conversa', confirmar: 'criar',
+    })
     if (!name) return
     try { const res = await api.createProject(name); await loadProjects(res.slug) }
-    catch (e) { alert('Erro ao criar projeto:\n' + (e as Error).message) }
+    catch (e) { aviso.erro(e) }
   }
   async function deleteProject(slug: string) {
     const proj = projects.find(p => p.slug === slug)
-    if (!window.confirm(`Mandar "${proj?.displayName ?? slug}" para a lixeira? Dá para restaurar em Controle.`)) return
+    const nome = proj?.displayName ?? slug
+    if (!await confirmar({
+      titulo: `Mandar "${nome}" para a lixeira?`,
+      corpo: 'Nada é apagado agora — dá para restaurar em Controle.',
+      confirmar: 'mandar para a lixeira', perigo: true,
+    })) return
     try { await api.deleteProject(slug); await loadProjects() }
-    catch (e) { alert('Erro ao excluir projeto:\n' + (e as Error).message) }
+    catch (e) { aviso.erro(e) }
   }
   async function renameProject(slug: string) {
     const proj = projects.find(p => p.slug === slug)
-    const nv = window.prompt('Novo nome do projeto:', proj?.displayName ?? '')?.trim()
+    const nv = await pedirTexto({
+      titulo: 'Renomear projeto', rotulo: 'Novo nome',
+      valor: proj?.displayName ?? '', confirmar: 'renomear',
+    })
     if (!nv || nv === proj?.displayName) return
     try { await api.renameProject(slug, nv); await loadProjects(current) }
-    catch (e) { alert('Erro ao renomear projeto:\n' + (e as Error).message) }
+    catch (e) { aviso.erro(e) }
   }
 
   // ── Abas ───────────────────────────────────────────────────────────────────
@@ -689,6 +702,10 @@ export default function App() {
           onClose={() => setShowProjects(false)}
         />
       )}
+
+      {/* Por último e por cima de todo o resto: um diálogo pode ser pedido de
+          dentro de qualquer modal desta lista. */}
+      <Dialogos />
     </div>
   )
 }
