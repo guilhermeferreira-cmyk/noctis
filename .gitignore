@@ -11,7 +11,11 @@ assinatura de email/
 .claude/
 .claudian/
 .obsidian/
-_templates/
+# O scaffold é local: você edita os agentes e memórias de exemplo à vontade.
+# O catálogo de mídias é a exceção — ele é conteúdo entregue, não dado seu, e
+# precisa viajar com o repositório para um clone novo nascer sabendo os formatos.
+_templates/*
+!_templates/midias/
 {agents,flows,memory,tools,outputs}/
 
 # Configuração local: o que está valendo NO SEU Noctis, não no projeto. A lista

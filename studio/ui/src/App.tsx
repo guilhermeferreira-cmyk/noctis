@@ -19,7 +19,7 @@ const ProducaoPage     = lazy(() => import('./pages/Producao'))
 const EstadoPage       = lazy(() => import('./pages/Estado'))
 const VisaoPage        = lazy(() => import('./pages/Home'))
 import ProjectsModal from './ProjectsModal'
-import { api, getProject, setProject, HUB_PADRAO, type Hub, type ProjectMeta } from './api'
+import { api, getProject, setProject, type ProjectMeta } from './api'
 import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse, GiSpikedShield } from './iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
@@ -66,26 +66,18 @@ type Aba =
 // já tem chave própria no painel. Sem isto haveria duas chaves disputando o
 // mesmo nome — e mudar a errada não pintaria nada, que é o pior defeito de um
 // painel de configuração.
-// `hubs` é o que diferencia uma superfície da outra — e é só isto. A CASCA é a
-// mesma nos dois hubs: mesma faixa, mesma árvore, mesmas abas, mesma doca.
-// Inventar uma segunda casca seria manter dois desenhos que divergem no dia em
-// que alguém ajusta um. O que muda é QUE SEÇÕES existem, a marca, e as regras
-// (essas no servidor, por escopo). Seção sem `hubs` aparece em todos.
 const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType;
-                 color?: string; chave?: string; hubs?: readonly Hub[] }[] = [
-  // A entrada do Warden. Só no hub que ela governa, e só no projeto base.
+                 color?: string; chave?: string }[] = [
+  // A entrada do Warden. Só no projeto base: num projeto de trabalho ela
+  // mostraria a grade de todos, que é dado de outro contexto na tela.
   { id: 'visao',    label: 'Visão geral', icon: GiSpikedShield, color: '#f59e0b',
-    chave: 'warden.identidade', hubs: ['noctis'] },
-  // Tarefa vale nos DOIS hubs: o trabalho em voo não é assunto de marketing —
-  // o Maestro do Overhaul e o Braço Direito rastreiam despacho em tabela de
-  // Markdown pela mesma falta. Peça é da produção, e fica no Diem.
-  // O estado declarado da frente. É do Diem porque é lá que o playbook tem
-  // fase e gate; no Noctis o estado de um projeto é o acervo dele.
-  { id: 'estado',   label: 'Estado', icon: GiSkills, color: '#22d3ee', hubs: ['diem'] },
-  // O catálogo de formatos. Só no Diem: é onde a peça é produzida.
-  { id: 'midias',   label: 'Mídias', kind: 'midia', hubs: ['diem'] },
+    chave: 'warden.identidade' },
+  // Produção. Todo projeto pode produzir — um projeto de conhecimento
+  // simplesmente não terá peça nem tarefa, e as seções ficam vazias.
+  { id: 'estado',   label: 'Estado', icon: GiSkills, color: '#22d3ee' },
+  { id: 'midias',   label: 'Mídias', kind: 'midia' },
   { id: 'tasks',    label: 'Tarefas', kind: 'task' },
-  { id: 'artifacts', label: 'Peças',  kind: 'artifact', hubs: ['diem'] },
+  { id: 'artifacts', label: 'Peças',  kind: 'artifact' },
   { id: 'agents',   label: 'Agentes',  kind: 'agent' },
   { id: 'organizacao', label: 'Organização', icon: GiFamilyTree, color: '#a78bfa' },
   { id: 'memory',   label: 'Memória',  kind: 'memory' },
@@ -95,24 +87,10 @@ const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType
   { id: 'skillsclaude', label: 'Skills', icon: GiBookCover, color: '#0ea5e9' },
   { id: 'runtime',  label: 'Runtime', icon: GiPulse, color: '#f472b6' },
   { id: 'canvas',   label: 'Mapa de Memória', icon: GiTreasureMap, color: '#06b6d4' },
-  { id: 'cosmos',   label: 'Cosmos', icon: GiGalaxy, color: '#a78bfa', hubs: ['noctis'] },
+  { id: 'cosmos',   label: 'Cosmos', icon: GiGalaxy, color: '#a78bfa' },
   { id: 'controle', label: 'Controle', icon: GiControlTower, color: '#38bdf8' },
-  { id: 'setup',    label: 'Gerar Setup', icon: GiMagicSwirl, color: '#a855f7', hubs: ['noctis'] },
+  { id: 'setup',    label: 'Gerar Setup', icon: GiMagicSwirl, color: '#a855f7' },
 ]
-/** A seção existe neste hub? Um só lugar responde, e os três pontos que
- *  precisam saber — a faixa, a aba padrão e a peneira — perguntam aqui. */
-/** Os hubs que se pode escolher ao criar um projeto. A aparência de cada um
- *  vem de `hub.<id>` (Aparência › Hubs); aqui fica só o que o painel não sabe:
- *  para que serve cada superfície. */
-const HUBS: { id: Hub; icone: string; cor: string; dica: string }[] = [
-  { id: 'noctis', icone: 'GiHeraldicSun', cor: '#a78bfa', dica: 'conhecimento, agentes e governança' },
-  { id: 'diem',   icone: 'GiSunrise',     cor: '#f59e0b', dica: 'produção — tarefas, peças e ritmo' },
-]
-
-const noHub = (p: { hubs?: readonly Hub[] }, hub: Hub) => !p.hubs || p.hubs.includes(hub)
-
-const paginasDoHub = (hub: Hub) => PAGINAS.filter(p => noHub(p, hub))
-
 const rotuloPagina = (p: Pagina) => PAGINAS.find(x => x.id === p)?.label || p
 
 const tituloDaAba = (a: Aba) => a.tipo === 'pagina' ? rotuloPagina(a.pagina) : a.titulo
@@ -193,18 +171,12 @@ function AbasDeProjeto({ projetos, atual, naVisao, onVisao, onAbrir, onNovo, onZ
       <span className="w-px h-4 bg-white/[0.08] mx-1 shrink-0" />
       {projetos.map(p => {
         const aberto = p.slug === atual
-        // Um projeto de outro hub se anuncia ANTES de ser aberto: sem isto, a
-        // única forma de saber em que superfície você vai cair seria clicar.
-        const h = p.hub || HUB_PADRAO
-        const m = h === HUB_PADRAO ? null : doSistema(`hub.${h}`, 'GiSunrise', '#f59e0b')
         return (
-          <div key={p.slug} onClick={() => onAbrir(p.slug)}
-            title={m ? `Abrir este projeto — hub ${m.label}` : 'Abrir este projeto'}
+          <div key={p.slug} onClick={() => onAbrir(p.slug)} title="Abrir este projeto"
             className={`group/pj h-6 shrink-0 flex items-center gap-1.5 px-2 rounded-md cursor-pointer
                         text-[11.5px] transition-colors border
                         ${aberto && !naVisao ? 'text-gray-100 bg-white/[0.07] border-white/[0.10]'
-                                          : 'text-gray-500 hover:text-gray-200 border-transparent'}`}
-            style={m ? { boxShadow: `inset 2px 0 0 ${m.color}` } : undefined}>
+                                          : 'text-gray-500 hover:text-gray-200 border-transparent'}`}>
             <span className="truncate max-w-[12rem]">{p.displayName}</span>
           </div>
         )
@@ -247,8 +219,8 @@ const chaveAbas = (proj: string) => `noctis.abas.${proj}`
  * agentes ao abrir o Noctis seria começar pelo detalhe. Projeto de trabalho
  * abre em Agentes, que é por onde o trabalho começa.
  */
-const padraoAbas = (proj: string, hub: Hub = HUB_PADRAO): { abas: Aba[]; ativa: string } => {
-  const id: Pagina = (proj === 'noctis' && hub === 'noctis') ? 'visao' : 'agents'
+const padraoAbas = (proj: string): { abas: Aba[]; ativa: string } => {
+  const id: Pagina = proj === 'noctis' ? 'visao' : 'agents'
   return { abas: [{ id: `pagina:${id}`, tipo: 'pagina', pagina: id }], ativa: `pagina:${id}` }
 }
 
@@ -266,29 +238,29 @@ const padraoAbas = (proj: string, hub: Hub = HUB_PADRAO): { abas: Aba[]; ativa: 
  * dela usa. O que não passa é descartado em silêncio — perder uma aba aberta é
  * barato; não conseguir abrir o app, não.
  */
-function lerAbas(proj: string, hub: Hub = HUB_PADRAO): { abas: Aba[]; ativa: string } {
+function lerAbas(proj: string): { abas: Aba[]; ativa: string } {
   try {
     const d = JSON.parse(localStorage.getItem(chaveAbas(proj)) || 'null')
-    if (!d || !Array.isArray(d.abas)) return padraoAbas(proj, hub)
+    if (!d || !Array.isArray(d.abas)) return padraoAbas(proj)
     const validas: Aba[] = d.abas.filter((a: Aba | null) => {
       if (!a || typeof a !== 'object' || !a.id) return false
       // A Visão geral é do projeto base. Uma aba dela presa num projeto cliente
       // renderizaria a grade de TODOS os projetos lá dentro — dado de outro
       // contexto na tela, que é o pior defeito possível aqui.
-      // Aba de uma seção que não existe neste hub é descartada: ela
-      // renderizaria conteúdo de outra superfície dentro desta.
-      if (a.tipo === 'pagina') return PAGINAS.some(x => x.id === a.pagina && noHub(x, hub))
+      // A Visão geral é do projeto base. Uma aba dela presa num projeto de
+      // trabalho renderizaria a grade de TODOS os projetos lá dentro.
+      if (a.tipo === 'pagina') return PAGINAS.some(x => x.id === a.pagina)
         && (a.pagina !== 'visao' || proj === 'noctis')
       if (a.tipo === 'recurso') return !!a.kind && !!KIND_META[a.kind] && !!a.nome
       if (a.tipo === 'skill') return !!a.chave
       if (a.tipo === 'mapa') return !!a.mapa
       return false
     })
-    if (!validas.length) return padraoAbas(proj, hub)
+    if (!validas.length) return padraoAbas(proj)
     const ativa = validas.some(a => a.id === d.ativa) ? d.ativa : validas[0].id
     return { abas: validas, ativa }
   } catch { /* sem storage */ }
-  return padraoAbas(proj, hub)
+  return padraoAbas(proj)
 }
 
 export default function App() {
@@ -356,7 +328,7 @@ export default function App() {
     setProjects(list)
     const wanted = select || getProject()
     const chosen = list.some(p => p.slug === wanted) ? wanted : (list[0]?.slug ?? 'noctis')
-    trocarDeProjeto(chosen, list)
+    trocarDeProjeto(chosen)
     // Migração da tela do Warden, que era um ramo (`noctis.casa`) e virou a
     // página 'visao'. Sem isto, quem fechou o app na home reabriria numa grade
     // de agentes e acharia que a tela sumiu. Roda uma vez e apaga a chave.
@@ -388,17 +360,13 @@ export default function App() {
   // Trocar de projeto troca o escopo e as abas. Não existe mais "sair da home":
   // a tela do Warden é a página 'visao' do projeto base, e chega-se a ela como
   // a qualquer outra página — abrindo a aba.
-  function trocarDeProjeto(slug: string, lista: ProjectMeta[] = projects) {
+  function trocarDeProjeto(slug: string) {
     setProject(slug)
     setCurrent(slug)
-    // O hub sai do PROJETO. `lista` existe porque a primeira troca acontece
-    // dentro de `loadProjects`, antes de `projects` ter chegado ao estado — sem
-    // ela, abrir o app num projeto Diem restauraria as abas do hub errado.
-    const hub = lista.find(x => x.slug === slug)?.hub || HUB_PADRAO
     // Sem restaurar abas, ainda assim abre no padrão do projeto: devolver
     // `{abas:[]}` deixava o Noctis numa tela vazia em vez da Visão, e fazia o
     // mesmo com quem chega pelo Controle ou pelas Configurações.
-    const salvo = preferencias().restaurarAbas ? lerAbas(slug, hub) : padraoAbas(slug, hub)
+    const salvo = preferencias().restaurarAbas ? lerAbas(slug) : padraoAbas(slug)
     setAbas(salvo.abas)
     setAtiva(salvo.ativa)
     setHistorico({ pilha: [salvo.ativa], pos: 0 })
@@ -406,27 +374,13 @@ export default function App() {
   }
 
   async function createProject() {
-    // O hub vem PRIMEIRO, e é a única escolha irreversível das duas: ele define
-    // a superfície que abre o projeto e as regras que valem lá dentro. Nome se
-    // renomeia depois; hub se escolhe sabendo o que se quer fazer ali.
-    const alvo = await escolher({
-      titulo: 'Onde este projeto nasce?',
-      corpo: 'O motor é o mesmo. O que muda são as seções que você vê e as regras que valem — um hub governa conhecimento, o outro produz.',
-      itens: HUBS.map(h => {
-        const m = doSistema(`hub.${h.id}`, h.icone, h.cor)
-        return { valor: h.id, rotulo: m.label, detalhe: h.dica, icone: m.icon, cor: m.color }
-      }),
-    })
-    if (!alvo) return
     const name = await pedirTexto({
       titulo: 'Novo projeto', rotulo: 'Nome',
       dica: 'como você chamaria numa conversa', confirmar: 'criar',
     })
     if (!name) return
-    try {
-      const res = await api.createProject(name, undefined, alvo as Hub)
-      await loadProjects(res.slug)
-    } catch (e) { aviso.erro(e) }
+    try { const res = await api.createProject(name); await loadProjects(res.slug) }
+    catch (e) { aviso.erro(e) }
   }
   async function deleteProject(slug: string) {
     const proj = projects.find(p => p.slug === slug)
@@ -532,8 +486,6 @@ export default function App() {
   const nomeProjeto = currentMeta?.displayName ?? current
   // A superfície em que você está. Sai do projeto aberto, e é o que decide
   // quais seções a faixa oferece e que marca a tira de cima mostra.
-  const hub: Hub = currentMeta?.hub || HUB_PADRAO
-  const marcaDoHub = doSistema(`hub.${hub}`, 'GiHeraldicSun', '#a78bfa')
 
   const contexto: Contexto = useMemo(() => {
     if (!abaAtiva) return null
@@ -675,7 +627,7 @@ export default function App() {
         {/* Faixa de ícones: cada seção na própria cor, como a barra antiga */}
         {prefs.mostrarFaixa && <nav className="shrink-0 flex flex-col items-center gap-1 py-1 mr-1.5" style={{ width: larguraFaixa }}>
           {!esq && <div className="mb-2" title="Noctis"><LogoNoctis size={Math.min(28, tamIcone + 6)} /></div>}
-          {paginasDoHub(hub).filter(p => !prefs.secoesOcultas.includes(p.id)
+          {PAGINAS.filter(p => !prefs.secoesOcultas.includes(p.id)
                      // A Visão geral é a entrada do WARDEN: dentro de um projeto
                      // cliente ela mostraria a grade de todos, que é dado de outro
                      // contexto na tela. `current` (estado) e não getProject(),
@@ -726,13 +678,7 @@ export default function App() {
               <div className="px-3 pt-3 pb-2 flex items-center gap-2.5 shrink-0">
                 <LogoNoctis size={Math.min(LOGO.tamanho, 64)} className="shrink-0" />
                 <div className="min-w-0">
-                  {/* O nome do HUB, não uma constante: é o rótulo que diz em que
-                      superfície da suíte você está, e ele vem de Aparência ›
-                      Hubs como tudo mais. */}
-                  <div className="font-bold text-[15px] leading-tight tracking-tight truncate"
-                    style={{ color: hub === HUB_PADRAO ? '#f3f4f6' : marcaDoHub.color }}>
-                    {marcaDoHub.label}
-                  </div>
+                  <div className="text-gray-100 font-bold text-[15px] leading-tight tracking-tight">Noctis</div>
                   <div className="text-[10.5px] text-gray-500 truncate">{nomeProjeto}</div>
                 </div>
               </div>

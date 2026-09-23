@@ -235,21 +235,10 @@ export interface ProjectMeta {
   oculto?: boolean
   permanente?: boolean
   repositorio?: boolean
-  /** A superfície a que este projeto pertence. Ausente = `noctis`, o de origem. */
-  hub?: Hub
   /** O projeto LIGADO: só existe um, e é nele que o trabalho acontece. */
   ligado?: boolean
 }
 
-/**
- * Os hubs da suíte. O motor é o mesmo; o que muda é o objetivo — `noctis`
- * governa conhecimento, `diem` produz — e por isso as REGRAS podem divergir
- * (ver `regras.valor(rid, escopo)` no servidor).
- *
- * Hub é propriedade do PROJETO, não um segundo eixo de navegação: abrir um
- * projeto do outro hub já troca a superfície inteira, e `trocarDeProjeto` já
- * remonta tudo. Projeto sem declaração é do hub de origem.
- */
 export interface MudancaEstado {
   quando: string
   campo: string
@@ -271,9 +260,6 @@ export interface EstadoProjeto {
   existe: boolean
   mudancas: MudancaEstado[]
 }
-
-export type Hub = 'noctis' | 'diem'
-export const HUB_PADRAO: Hub = 'noctis' 
 
 export interface SetupBrief {
   name: string
@@ -1139,7 +1125,7 @@ export const api = {
   enviarAgente:   (nome: string, para: string)    =>
     req<{ ok: boolean; para: string; nome: string; renomeado: boolean }>(
       'POST', `${px()}/agents/${encodeURIComponent(nome)}/enviar`, { para }),
-  createProject:  (name: string, slug?: string, hub?: Hub) => req<{ok: boolean; slug: string; displayName: string; hub: Hub}>('POST', '/api/projects', { name, slug, hub }),
+  createProject:  (name: string, slug?: string) => req<{ok: boolean; slug: string; displayName: string}>('POST', '/api/projects', { name, slug }),
   deleteProject:  (slug: string)                  => req<{ok: boolean}>('DELETE', `/api/projects/${slug}`),
   // Esconder tira da lista sem tocar no disco — o caminho para repositório de
   // código e projeto morto, que a lixeira recusa de propósito.

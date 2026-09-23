@@ -114,16 +114,6 @@ def _pasta_dos_moldes() -> Path:
 TEMPLATES_DIR = _pasta_dos_moldes()
 
 
-def _pasta_dos_moldes_do_hub(hub: str) -> Path | None:
-    """O scaffold EXTRA de um hub, se existir: `_templates.<hub>` ao lado do comum.
-
-    Irmã e não subpasta de `_templates/`: o comum é copiado inteiro, e uma
-    subpasta viajaria junto para dentro de todo projeto.
-    """
-    if not hub:
-        return None
-    p = TEMPLATES_DIR.parent / f"_templates.{hub}"
-    return p if p.is_dir() else None
 # ── Os tipos de recurso, numa declaração só ───────────────────────────────────
 #
 # Isto era SEIS tabelas paralelas descrevendo o mesmo conjunto: ícone padrão,
@@ -172,49 +162,6 @@ BASE_SLUG = "noctis"
 BASE_NOME = "Noctis — base de conhecimento"
 # Projetos excluídos vão para cá, não para o nada.
 LIXEIRA = PROJECTS_DIR / ".lixeira"
-
-
-# ── Hubs: o Noctis é uma suíte ────────────────────────────────────────────────
-#
-# O mesmo motor serve mais de uma superfície. O hub `noctis` governa conhecimento;
-# o hub `diem` produz. Eles precisam de REGRAS diferentes — saturação diária é
-# anomalia num e meta no outro — e por isso o hub é o escopo que `regras.py`
-# resolve.
-#
-# Hub é propriedade do PROJETO, declarada no `project.yaml`. Projeto sem
-# declaração é do hub de origem: nada que já existe muda de lugar.
-HUB_PADRAO = "noctis"
-HUBS = ("noctis", "diem")
-
-
-def hub_do_projeto(slug: str) -> str:
-    return _hub_do_dir(PROJECTS_DIR / slug)
-
-
-def _hub_do_dir(base: Path) -> str:
-    # Pasta sem `project.yaml` não é projeto do Noctis — é repositório de código
-    # dentro de `projects/`. Ela aparece na lista, então precisa de resposta.
-    p = base / "project.yaml"
-    if not p.is_file():
-        return HUB_PADRAO
-    cfg = load_yaml(p) or {}
-    h = str(cfg.get("hub") or "").strip()
-    return h if h in HUBS else HUB_PADRAO
-
-
-def _escopo(projeto: str = "", hub: str = "") -> "regras.Escopo | None":
-    """O escopo de uma leitura de regra, vindo da query da rota.
-
-    `projeto` basta: o hub sai do `project.yaml` dele. `hub` sozinho serve para
-    ajustar o hub inteiro, sem escolher projeto.
-    """
-    projeto = (projeto or "").strip()
-    hub = (hub or "").strip()
-    if projeto:
-        return regras.Escopo(hub=hub_do_projeto(projeto), projeto=projeto)
-    if hub in HUBS:
-        return regras.Escopo(hub=hub)
-    return None
 
 
 def _e_repositorio(base: Path) -> bool:
@@ -504,7 +451,6 @@ def list_projects(incluir_ocultos: bool = False):
             "displayName": _project_display_name(base),
             "permanente":  base.name == BASE_SLUG,
             "repositorio": _e_repositorio(base),
-            "hub":         _hub_do_dir(base),
             "counts": {
                 "agents":   len(list((base / "agents").glob("*.yaml")))   if (base / "agents").is_dir()   else 0,
                 "flows":    len(list((base / "flows").glob("*.yaml")))    if (base / "flows").is_dir()    else 0,
@@ -545,12 +491,6 @@ def create_project(data: dict):
     if dest.exists():
         raise HTTPException(409, f"Projeto '{slug}' já existe")
 
-    # O hub é escolhido no nascimento e fica gravado no projeto: é ele que diz
-    # que superfície o abre, que regras valem lá dentro, e QUE SCAFFOLD desce.
-    hub = str(data.get("hub") or "").strip()
-    if hub and hub not in HUBS:
-        raise HTTPException(400, f"hub desconhecido: {hub!r}")
-    meta = {"name": raw_name, "slug": slug}
 
     # Cria a partir do scaffold de templates (se existir), senão estrutura vazia.
     if TEMPLATES_DIR.is_dir():
@@ -560,17 +500,8 @@ def create_project(data: dict):
     for d in RESOURCE_DIRS:
         (dest / d).mkdir(parents=True, exist_ok=True)
 
-    # Scaffold do HUB, por cima do comum. É o que faz um projeto de produção
-    # nascer sabendo o que é uma landing page, um anúncio de busca e uma
-    # newsletter — sem você recriar o catálogo a cada projeto.
-    extra = _pasta_dos_moldes_do_hub(hub or HUB_PADRAO)
-    if extra and extra.is_dir():
-        shutil.copytree(extra, dest, dirs_exist_ok=True)
-
-    if hub and hub != HUB_PADRAO:
-        meta["hub"] = hub
-    save_yaml(_project_meta_path(dest), meta)
-    return {"ok": True, "slug": slug, "displayName": raw_name, "hub": hub or HUB_PADRAO}
+    save_yaml(_project_meta_path(dest), {"name": raw_name, "slug": slug})
+    return {"ok": True, "slug": slug, "displayName": raw_name}
 
 
 @app.delete("/api/projects/{project}")
@@ -1204,7 +1135,7 @@ def verificar_peca(texto: str, esc) -> list[str]:
 
     Nenhum julgamento de LLM aqui: são checagens que a máquina faz igual toda
     vez. A lista de termos e o travessão saem do registro de regras, escopados —
-    o hub que produz pode ter uma lista que o hub que governa não tem.
+    um projeto que produz pode ter uma lista que um projeto que governa não tem.
     """
     motivos: list[str] = []
     baixo = texto.lower()
@@ -2019,14 +1950,9 @@ SISTEMA_PADRAO: dict[str, dict] = {
     "secao.setup":       {"grupo": "Seções", "label": "Gerar Setup", "icon": "GiMagicSwirl", "color": "#a855f7"},
     "secao.config":      {"grupo": "Seções", "label": "Configurações", "icon": "GiGears", "color": "#71717a"},
     "secao.zen":         {"grupo": "Seções", "label": "Modo zen", "icon": "GiMeditation", "color": "#a78bfa"},
-    # Os hubs da suíte. A casca é a mesma nos dois; o que os diferencia é o
-    # conjunto de seções, as regras (por escopo) e ESTA marca — o nome e a cor
-    # que dizem em que superfície você está.
-    "hub.noctis":        {"grupo": "Hubs", "label": "Noctis", "icon": "GiHeraldicSun", "color": "#a78bfa"},
-    "hub.diem":          {"grupo": "Hubs", "label": "Diem", "icon": "GiSunrise", "color": "#f59e0b"},
     # a casa: o Warden e as camadas dele
     # A ÚNICA chave do Warden. Ela pinta tudo que é Warden na tela: o ícone da
-    # seção na faixa, a aba da Visão geral, o botão de casa e a crista do hub.
+    # seção na faixa, a aba da Visão geral, o botão de casa e a crista da tela.
     # Era `marca: True` com a nota de que não pintava nada — mas o painel a
     # oferecia assim mesmo, então mudá-la não fazia efeito nenhum e parecia
     # defeito. Ou a chave pinta, ou não se oferece; agora ela pinta.
@@ -4621,26 +4547,26 @@ def controle():
 # Tudo que o Noctis exige, num lugar só, com o valor que está valendo agora.
 
 @app.get("/api/regras")
-def listar_regras(projeto: str = "", hub: str = ""):
+def listar_regras(projeto: str = ""):
     """As regras como valem AQUI.
 
-    Sem escopo, o global — que é o que o painel sempre mostrou. Com `projeto`
-    ou `hub`, o valor já resolvido pela cascata, mais de onde ele vem.
+    Sem escopo, o global — que é o que o painel sempre mostrou. Com `projeto`,
+    o valor já resolvido pela cascata, mais de onde ele vem.
     """
-    return regras.listar(_escopo(projeto, hub))
+    return regras.listar(regras.escopo_de_projeto(projeto))
 
 
 @app.put("/api/regras/{rid}")
-def definir_regra(rid: str, data: dict, projeto: str = "", hub: str = ""):
+def definir_regra(rid: str, data: dict, projeto: str = ""):
     try:
         r = regras.definir(rid, data.get("valor"), str(data.get("por") or "usuario"),
-                           esc=_escopo(projeto, hub))
+                           esc=regras.escopo_de_projeto(projeto))
     except KeyError:
         raise HTTPException(404, f"regra '{rid}' não existe")
     except PermissionError as e:
         # Duas recusas diferentes: proteção fixa, ou regra que não se escopa.
         if str(e) and "escopada" in str(e):
-            raise HTTPException(403, f"{rid} vale para o sistema inteiro e não se ajusta por hub ou projeto")
+            raise HTTPException(403, f"{rid} vale para o sistema inteiro e não se ajusta por projeto")
         raise HTTPException(403, "esta regra é uma proteção fixa e não se edita")
     except (TypeError, ValueError, IndexError) as e:
         raise HTTPException(400, f"valor inválido: {e}")
@@ -4652,9 +4578,9 @@ def definir_regra(rid: str, data: dict, projeto: str = "", hub: str = ""):
 
 
 @app.delete("/api/regras/{rid}")
-def restaurar_regra(rid: str, projeto: str = "", hub: str = ""):
+def restaurar_regra(rid: str, projeto: str = ""):
     try:
-        r = regras.restaurar(rid, esc=_escopo(projeto, hub))
+        r = regras.restaurar(rid, esc=regras.escopo_de_projeto(projeto))
     except KeyError:
         raise HTTPException(404, f"regra '{rid}' não existe")
     return {"ok": True, "regra": r, "protocoloAtualizadoEm": {}}
