@@ -5,11 +5,11 @@ cada projeto tem é um time; o que o Noctis tem é ele.
 
 Duas responsabilidades, e a ordem importa:
 
-**Zelar pelo vocabulário.** Habilidade nasce de texto solto que um agente
+**Zelar pelo vocabulário.** Learning nasce de texto solto que um agente
 escreveu ao fechar um despacho. Sem descrição, dois meses depois ninguém sabe se
 "arquitetura de API" era desenhar contrato de rota ou escolher entre REST e fila
-— e uma habilidade que ninguém sabe o que é não serve para escolher quem
-despachar. Ele cobra a descrição de toda habilidade que entra.
+— e um Learning que ninguém sabe o que é não serve para escolher quem
+despachar. Ele cobra a descrição de todo Learning que entra.
 
 **Relatar.** Ele varre os projetos e diz o que está acontecendo: quem subiu de
 nível, o que está esperando confirmação, quem não trabalha há tempo, que termo
@@ -32,11 +32,12 @@ import yaml
 import progresso as prog
 import repertorio as rep
 import regras
+import teses as tse
 
 # As rondas. Cada achado nasce marcado com a sua, e o dock vira abas a partir
 # disto — uma ronda por tipo de pergunta, para nenhuma afogar a outra.
 RONDAS = [
-    ("vocabulario", "Vocabulário", "as habilidades e os nomes que elas têm"),
+    ("vocabulario", "Vocabulário", "os Learnings e os nomes que eles têm"),
     ("trabalho",    "Trabalho",    "o que foi entregue e o que ficou esperando"),
     ("agentes",     "Agentes",     "quem está trabalhando e quem parou"),
     ("memoria",     "Memória",     "o que os agentes leem e de onde veio"),
@@ -117,7 +118,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
     r = rep.sincronizar(base)
     estado = prog.estado_do_projeto(base, rep.indice(r), rep.firmadas(r))
 
-    # 1. A responsabilidade número um: habilidade sem descrição.
+    # 1. A responsabilidade número um: Learning sem descrição.
     for chave, d in r.items():
         if d.get("estado") == "arquivada" or (d.get("descricao") or "").strip():
             continue
@@ -127,6 +128,27 @@ def varrer_projeto(base: Path, slug: str) -> dict:
             "estado": d.get("estado", "broto"), "nasceu_de": d.get("nasceu_de", ""),
             "texto": f'"{d.get("rotulo", chave)}" entrou no repertório sem descrição.',
         })
+
+    # 1b. Proposta de Learning sem veredito. Recusar É resposta — é aprendizado
+    #     sobre o que NÃO é a competência. O que não pode existir é o silêncio
+    #     para sempre: o agente propôs a partir de trabalho real e nunca soube.
+    if regras.valor("learning.proposta_exige_resposta"):
+        try:
+            propostas_ = tse.propostas(base)
+        except Exception:
+            propostas_ = []
+        for pr in propostas_:
+            if not pr.get("pendente"):
+                continue
+            dias = _idade_em_dias(pr.get("quando"))
+            achados.append({
+                "ronda": "vocabulario", "tipo": "proposta_sem_veredito",
+                "urgencia": "alta" if (dias or 0) >= 2 else "media",
+                "projeto": slug, "proposta": pr.get("id"),
+                "rotulo": pr.get("rotulo", ""), "agente": pr.get("agente", ""),
+                "texto": f'"{pr.get("rotulo", "")}" foi proposto por {pr.get("agente", "um agente")}'
+                         " e ainda espera veredito: aceitar, recusar ou pedir ajuste.",
+            })
 
     # 2. Entregas esperando confirmação — sem ela, o registro fica sem revisor.
     confirmados = {x.get("evento") for x in eventos if x.get("registro") == "confirmacao"}
@@ -151,7 +173,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
             achados.append({
                 "ronda": "agentes", "tipo": "agente_sem_trabalho", "urgencia": "baixa", "projeto": slug,
                 "agente": f.stem,
-                "texto": f"{f.stem} nunca registrou trabalho — nenhuma habilidade nasceu dele.",
+                "texto": f"{f.stem} nunca registrou trabalho — nenhum Learning nasceu dele.",
             })
             continue
         dias = _idade_em_dias(ficha.get("ultima"))
@@ -162,7 +184,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
                 "texto": f"{f.stem} não registra trabalho há {round(dias)} dias.",
             })
 
-    # 3b. Habilidade firmada sem corpo: nem marco, nem memória apontada. A
+    # 3b. Learning firmada sem corpo: nem marco, nem memória apontada. A
     #     descrição diz o que ela é; o corpo é o que se aprendeu nela, e sem
     #     isso ela vira rótulo — que era o que o repertório veio evitar.
     com_marco = {r_.get("habilidade") for r_ in eventos if r_.get("registro") == "marco"}
@@ -198,7 +220,7 @@ def varrer_projeto(base: Path, slug: str) -> dict:
     for i, a in enumerate(chaves):
         for b in chaves[i + 1:]:
             razao = prog._semelhanca(a, b)
-            if regras.valor("habilidades.faixa_parecidas") <= razao < regras.valor("habilidades.limiar_fusao"):
+            if regras.valor("learning.faixa_parecidas") <= razao < regras.valor("learning.limiar_fusao"):
                 achados.append({
                     "ronda": "vocabulario", "tipo": "skill_parecida", "urgencia": "media",
                     "projeto": slug, "chave": a, "outra": b,
@@ -233,7 +255,8 @@ def varrer_projeto(base: Path, slug: str) -> dict:
     for f in sorted((base / "agents").glob("*.yaml")):
         agentes_do_projeto.append(f.stem)
         try:
-            d = yaml.safe_load(f.read_text(encoding="utf-8")) or {}
+            import arquetipos as arqs
+            d = arqs.resolver(yaml.safe_load(f.read_text(encoding="utf-8")) or {})
         except yaml.YAMLError:
             continue
         for m in (d.get("memory_files") or []):
@@ -291,5 +314,6 @@ def relatorio(raiz: Path, projetos: list[tuple[str, Path]]) -> dict:
             "semDescricao": sum(1 for a in todos if a["tipo"] == "skill_sem_descricao"),
             "semConfirmacao": sum(1 for a in todos if a["tipo"] == "sem_confirmacao"),
             "parados": sum(1 for a in todos if a["tipo"] in ("agente_parado", "agente_sem_trabalho")),
+            "propostasSemVeredito": sum(1 for a in todos if a["tipo"] == "proposta_sem_veredito"),
         },
     }

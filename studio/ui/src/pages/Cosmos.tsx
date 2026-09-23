@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import {
   ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, Panel,
   addEdge, applyNodeChanges, applyEdgeChanges, Handle, Position, MarkerType,
@@ -13,6 +13,7 @@ import { copiar, textoDaReferencia } from '../lib/referencia'
 import { Aura, auraPorNo } from '../components/Aura'
 import { VIDRO, CEU, AURA, KIND_META, KIND_ORDER } from '../lib/kinds'
 import { moverPanorama } from '../components/FundoEstrelado'
+import { CarregandoNoctis } from '../components/Esqueleto'
 
 /**
  * Cosmos — a camada acima do mapa de memória.
@@ -115,6 +116,11 @@ function Tela({ onAbrirMapa }: { onAbrirMapa: (id: string) => void }) {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [carregando, setCarregando] = useState(true)
+  // No cosmos não se ORDENA — a posição é do arranjo, e mexer nela seria
+  // desfazer o que você desenhou. O que falta aqui é recortar: com vinte mapas
+  // na tela, achar "os que têm trabalho dentro" é a pergunta.
+  const [busca, setBusca] = useState('')
+  const [recorte, setRecorte] = useState<'' | 'cheios' | 'vazios' | 'grandes'>('')
   // Mesmos interruptores do mapa, e no mesmo lugar: a tela de aparência.
   const vidro = VIDRO.ativo
   const ceuLigado = CEU.ativo
@@ -215,6 +221,23 @@ function Tela({ onAbrirMapa }: { onAbrirMapa: (id: string) => void }) {
   }, [edges])
 
   const onNodesChange = useCallback((c: NodeChange[]) => setNodes(ns => applyNodeChanges(c, ns)), [])
+
+  /** O recorte esconde o nó, e com ele as ligações que iam dar nele: uma seta
+   *  apontando para o vazio é pior do que a ausência do mapa. */
+  const visiveis = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    const passa = (n: Node) => {
+      const d = n.data as MapaData
+      if (q && !(d.nome || '').toLowerCase().includes(q)) return false
+      if (recorte === 'cheios') return (d.cards || 0) > 0
+      if (recorte === 'vazios') return (d.cards || 0) === 0
+      if (recorte === 'grandes') return (d.cards || 0) >= 10
+      return true
+    }
+    const ns = nodes.filter(passa)
+    const ids = new Set(ns.map(n => n.id))
+    return { nos: ns, arestas: edges.filter(e => ids.has(e.source) && ids.has(e.target)) }
+  }, [nodes, edges, busca, recorte])
   const onEdgesChange = useCallback((c: EdgeChange[]) => setEdges(es => applyEdgeChanges(c, es)), [])
   const onConnect = useCallback((c: Connection) =>
     setEdges(es => addEdge({ ...c, id: `${c.source}->${c.target}`, type: 'smoothstep',
@@ -229,7 +252,20 @@ function Tela({ onAbrirMapa }: { onAbrirMapa: (id: string) => void }) {
               : `${nodes.length} mapa${nodes.length !== 1 ? 's' : ''} · duplo clique abre · arraste de uma borda à outra para ligar`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <input value={busca} onChange={e => setBusca(e.target.value)}
+            placeholder="buscar mapa"
+            className="w-44 bg-[#1a1a1a] border border-gray-700 rounded-lg px-3 py-1.5 text-xs
+                       text-gray-200 focus:outline-none focus:border-blue-500 placeholder:text-gray-600" />
+          {([['', 'todos'], ['cheios', 'com cards'], ['vazios', 'vazios'], ['grandes', '10+ cards']] as const)
+            .map(([id, rotulo]) => (
+              <button key={id} onClick={() => setRecorte(id)}
+                className={`text-[11px] px-2.5 py-1 rounded-full border whitespace-nowrap ${
+                  recorte === id ? 'border-sky-500/60 bg-sky-500/15 text-sky-200'
+                                 : 'border-gray-800 text-gray-500 hover:text-gray-300'}`}>
+                {rotulo}
+              </button>
+            ))}
         <button onClick={criarMapa}
           className="text-xs bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5">
           <MenuIcon.novo size={13} aria-hidden="true" /> Novo mapa
@@ -238,10 +274,15 @@ function Tela({ onAbrirMapa }: { onAbrirMapa: (id: string) => void }) {
       </div>
 
       <div className={`flex-1 relative ${vidro ? 'vidro' : ''}`}>
+        {carregando && (
+          <div className="absolute inset-0 z-20">
+            <CarregandoNoctis />
+          </div>
+        )}
         {/* O céu mora atrás da casca inteira agora — aqui ele só recebe o pan. */}
         <ReactFlow
           onMove={(_, vp) => moverPanorama(vp.x, vp.y)}
-          nodes={nodes} edges={edges} nodeTypes={nodeTypes}
+          nodes={visiveis.nos} edges={visiveis.arestas} nodeTypes={nodeTypes}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect}
           onNodeClick={(e, n) => {
             if ((e.target as HTMLElement).closest('button,a,input')) return

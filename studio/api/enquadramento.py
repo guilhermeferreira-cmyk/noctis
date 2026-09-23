@@ -1,24 +1,24 @@
-"""As perguntas que descobrem o que uma habilidade é — todas fechadas.
+"""As perguntas que descobrem o que um Learning é — todas fechadas.
 
-O dono digita só o nome da habilidade. Quem descobre o resto é o Noctis,
+O dono digita só o nome do Learning. Quem descobre o resto é o Noctis,
 perguntando. E as perguntas são de ESCOLHA, nunca campo aberto:
 
     "as perguntas de skill e aprendizado não devem ser campos abertos, devem ser
      baseadas em teses e ser por múltipla escolha, boolean ou radio"
 
 O motivo é bom e vale escrever: resposta digitada à mão não se compara entre
-habilidades nem entre projetos. Cinco habilidades com "medir antes de decidir"
+Learnings nem entre projetos. Cinco Learnings com "medir antes de decidir"
 escrito de cinco maneiras são cinco strings; cinco marcando a mesma TESE são um
 padrão que o Noctis lê, conta e usa para escolher a quem delegar.
 
 Cada pergunta é uma tese ou um conjunto de teses:
 
     bool    a tese vale ou não vale aqui
-    radio   qual das teses descreve esta habilidade
+    radio   qual das teses descreve este Learning
     multi   quais teses valem (várias)
 
 Nenhuma escolha é obrigatória: "nenhuma delas" fecha a pergunta e ela não volta.
-Quando faltar tese, o lugar de escrever é o DOCUMENTO da habilidade, em markdown,
+Quando faltar tese, o lugar de escrever é o DOCUMENTO do Learning, em markdown,
 onde ele cola o que quiser — a fila de perguntas não é onde se redige.
 """
 from __future__ import annotations
@@ -33,15 +33,15 @@ NENHUMA = "nenhuma delas"
 # ── O catálogo de teses ───────────────────────────────────────────────────────
 # As opções são genéricas de propósito: descrevem FORMAS de trabalho, e não o
 # conteúdo de um projeto. Tese que cita cliente, arquivo ou ferramenta viraria
-# exatamente o que ele recusou nas habilidades — específico demais para reusar.
-# As perguntas vivem no REGISTRO DE REGRAS (`perguntas.habilidade`), editáveis
+# exatamente o que ele recusou nos Learnings — específico demais para reusar.
+# As perguntas vivem no REGISTRO DE REGRAS (`perguntas.learning`), editáveis
 # em Configurações › Perguntas e teses. O que está abaixo é só o valor de fábrica
 # — `_perguntas()` lê o que está valendo agora, então mudar uma tese no painel
 # muda a pergunta seguinte, sem reiniciar nada.
 PADRAO_FABRICA = [
     {
         "campo": "momento", "titulo": "Quando entra", "tipo": "multi",
-        "texto": "Em que momento do trabalho esta habilidade entra?",
+        "texto": "Em que momento do trabalho este Learning entra?",
         "opcoes": [
             "Antes de começar, para decidir o caminho",
             "Durante a execução, a cada passo",
@@ -96,7 +96,7 @@ PADRAO_FABRICA = [
 ]
 def _perguntas() -> list[dict]:
     try:
-        return regras.valor("perguntas.habilidade") or PADRAO_FABRICA
+        return regras.valor("perguntas.learning") or PADRAO_FABRICA
     except KeyError:
         return PADRAO_FABRICA
 
@@ -110,7 +110,7 @@ def _resp(d: dict, campo: str):
 
 
 def perguntas(base: Path) -> list[dict]:
-    """As perguntas abertas, uma por habilidade — a fila tem de andar."""
+    """As perguntas abertas, uma por Learning — a fila tem de andar."""
     out = []
     for chave, d in rep.carregar(base).items():
         if d.get("estado") == "arquivada":

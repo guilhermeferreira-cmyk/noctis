@@ -253,7 +253,7 @@ export function Aprender() {
             : perguntas.length === 0 ? (
               <p className="text-[11.5px] text-gray-500 leading-relaxed pt-2">
                 Nenhuma pergunta esperando. Elas aparecem aqui de dois jeitos: quando você cria
-                uma habilidade e o Noctis precisa descobrir o que ela é, e quando um agente
+                um Learning e o Noctis precisa descobrir o que ele é, e quando um agente
                 observa o trabalho e propõe uma generalização.
               </p>
             ) : perguntas.map(q => 'tipo_fila' in q && q.tipo_fila === 'enquadramento'

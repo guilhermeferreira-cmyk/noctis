@@ -9,7 +9,7 @@ import { PainelRegras } from '../components/PainelRegras'
  * O objetivo do sistema é o trabalho com agentes ficar mais certeiro e mais
  * barato. Esta página mede as duas coisas que dizem se isso está acontecendo:
  *
- *   · os agentes estão ESCREVENDO o que aprendem? (habilidades, descrições)
+ *   · os agentes estão ESCREVENDO o que aprendem? (Learnings, descrições)
  *   · os agentes estão LENDO o que foi aprendido? (consultas)
  *
  * Escrever sem ler é arquivo morto; ler sem escrever é o projeto consumindo o que
@@ -53,7 +53,7 @@ export default function ControlePage({ onAbrirProjeto }: { onAbrirProjeto: (slug
     <div className="h-full flex flex-col">
       <div className="px-5 py-2 border-b border-white/[0.06] bg-transparent shrink-0">
         <p className="text-xs text-gray-500">
-          {totais.agentes} agentes · {totais.skills} habilidades · {totais.eventos} trabalhos registrados ·
+          {totais.agentes} agentes · {totais.skills} learnings · {totais.eventos} trabalhos registrados ·
           {' '}{totais.consultas} consultas
         </p>
       </div>
@@ -80,7 +80,7 @@ export default function ControlePage({ onAbrirProjeto }: { onAbrirProjeto: (slug
                 <tr className="text-left">
                   <th className="px-3 py-2 font-medium">Projeto</th>
                   <th className="px-3 py-2 font-medium" title="consultas / trabalhos registrados">Leitura</th>
-                  <th className="px-3 py-2 font-medium">Habilidades</th>
+                  <th className="px-3 py-2 font-medium">Learning</th>
                   <th className="px-3 py-2 font-medium" title="agentes com o protocolo de aprendizado instalado">Protocolo</th>
                   <th className="px-3 py-2 font-medium">Agentes</th>
                   <th className="px-3 py-2 font-medium">Memórias</th>
@@ -91,7 +91,6 @@ export default function ControlePage({ onAbrirProjeto }: { onAbrirProjeto: (slug
               <tbody>
                 {(dados?.projetos || []).map(p => {
                   const l = leitura(p)
-                  const semProtocolo = p.agentes - p.protocolo
                   return (
                     <tr key={p.slug} className="border-t border-gray-800 hover:bg-white/[0.02]">
                       <td className="px-3 py-2.5">
@@ -125,14 +124,14 @@ export default function ControlePage({ onAbrirProjeto }: { onAbrirProjeto: (slug
                         )}
                       </td>
                       <td className="px-3 py-2.5 tabular-nums">
+                        {/* Não há mais o que instalar: o protocolo é montado a
+                            cada leitura, com as regras de agora. O botão que
+                            existia aqui virou um botão sem efeito, e botão
+                            que não faz nada mente. */}
                         {p.agentes === 0 ? <span className="text-gray-700">—</span>
-                          : semProtocolo === 0
-                            ? <span className="text-emerald-500">{p.protocolo}/{p.agentes}</span>
-                            : <button disabled={ocupado === p.slug}
-                                onClick={() => agir(p.slug, () => api.instalarProtocolo(p.slug))}
-                                className="text-amber-400 hover:underline">
-                                {p.protocolo}/{p.agentes} · instalar
-                              </button>}
+                          : <span className="text-emerald-500" title="Montado na leitura, sempre com as regras atuais">
+                              {p.protocolo}/{p.agentes}
+                            </span>}
                       </td>
                       <td className="px-3 py-2.5 tabular-nums text-gray-400">{p.agentes}</td>
                       <td className="px-3 py-2.5 tabular-nums text-gray-400">{p.memorias}</td>

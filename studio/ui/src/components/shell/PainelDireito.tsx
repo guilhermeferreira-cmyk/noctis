@@ -1,7 +1,7 @@
 import { preferencias } from '../../lib/preferencias'
 import { useState } from 'react'
 import { api, type ResourceKind } from '../../api'
-import { KIND_META } from '../../lib/kinds'
+import { KIND_META, ICON_SIZES, doSistema } from '../../lib/kinds'
 import { getIcon } from '../../memoryIcons'
 import { copiar, textoDaReferencia } from '../../lib/referencia'
 import { FichaDeProgresso } from '../Progresso'
@@ -9,7 +9,7 @@ import { Nocturn } from '../Nocturn'
 import { LogoNoctis } from '../LogoNoctis'
 import { TInfo, TFechar } from './Tracos'
 import { Drawer } from '../Drawer'
-import { DrawerSkill } from '../DrawerSkill'
+import { DrawerLearning } from '../DrawerLearning'
 import { useDoca, focarNaDoca, fecharNaDoca, avisarMudanca, type AbaFixa, type ItemDoca } from '../../lib/doca'
 
 /**
@@ -35,14 +35,14 @@ function PainelContexto({ ctx }: { ctx: Contexto }) {
     return (
       <div className="p-4 text-[12px] text-gray-500 leading-relaxed">
         <p className="text-gray-400 mb-1">{ctx?.titulo || 'Nada aberto'}</p>
-        Abra um agente, uma memória ou uma habilidade na árvore da esquerda — o que ele é e
+        Abra um agente, uma memória ou um Learning na árvore da esquerda — o que ele é e
         como citá-lo aparecem aqui.
       </div>
     )
   }
 
   const ref = ctx.tipo === 'recurso'
-    ? textoDaReferencia({ tipo: 'recurso', kind: ctx.kind, nome: ctx.nome })
+    ? textoDaReferencia({ tipo: 'recurso', kind: ctx.kind, nome: ctx.nome, rotulo: ctx.titulo })
     : ctx.tipo === 'skill' ? `skill:${ctx.chave}` : `mapa:${ctx.mapa} · ${ctx.titulo}`
   const meta = ctx.tipo === 'recurso' ? KIND_META[ctx.kind] : null
   const Icone = meta ? getIcon(meta.icon) : null
@@ -59,7 +59,7 @@ function PainelContexto({ ctx }: { ctx: Contexto }) {
         <div className="min-w-0">
           <div className="text-gray-100 font-medium leading-tight">{ctx.titulo}</div>
           <div className="text-[10px] tracking-wider text-gray-500 mt-0.5">
-            {meta ? meta.label.toUpperCase() : ctx.tipo === 'skill' ? 'HABILIDADE' : 'MAPA'}
+            {meta ? meta.label.toUpperCase() : ctx.tipo === 'skill' ? 'LEARNING' : 'MAPA'}
           </div>
         </div>
       </div>
@@ -134,13 +134,19 @@ export function PainelDireito({ ctx }: { ctx: Contexto }) {
     <div className="h-full flex flex-col">
       {/* Botões da doca: contexto, supervisor e o detalhe do que foi selecionado */}
       <div className="flex items-center gap-0.5 px-2 pt-2 pb-1.5 border-b border-white/[0.06] shrink-0 overflow-x-auto">
-        {fixa('contexto', 'Contexto do que está aberto', <TInfo size={15} />)}
-        {fixa('nocturn', 'NOCTURN — supervisor', <LogoNoctis size={15} />)}
+        {fixa('contexto', 'Contexto do que está aberto', (() => {
+          const s = doSistema('doca.contexto', '', '#a1a1aa')
+          if (!s.icon) return <TInfo size={ICON_SIZES.doca} />
+          const I = getIcon(s.icon)
+          return <I size={ICON_SIZES.doca} style={{ color: s.color }} />
+        })())}
+        {fixa('nocturn', 'NOCTURN — supervisor', <LogoNoctis size={ICON_SIZES.doca} />)}
         {fixa('detalhe', doca.itens[0] ? `Detalhe — ${doca.itens[0].nome}` : 'Detalhe do que for selecionado',
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"
-            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h4" />
-          </svg>)}
+          (() => {
+            const s = doSistema('doca.detalhe', 'GiNotebook', '#a1a1aa')
+            const I = getIcon(s.icon)
+            return <I size={ICON_SIZES.doca} style={{ color: s.color }} />
+          })())}
       </div>
       <div className="flex-1 min-h-0 relative">
         <div hidden={ativa !== 'contexto'} className="absolute inset-0 overflow-y-auto"><PainelContexto ctx={ctx} /></div>
@@ -156,7 +162,7 @@ export function PainelDireito({ ctx }: { ctx: Contexto }) {
             {it.tipo === 'mapa' ? <DetalheMapa it={it} /> : it.tipo === 'recurso'
               ? <Drawer embutido target={{ kind: it.kind, name: it.nome }}
                   onClose={() => fecharNaDoca(it.id)} onChanged={() => avisarMudanca(it.id)} />
-              : <DrawerSkill embutido chave={it.chave}
+              : <DrawerLearning embutido chave={it.chave}
                   onFechar={() => fecharNaDoca(it.id)} onMudou={() => avisarMudanca(it.id)} />}
           </div>
         ))}

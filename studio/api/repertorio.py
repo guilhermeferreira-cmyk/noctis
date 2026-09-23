@@ -1,7 +1,7 @@
-"""O repertório de habilidades do projeto.
+"""O repertório de Learnings do projeto.
 
-Antes disto, habilidade era texto solto dentro dos eventos: dois agentes
-escrevendo o mesmo nome de formas diferentes tinham duas habilidades de mundos
+Antes disto, Learning era texto solto dentro dos eventos: dois agentes
+escrevendo o mesmo nome de formas diferentes tinham dois Learnings de mundos
 separados, e perguntar "quem sabe diagramar?" era perguntar por uma string.
 Aqui ela ganha identidade — um id, um rótulo, apelidos, uma descrição.
 
@@ -9,7 +9,7 @@ A divisão de verdades segue a que o Noctis já usa:
 
     resources.json          o que o recurso é
     canvases/*.json         onde ele está
-    skills.json             o que a habilidade é      ← este arquivo
+    skills.json             o que o Learning é      ← este arquivo
     skills/<id>.md          o que se aprendeu nela
     progresso/eventos.jsonl o que aconteceu
 
@@ -19,7 +19,7 @@ reescreve o outro, e é isso que evita duas fontes brigando.
 Quem descreve é quem aprendeu: o agente, no mesmo comando em que registra o
 trabalho. Ele acabou de exercitar aquilo e tem o contexto inteiro; esperar que
 uma pessoa descreva depois é pôr o gargalo mais caro do sistema no caminho de
-cada habilidade que nasce.
+cada Learning que nasce.
 
 O que se protege é a CURADORIA, não o campo. Texto que a pessoa editou fica
 marcado como curado e agente nenhum passa por cima; texto escrito por agente
@@ -34,7 +34,7 @@ from pathlib import Path
 import progresso as prog
 import regras
 
-# Uma habilidade firma quando o PROJETO a exercitou três vezes — por quem for.
+# Um Learning firma quando o PROJETO a exercitou três vezes — por quem for.
 # O corte é sobre o termo ser real, não sobre quem o praticou: a maestria de
 # cada agente já está no nível dele.
 EVENTOS_PARA_FIRMAR = 3
@@ -69,7 +69,7 @@ ESPECIE_PADRAO = "competencia"
 # -- Natureza e tags ----------------------------------------------------------
 #
 # A UNICA classificacao rigida e a natureza, porque ela muda o que o sistema faz
-# com a habilidade -- e nao como ela se organiza:
+# com o Learning -- e nao como ela se organiza:
 #
 #   procedimento  o passo a passo que a pessoa escreve e que se exporta como
 #                 SKILL.md para o Claude Code dos agentes
@@ -77,7 +77,7 @@ ESPECIE_PADRAO = "competencia"
 #                 abre perguntas e so vira aprendizado quando a pessoa valida
 #
 # Todo o resto e TAG, livre. Categoria fixa obriga a escolher uma gaveta quando
-# a habilidade cabe em tres, e a lista envelhece: "verificacao" e "construcao"
+# o Learning cabe em tres, e a lista envelhece: "verificacao" e "construcao"
 # valem juntas. O vocabulario nasce do uso -- as tags que ja existem sao
 # sugeridas antes de deixar criar uma nova --, e duas travas o mantem amplo:
 #
@@ -86,17 +86,17 @@ ESPECIE_PADRAO = "competencia"
 ESPECIES_COMO_TAG = {"armadilha": "armadilha", "metodo": "metodo", "padrao": "padrao",
                      "ferramenta": "ferramenta", "dominio": "dominio"}
 # A divisão procedimento/domínio existiu por dois dias e caiu: "poderia ser os
-# dois". Toda habilidade tem passos e sensibilidade, em proporções diferentes.
+# dois". Todo Learning tem passos e sensibilidade, em proporções diferentes.
 # O dicionário fica vazio de propósito — as telas antigas leem dele sem quebrar,
 # e nada mais pergunta por natureza.
 NATUREZAS: dict = {}
 # Nascer SEM rumo é o normal: o dono digita o nome e o Noctis descobre o resto
 # perguntando (enquadramento.py). Escolher numa tela era formulário, e ele
-# recusou formulário — "eu só quero digitar uma habilidade para eles aprenderem".
+# recusou formulário — "eu só quero digitar um Learning para eles aprenderem".
 NATUREZA_PADRAO = ""
 
 def _max_tags() -> int:
-    return regras.valor("habilidades.max_tags")
+    return regras.valor("learning.max_tags")
 
 
 def normalizar_tag(t: str) -> str:
@@ -160,7 +160,7 @@ def validar_tags(base: Path, tags, autor: str = "usuario") -> list:
         if tg in proprios:
             raise ValueError(
                 "'%s' e nome proprio (projeto, recurso ou arquivo) - isso e memoria, "
-                "nao tag de habilidade" % tg)
+                "nao tag de Learning" % tg)
         if de_agente and tg not in existentes:
             raise ValueError("agente nao cria tag: '%s' ainda nao existe no projeto" % tg)
         limpas.append(tg)
@@ -168,7 +168,7 @@ def validar_tags(base: Path, tags, autor: str = "usuario") -> list:
 
 
 def renomear_tag(base: Path, de: str, para: str) -> int:
-    """Renomeia em todas as habilidades. `para` que ja existe e fusao."""
+    """Renomeia em todos os Learnings. `para` que ja existe e fusao."""
     de, para = normalizar_tag(de), normalizar_tag(para)
     if not de or not para:
         raise ValueError("informe as duas tags")
@@ -203,7 +203,7 @@ def _caminho(base: Path) -> Path:
 
 
 def corpo_path(base: Path, chave: str) -> Path:
-    """O markdown da habilidade. `Path(chave).name` corta qualquer `..` da URL."""
+    """O markdown do Learning. `Path(chave).name` corta qualquer `..` da URL."""
     d = base / "skills"
     d.mkdir(parents=True, exist_ok=True)
     return d / f"{Path(chave).name}.md"
@@ -222,7 +222,7 @@ def escrever_corpo(base: Path, chave: str, texto: str) -> str:
 def anexar_ao_corpo(base: Path, chave: str, texto: str, autor: str) -> str:
     """Acrescenta um trecho assinado, sem apagar o que já estava.
 
-    Acumular é o ponto: cada agente que passa por aquela habilidade deixa o que
+    Acumular é o ponto: cada agente que passa por aquelo Learning deixa o que
     descobriu, e o documento cresce. Substituir o corpo inteiro é uma operação
     de curadoria — e essa é sua, pelo drawer.
     """
@@ -256,6 +256,32 @@ def _nova(rotulo: str, quando: str, autor: str, especie: str = ESPECIE_PADRAO,
             "especie": especie if especie in ESPECIES else ESPECIE_PADRAO,
             "nasceu_em": (quando or "")[:10] or date.today().isoformat(),
             "nasceu_de": autor, "vinculados": []}
+
+
+def orfas(base: Path) -> list[dict]:
+    """Nomes de Learning citados em eventos que não existem no repertório.
+
+    É o que sobra quando o agente cita algo que você nunca criou. Não é erro
+    dele: é matéria para você decidir se aquilo merece ser um Learning.
+    """
+    rep = carregar(base)
+    idx = indice(rep)
+    mortas = prog.destruidas(base)
+    vistos: dict[str, dict] = {}
+    for r in prog.ler_log(base):
+        if r.get("registro") != "evento":
+            continue
+        for rotulo in r.get("habilidades", []):
+            s = prog.slug(rotulo)
+            if not s or s in idx or s in mortas:
+                continue
+            d = vistos.setdefault(s, {"chave": s, "rotulo": rotulo, "citacoes": 0,
+                                      "agentes": [], "ultima": None})
+            d["citacoes"] += 1
+            if r.get("agente") and r["agente"] not in d["agentes"]:
+                d["agentes"].append(r["agente"])
+            d["ultima"] = r.get("quando")
+    return sorted(vistos.values(), key=lambda d: -d["citacoes"])
 
 
 def firmadas(rep: dict) -> set:
@@ -303,17 +329,24 @@ def sincronizar(base: Path) -> dict:
             s = prog.slug(rotulo)
             if not s or s in idx or s in mortas:
                 continue
-            # Nome novo: procura parente próximo antes de abrir entrada nova.
+            # Nome novo citado num evento. Se ele PARECE um Learning que já
+            # existe, entra como apelido dela — isso é casamento, não criação.
             parente = prog.casar_habilidade(rotulo, {k: {"aliases": v.get("aliases", [])}
                                                      for k, v in rep.items()})
             if parente:
                 rep[parente]["aliases"].append(s)
-            else:
+                idx = indice(rep)
+                mudou = True
+                continue
+            # Sem parente: NÃO abre entrada. Quem crio Learning é o dono.
+            # O nome fica como citação órfã (`orfas()`), e o NOCTURN a traz na
+            # ronda para ele decidir: criar, apelidar de outra, ou ignorar.
+            if not regras.valor("learning.so_o_dono_cria"):
                 rep[s] = _nova(rotulo, r.get("quando", ""), r.get("agente", ""))
-            idx = indice(rep)
-            mudou = True
+                idx = indice(rep)
+                mudou = True
 
-    # Contagem de eventos por habilidade decide quem firma sozinha.
+    # Contagem de eventos por Learning decide quem firma sozinha.
     contagem: dict[str, int] = {}
     for r in prog.ler_log(base):
         if r.get("registro") != "evento":
@@ -325,8 +358,8 @@ def sincronizar(base: Path) -> dict:
     for chave, d in rep.items():
         if d.get("estado") == "arquivada":
             continue
-        novo = "firmada" if (not regras.valor("habilidades.usar_firmar")
-                             or contagem.get(chave, 0) >= regras.valor("habilidades.eventos_para_firmar")) \
+        novo = "firmada" if (not regras.valor("learning.usar_firmar")
+                             or contagem.get(chave, 0) >= regras.valor("learning.eventos_para_firmar")) \
             else "broto"
         # Só sobe sozinha. Quem firmou na mão não volta a ser broto.
         if novo == "firmada" and d.get("estado") != "firmada":
@@ -356,12 +389,12 @@ def sincronizar(base: Path) -> dict:
 def criar(base: Path, rotulo: str, descricao: str = "",
           especie: str = ESPECIE_PADRAO, autor: str = "usuario",
           natureza: str = NATUREZA_PADRAO, tags: list | None = None) -> dict:
-    """Abre uma habilidade à mão.
+    """Abre um Learning à mão.
 
     Nem todo aprendizado nasce de despacho: "Armadilhas do Figma via MCP" foi
-    aprendido apanhando, e só depois alguém o exercitou. Uma habilidade assim
+    aprendido apanhando, e só depois alguém o exercitou. Um Learning assim
     nasce sem portador e sem XP — e está certo: o texto existe, o exercício
-    ainda não. O texto mora no corpo dela, como em toda habilidade.
+    ainda não. O texto mora no corpo dela, como em todo Learning.
     """
     rep = carregar(base)
     chave = prog.slug(rotulo)
@@ -378,7 +411,7 @@ def criar(base: Path, rotulo: str, descricao: str = "",
 
 
 def atualizar(base: Path, chave: str, patch: dict, autor: str = "usuario") -> dict:
-    """Muda a habilidade. `autor` decide se o texto vira curadoria ou não.
+    """Muda o Learning. `autor` decide se o texto vira curadoria ou não.
 
     Escrita de agente não sobrescreve o que a pessoa curou — é a única trava, e
     ela existe para o trabalho de curadoria não ser desfeito por um despacho.
@@ -390,7 +423,7 @@ def atualizar(base: Path, chave: str, patch: dict, autor: str = "usuario") -> di
     if "rotulo" in patch and str(patch["rotulo"]).strip():
         d["rotulo"] = str(patch["rotulo"]).strip()[:80]
     if "descricao" in patch:
-        curada = bool(d.get("curada")) and regras.valor("habilidades.curadoria_protegida")
+        curada = bool(d.get("curada")) and regras.valor("learning.curadoria_protegida")
         de_agente = autor not in ("usuario", "")
         if not (curada and de_agente):
             d["descricao"] = str(patch["descricao"]).strip()[:600]
@@ -439,7 +472,7 @@ def vincular(base: Path, chave: str, agente: str, ligado: bool) -> dict:
 
 
 def detalhe(base: Path, chave: str) -> dict:
-    """Uma habilidade inteira: quem a exercita, o que se aprendeu, e quando.
+    """Um Learning inteira: quem a exercita, o que se aprendeu, e quando.
 
     Inclui os eventos que a citaram — é neles que está a história concreta, e é
     o que separa "nível 3" de "subiu para 3 fazendo estas quatro coisas".
@@ -466,7 +499,7 @@ def detalhe(base: Path, chave: str) -> dict:
 
 
 def visao(base: Path) -> dict:
-    """O repertório com quem tem cada habilidade e em que nível."""
+    """O repertório com quem tem cada Learning e em que nível."""
     rep = sincronizar(base)
     idx = indice(rep)
     firmadas = {c for c, d in rep.items() if d.get("estado") == "firmada"}
@@ -515,7 +548,7 @@ def visao(base: Path) -> dict:
                                                   s["estado"] == "broto",
                                                   -s["xp"], s["rotulo"].lower()))
     return {"skills": {s["chave"]: s for s in ordem},
-            "firmarEm": regras.valor("habilidades.eventos_para_firmar"), "estados": list(ESTADOS),
+            "firmarEm": regras.valor("learning.eventos_para_firmar"), "estados": list(ESTADOS),
             "especies": ESPECIES, "naturezas": NATUREZAS,
             "tags": tags_do_projeto(base)}
 
@@ -526,10 +559,10 @@ import re as _re
 
 # Palavras curtas demais casam com tudo e não dizem nada.
 def _min_termo() -> int:
-    return regras.valor("habilidades.min_termo_busca")
+    return regras.valor("learning.min_termo_busca")
 # Armadilha pesa mais: é o que evita o erro, e é por isso que se consulta.
 def _peso_tag() -> dict:
-    return regras.valor("habilidades.peso_da_tag")
+    return regras.valor("learning.peso_da_tag")
 
 
 def _termos(texto: str) -> list[str]:
@@ -537,7 +570,7 @@ def _termos(texto: str) -> list[str]:
 
 
 def buscar(base: Path, consulta: str, limite: int = 5) -> list[dict]:
-    """As habilidades que respondem a uma consulta em texto livre.
+    """Os Learnings que respondem a uma consulta em texto livre.
 
     Sem modelo e sem índice: é contagem de termos com peso por onde o termo
     apareceu. Nome vale mais que texto, porque quem nomeou já resumiu. É tosco de
@@ -581,7 +614,7 @@ def registrar_consulta(base: Path, agente: str, termos: str, chaves: list[str],
                        modo: str) -> None:
     """Toda leitura vira registro. É o que responde "o aprendizado está servindo?"
 
-    Habilidade que ninguém consulta em meses é candidata a arquivo; muito
+    Learning que ninguém consulta em meses é candidata a arquivo; muito
     consultada e com texto curto é candidata a ser escrita melhor. Sem este
     registro, as duas perguntas não têm resposta.
     """
@@ -608,8 +641,8 @@ def parecidas(base: Path, rotulo: str) -> tuple[str | None, list[str]]:
     proximas = []
     if not mesma:
         for chave in rep:
-            if regras.valor("habilidades.faixa_parecidas") <= prog._semelhanca(s, chave) \
-                    < regras.valor("habilidades.limiar_fusao"):
+            if regras.valor("learning.faixa_parecidas") <= prog._semelhanca(s, chave) \
+                    < regras.valor("learning.limiar_fusao"):
                 proximas.append(rep[chave].get("rotulo", chave))
     return mesma, proximas[:3]
 
@@ -633,9 +666,9 @@ def destruir(base: Path, chave: str, por: str = "usuario") -> None:
 
 def promover(origem: Path, destino: Path, chave: str, projeto_origem: str,
              por: str = "usuario") -> dict:
-    """Copia a habilidade para a base — o caminho pelo qual ela cresce.
+    """Copia o Learning para a base — o caminho pelo qual ela cresce.
 
-    Se a base já tem uma habilidade com esse nome, o texto entra como seção nova,
+    Se a base já tem um Learning com esse nome, o texto entra como seção nova,
     assinada com o projeto de onde veio. Nada é sobrescrito: a base acumula, como
     todo o resto.
     """

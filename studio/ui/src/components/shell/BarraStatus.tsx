@@ -9,7 +9,8 @@ import { api } from '../../api'
  * o servidor está de pé? o NOCTURN tem algo a cobrar? alguma regra está fora do
  * padrão? Clicar em cada um leva para onde se resolve.
  */
-export function BarraStatus({ projetoNome, onAbrirControle, onAbrirNocturn }: {
+export function BarraStatus({ projetoNome,
+                              onAbrirControle, onAbrirNocturn }: {
   projetoNome: string
   onAbrirControle: () => void
   onAbrirNocturn: () => void
@@ -17,13 +18,17 @@ export function BarraStatus({ projetoNome, onAbrirControle, onAbrirNocturn }: {
   const [online, setOnline] = useState<boolean | null>(null)
   const [pendencias, setPendencias] = useState(0)
   const [alteradas, setAlteradas] = useState(0)
+  // As propostas de Learning sem veredito saem do mesmo relatório, mas ganham
+  // número próprio: elas são as únicas pendências que só VOCÊ pode fechar.
+  const [esperando, setEsperando] = useState(0)
 
   const intervalo = usePreferencias().intervaloRonda
   useEffect(() => {
     let vivo = true
     const ler = () => {
       api.nocturnRelatorio()
-        .then(r => { if (vivo) { setOnline(true); setPendencias(r.achados.length) } })
+        .then(r => { if (vivo) { setOnline(true); setPendencias(r.achados.length)
+                                 setEsperando(r.resumo?.propostasSemVeredito || 0) } })
         .catch(() => { if (vivo) setOnline(false) })
       api.regras().then(r => { if (vivo) setAlteradas(r.regras.filter(x => x.alterada).length) }).catch(() => {})
     }
@@ -40,6 +45,12 @@ export function BarraStatus({ projetoNome, onAbrirControle, onAbrirNocturn }: {
         <button onClick={onAbrirControle} className="hover:text-gray-200"
           title="Regras diferentes do padrão — veja em Controle">
           {alteradas} regra{alteradas !== 1 ? 's' : ''} alterada{alteradas !== 1 ? 's' : ''}
+        </button>
+      )}
+      {esperando > 0 && (
+        <button onClick={onAbrirNocturn} className="text-emerald-400/80 hover:text-emerald-300"
+          title="Propostas de Learning esperando seu veredito — aceitar, recusar ou pedir ajuste">
+          {esperando} Learning{esperando !== 1 ? 's' : ''} esperando
         </button>
       )}
       <button onClick={onAbrirNocturn} className="hover:text-gray-200" title="Pendências da ronda do NOCTURN">

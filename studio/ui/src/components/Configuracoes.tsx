@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GiPaintBucket, GiSkills, GiPadlock, GiLevelEndFlag, GiInfo, GiOpenFolder, GiFamilyTree,
          GiSettingsKnobs, GiStarsStack, GiSunrise, GiCrystalGrowth, GiScrollUnfurled } from 'react-icons/gi'
-import { api, type MemoryVocab, type ProjectMeta } from '../api'
+import { api, enderecoDaApi, enderecoPadrao, definirEnderecoDaApi, saude,
+         type Saude, type MemoryVocab, type ProjectMeta } from '../api'
 import { ConfigAparencia, type SecaoAparencia } from './ConfigAparencia'
 import { PainelRegras } from './PainelRegras'
 import { PainelTeses } from './PainelTeses'
+import { PainelDiagnostico, PainelDados } from './PainelDiagnostico'
+import { PainelSquads, PainelTagsConfig } from './PainelSquadsTags'
+import { PainelManual } from './PainelManual'
+import { PainelNicknames, PainelArquetipos } from './PainelNicknames'
 import { Switch } from './Switch'
 import { LogoNoctis } from './LogoNoctis'
 import { TFechar } from './shell/Tracos'
@@ -25,21 +30,33 @@ import { definirPreferencia, restaurarPreferencias, usePreferencias } from '../l
  */
 
 type IdSecao =
-  | 'sobre' | 'interface' | 'projetos'
+  | 'sobre' | 'manual' | 'interface' | 'projetos' | 'diagnostico' | 'dados' | 'conexao'
   | 'tipos' | 'icones' | 'logo' | 'ceu' | 'aura'
-  | 'protocolo' | 'habilidades' | 'perguntas' | 'xp' | 'organizacao-regras' | 'nocturn' | 'protecoes'
+  | 'protocolo' | 'learning' | 'perguntas' | 'xp' | 'organizacao-regras'
+  | 'agentes-aplicados' | 'runtime-regras'
+  | 'nocturn' | 'protecoes'
 
 type Secao = { id: IdSecao; rotulo: string; grupo: string; Icone: React.ComponentType<{ size?: number }>;
                chaves: string }
 
 const SECOES: Secao[] = [
   { id: 'sobre',      grupo: 'Noctis', rotulo: 'Sobre', Icone: GiInfo, chaves: 'versão api atalhos teclado' },
+  { id: 'manual',     grupo: 'Noctis', rotulo: 'Manual', Icone: GiScrollUnfurled,
+    chaves: 'manual ajuda como funciona ciclo aprendizado quem pode papel atalho documentação' },
   { id: 'interface',  grupo: 'Noctis', rotulo: 'Interface', Icone: GiSettingsKnobs,
     chaves: 'faixa ícones cabeçalho aba barra status zoom painel direito abas largura menu seções' },
   { id: 'projetos',   grupo: 'Noctis', rotulo: 'Projetos e lixeira', Icone: GiOpenFolder,
     chaves: 'projeto criar renomear excluir lixeira restaurar base' },
-  { id: 'tipos',      grupo: 'Aparência', rotulo: 'Tipos e cores', Icone: GiPaintBucket,
-    chaves: 'cor ícone agente memória fluxo persona tipo fundação decisão referência' },
+  { id: 'diagnostico', grupo: 'Noctis', rotulo: 'Diagnóstico', Icone: GiInfo,
+    chaves: 'diagnóstico saúde inconsistente pendente esperando sem uso torto estado' },
+  { id: 'conexao',    grupo: 'Noctis', rotulo: 'Conexão', Icone: GiFamilyTree,
+    chaves: 'conexão servidor api endereço porta localhost máquina própria pasta onde '
+          + 'grava conectar demonstração efêmero vercel' },
+  { id: 'dados',      grupo: 'Noctis', rotulo: 'Dados e arquivos', Icone: GiOpenFolder,
+    chaves: 'dados arquivo onde gravado tamanho peso jsonl json yaml pasta backup' },
+  { id: 'tipos',      grupo: 'Aparência', rotulo: 'Ícones e cores', Icone: GiPaintBucket,
+    chaves: 'cor ícone agente memória fluxo persona tipo fundação decisão referência '
+          + 'seção faixa doca papel maestro líder estado broto firmada sistema tudo' },
   { id: 'icones',     grupo: 'Aparência', rotulo: 'Tamanho dos ícones', Icone: GiCrystalGrowth,
     chaves: 'tamanho ícone card menu barra lateral disco' },
   { id: 'logo',       grupo: 'Aparência', rotulo: 'Logo', Icone: GiSunrise, chaves: 'logo tamanho cor degradê gradiente animação' },
@@ -47,16 +64,21 @@ const SECOES: Secao[] = [
     chaves: 'céu estrelas nebulosas parallax deriva opacidade malha constelação fundo' },
   { id: 'aura',       grupo: 'Aparência', rotulo: 'Aura e vidro', Icone: GiScrollUnfurled,
     chaves: 'aura blur difusão vidro transparência brilho' },
+  { id: 'agentes-aplicados', grupo: 'Agentes e aprendizado', rotulo: 'Arquétipos e nicknames', Icone: GiFamilyTree,
+    chaves: 'arquétipo nickname identificador agente aplicado acoplamento banco estrela '
+          + 'constelação nome projeto atravessa contaminação' },
+  { id: 'runtime-regras', grupo: 'Agentes e aprendizado', rotulo: 'Runtime', Icone: GiInfo,
+    chaves: 'runtime janela agora minutos página paginação histórico registros' },
   { id: 'protocolo',  grupo: 'Agentes e aprendizado', rotulo: 'Protocolo dos agentes', Icone: GiScrollUnfurled,
-    chaves: 'protocolo prompt consultar registrar declarar habilidades instalar' },
-  { id: 'habilidades', grupo: 'Agentes e aprendizado', rotulo: 'Habilidades', Icone: GiSkills,
-    chaves: 'habilidade skill firmar broto fusão semelhança curadoria nativa' },
+    chaves: 'protocolo prompt consultar registrar declarar Learnings instalar' },
+  { id: 'learning', grupo: 'Agentes e aprendizado', rotulo: 'Learning e tags', Icone: GiSkills,
+    chaves: 'learning Learning skill firmar broto fusão semelhança curadoria nativa tag vocabulário agrupar solta' },
   { id: 'perguntas', grupo: 'Agentes e aprendizado', rotulo: 'Perguntas e teses', Icone: GiScrollUnfurled,
-    chaves: 'pergunta tese escolha opção enquadramento descobrir habilidade frase documento' },
+    chaves: 'pergunta tese escolha opção enquadramento descobrir Learning frase documento' },
   { id: 'xp',         grupo: 'Agentes e aprendizado', rotulo: 'XP e níveis', Icone: GiLevelEndFlag,
     chaves: 'xp nível curva dificuldade bônus teto saturação' },
-  { id: 'organizacao-regras', grupo: 'Agentes e aprendizado', rotulo: 'Organização', Icone: GiFamilyTree,
-    chaves: 'organização papel maestro líder squad aviso cadeia comando cor' },
+  { id: 'organizacao-regras', grupo: 'Agentes e aprendizado', rotulo: 'Organização e squads', Icone: GiFamilyTree,
+    chaves: 'organização papel maestro líder aviso cadeia comando cor squad criar renomear apagar divisão' },
   { id: 'nocturn',    grupo: 'Agentes e aprendizado', rotulo: 'NOCTURN', Icone: GiInfo,
     chaves: 'nocturn supervisor ronda intervalo parado confirmação' },
   { id: 'protecoes',  grupo: 'Agentes e aprendizado', rotulo: 'Proteções', Icone: GiPadlock,
@@ -65,7 +87,7 @@ const SECOES: Secao[] = [
 
 const PAGINAS_FAIXA: { id: string; rotulo: string }[] = [
   { id: 'agents', rotulo: 'Agentes' }, { id: 'organizacao', rotulo: 'Organização' }, { id: 'memory', rotulo: 'Memória' }, { id: 'flows', rotulo: 'Fluxos' },
-  { id: 'personas', rotulo: 'Personas' }, { id: 'skills', rotulo: 'Habilidades' },
+  { id: 'personas', rotulo: 'Personas' }, { id: 'learning', rotulo: 'Learning' }, { id: 'runtime', rotulo: 'Runtime' },
   { id: 'canvas', rotulo: 'Mapa de Memória' }, { id: 'cosmos', rotulo: 'Cosmos' },
   { id: 'controle', rotulo: 'Controle' }, { id: 'setup', rotulo: 'Gerar Setup' },
 ]
@@ -174,13 +196,15 @@ function SecaoInterface({ onRedefinirLarguras }: { onRedefinirLarguras: () => vo
 function SecaoProjetos({ atual, onAbrir, onMudou }: {
   atual: string; onAbrir: (slug: string) => void; onMudou: () => void
 }) {
+  const [verOcultos, setVerOcultos] = useState(false)
   const [projetos, setProjetos] = useState<(ProjectMeta & { permanente?: boolean; repositorio?: boolean })[]>([])
   const [lixo, setLixo] = useState<{ id: string; slug: string; quando: string; nome: string }[]>([])
   const reler = () => {
-    api.listProjects().then(l => setProjetos(l as typeof projetos))
+    (verOcultos ? api.listarComOcultos() : api.listProjects())
+      .then(l => setProjetos(l as typeof projetos))
     api.lixeira().then(r => setLixo(r.itens))
   }
-  useEffect(() => { reler() }, [])
+  useEffect(() => { reler() }, [verOcultos])   // eslint-disable-line react-hooks/exhaustive-deps
   const agir = async (fn: () => Promise<unknown>) => {
     try { await fn(); reler(); onMudou() } catch (e) { alert((e as Error).message) }
   }
@@ -191,13 +215,25 @@ function SecaoProjetos({ atual, onAbrir, onMudou }: {
         {projetos.map(p => (
           <Linha key={p.slug} titulo={p.displayName}
             desc={p.permanente ? 'Base de conhecimento — permanente, todo projeto a consulta.'
-              : p.repositorio ? 'Repositório de código dentro de projects/ — o Noctis não move nem apaga.'
+              : p.repositorio ? 'Repositório de código dentro de projects/ — o Noctis não move nem apaga. Esconder tira da lista sem tocar na pasta.'
               : `${p.counts.agents} agentes · ${p.counts.memory} memórias · ${p.counts.flows} fluxos`}>
             <div className="flex items-center gap-3 text-[11.5px]">
               {p.slug === atual
                 ? <span className="text-violet-300">aberto</span>
                 : <button onClick={() => onAbrir(p.slug)} className="text-gray-300 hover:text-white">abrir</button>}
-              {!p.permanente && !p.repositorio && <>
+              {/* Esconder some da navegação e não mexe no disco: é o que
+                  resolve repositório de código e projeto que morreu. */}
+              {!p.permanente && (
+                <button onClick={async () => {
+                    await api.ocultarProjeto(p.slug, !p.oculto); reler(); onMudou()
+                  }}
+                  title={p.oculto ? 'Trazer de volta para a lista'
+                    : 'Sumir da lista. A pasta continua onde está.'}
+                  className="text-gray-500 hover:text-gray-200">
+                  {p.oculto ? 'mostrar' : 'esconder'}
+                </button>
+              )}
+              {!p.permanente && !p.repositorio && !p.oculto && <>
                 <button onClick={() => {
                   const n = window.prompt('Novo nome do projeto:', p.displayName)?.trim()
                   if (n && n !== p.displayName) agir(() => api.renameProject(p.slug, n))
@@ -210,12 +246,19 @@ function SecaoProjetos({ atual, onAbrir, onMudou }: {
             </div>
           </Linha>
         ))}
-        <button onClick={() => {
-          const n = window.prompt('Nome do novo projeto:')?.trim()
-          if (n) agir(() => api.createProject(n))
-        }} className="mt-3 text-xs px-3 py-1.5 rounded-md bg-violet-600/80 hover:bg-violet-500 text-white">
-          + novo projeto
-        </button>
+        <div className="mt-3 flex items-center gap-3">
+          <button onClick={() => {
+            const n = window.prompt('Nome do novo projeto:')?.trim()
+            if (n) agir(() => api.createProject(n))
+          }} className="text-xs px-3 py-1.5 rounded-md bg-violet-600/80 hover:bg-violet-500 text-white">
+            + novo projeto
+          </button>
+          <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
+            <input type="checkbox" checked={verOcultos} onChange={e => setVerOcultos(e.target.checked)}
+              className="accent-violet-600" />
+            ver os escondidos
+          </label>
+        </div>
       </Grupo>
 
       <Grupo titulo={`Lixeira${lixo.length ? ` (${lixo.length})` : ''}`}>
@@ -231,6 +274,99 @@ function SecaoProjetos({ atual, onAbrir, onMudou }: {
               </div>
             </Linha>
           ))}
+      </Grupo>
+    </>
+  )
+}
+
+// ── Conexão ──────────────────────────────────────────────────────────────────
+// A página pode ser servida de qualquer lugar, inclusive de um deploy público.
+// O Noctis de verdade é o servidor, e é ele que sabe em qual pasta gravar — por
+// isso esta tela mostra a raiz que o servidor respondeu, e não uma promessa da
+// interface. Quem abre pela web e quer trabalhar nas próprias pastas aponta
+// aqui para o Noctis que roda na máquina dele.
+function SecaoConexao() {
+  const [endereco, setEndereco] = useState(enderecoDaApi() || window.location.origin)
+  const [estado, setEstado] = useState<'…' | 'ok' | 'erro'>('…')
+  const [info, setInfo] = useState<Saude | null>(null)
+  const [erro, setErro] = useState('')
+  const [testando, setTestando] = useState(false)
+
+  const conferir = (url?: string) => {
+    setTestando(true); setErro('')
+    saude(url).then(d => { setInfo(d); setEstado('ok') })
+      .catch((e: Error) => { setInfo(null); setEstado('erro'); setErro(e.message) })
+      .finally(() => setTestando(false))
+  }
+  useEffect(() => { conferir() }, [])
+
+  const conectar = () => {
+    const alvo = definirEnderecoDaApi(endereco)
+    setEndereco(alvo || window.location.origin)
+    conferir(alvo)
+  }
+
+  const atual = enderecoDaApi() || 'mesma origem desta página'
+
+  return (
+    <>
+      <Grupo titulo="Servidor">
+        <Linha titulo="Endereço"
+               desc="Onde esta página procura o Noctis. Vale só neste navegador.">
+          <span className="text-xs text-gray-400 font-mono">{atual}</span>
+        </Linha>
+        <Linha titulo="Estado" desc="Resposta do aperto de mão.">
+          <span className={`text-xs ${estado === 'erro' ? 'text-red-400'
+                          : estado === 'ok' ? 'text-emerald-400' : 'text-gray-500'}`}>
+            {testando ? 'testando…' : estado === 'ok' ? 'conectado'
+              : estado === 'erro' ? `sem resposta — ${erro}` : '…'}
+          </span>
+        </Linha>
+        {info && (
+          <Linha titulo="Pasta dos dados"
+                 desc={info.efemero
+                   ? 'Esta instância é efêmera: o que você criar some quando ela reciclar.'
+                   : 'É aqui que seus projetos são criados, na máquina que roda o servidor.'}>
+            <span className={`text-xs font-mono ${info.efemero ? 'text-amber-400' : 'text-gray-400'}`}>
+              {info.raiz}
+            </span>
+          </Linha>
+        )}
+      </Grupo>
+
+      <Grupo titulo="Apontar para outro Noctis">
+        <div className="flex gap-2 mb-2">
+          <input value={endereco} onChange={e => setEndereco(e.target.value)}
+                 onKeyDown={e => { if (e.key === 'Enter') conectar() }}
+                 placeholder="http://localhost:5501"
+                 className="flex-1 bg-black/30 border border-white/10 rounded px-2 py-1.5
+                            text-xs font-mono text-gray-200 outline-none focus:border-white/25" />
+          <button onClick={conectar} disabled={testando}
+                  className="px-3 py-1.5 rounded text-xs bg-white/10 hover:bg-white/15
+                             disabled:opacity-40 text-gray-100">
+            conectar
+          </button>
+          <button onClick={() => { setEndereco(enderecoPadrao() || window.location.origin)
+                                   definirEnderecoDaApi(''); conferir(enderecoPadrao()) }}
+                  className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-gray-200">
+            padrão
+          </button>
+        </div>
+        <p className="text-[11px] text-gray-500 leading-relaxed">
+          Para criar projetos dentro das <strong className="text-gray-400">suas</strong> pastas, o
+          servidor precisa rodar na sua máquina — é ele que tem acesso ao seu disco, não esta
+          página. Com o Noctis clonado, suba o servidor e aponte o endereço acima para ele:
+        </p>
+        <pre className="mt-2 text-[11px] font-mono text-gray-400 bg-black/30 border border-white/10
+                        rounded p-2 overflow-x-auto whitespace-pre">
+{`cd studio/api
+NOCTIS_DATA=/caminho/para/suas/pastas uvicorn main:app --port 5501`}
+        </pre>
+        <p className="text-[11px] text-gray-500 leading-relaxed mt-2">
+          Sem <code className="text-gray-400">NOCTIS_DATA</code>, os projetos vão para a pasta do
+          próprio Noctis. Funciona no Chrome e no Edge; a página avisa aqui se o servidor não
+          responder.
+        </p>
       </Grupo>
     </>
   )
@@ -256,19 +392,19 @@ function SecaoSobre() {
         <LogoNoctis size={52} />
         <div>
           <div className="text-xl font-bold text-gray-100 tracking-tight">Noctis</div>
-          <div className="text-xs text-gray-500">base de conhecimento, habilidades e aprendizado dos seus agentes</div>
+          <div className="text-xs text-gray-500">base de conhecimento, Learnings e aprendizado dos seus agentes</div>
         </div>
       </div>
       <Grupo titulo="Estado">
         <Linha titulo="API" desc="O servidor que guarda projetos, regras e o histórico de trabalho.">
           <span className={`text-xs ${online === false ? 'text-red-400' : 'text-emerald-400'}`}>
-            {online === null ? '…' : online ? 'no ar · 127.0.0.1:5501' : 'fora do ar'}
+            {online === null ? '…' : online ? `no ar · ${enderecoDaApi() || 'mesma origem'}` : 'fora do ar'}
           </span>
         </Linha>
         {dados && <Linha titulo="Conteúdo"
           desc="Somado entre todos os projetos (repositórios de código não contam).">
           <span className="text-xs text-gray-300 tabular-nums">
-            {dados.projetos} projetos · {dados.agentes} agentes · {dados.skills} habilidades · {dados.eventos} trabalhos
+            {dados.projetos} projetos · {dados.agentes} agentes · {dados.skills} learnings · {dados.eventos} trabalhos
           </span>
         </Linha>}
       </Grupo>
@@ -347,6 +483,29 @@ export function Configuracoes({ vocab, secaoInicial = 'interface', projetoAtual,
   const grupos = [...new Set(visiveis.map(s => s.grupo))]
   const aparencia: SecaoAparencia[] = ['tipos', 'icones', 'logo', 'ceu', 'aura']
 
+  // Uma frase por seção, dizendo o que ela governa. Ajuda que mora longe do
+  // controle não é lida na hora da dúvida — e é na hora da dúvida que importa.
+  const AJUDA: Record<string, string> = {
+    manual: 'Como o Noctis funciona, em uma página.',
+    sobre: 'O estado do sistema e quanto conteúdo existe.',
+    interface: 'Como esta tela se arruma. Vale só neste navegador.',
+    projetos: 'Criar, renomear e recuperar projeto. A base não se apaga.',
+    diagnostico: 'O que está torto na estrutura deste projeto, agora.',
+    dados: 'Onde cada coisa é gravada, e quanto pesa.',
+    tipos: 'O ícone e a cor de tudo: tipos, seções, doca, papéis, estados.',
+    icones: 'O tamanho dos ícones em cada lugar da tela.',
+    logo: 'A marca do Noctis: tamanho, cor, animação.',
+    ceu: 'O fundo estrelado: estrelas, nebulosas, deriva.',
+    aura: 'O brilho dos cards e a transparência dos painéis.',
+    protocolo: 'O que todo agente é obrigado a fazer, e o texto exato que ele recebe.',
+    learning: 'Como um Learning nasce e se funde, e o vocabulário de tags.',
+    perguntas: 'As perguntas e teses que descobrem o que um Learning é.',
+    xp: 'Quanto cada trabalho vale, e quanto custa subir de nível.',
+    'organizacao-regras': 'Os papéis, os avisos, e as squads deste projeto.',
+    nocturn: 'O que o supervisor cobra, e de quanto em quanto tempo.',
+    protecoes: 'O que o Noctis nunca deixa acontecer. Não se desligam.',
+  }
+
   const NATUREZA: Record<string, string> = {
     'Noctis': '',
     'Aparência': 'Gravado no servidor: vale em qualquer máquina que abrir o Noctis.',
@@ -391,6 +550,9 @@ export function Configuracoes({ vocab, secaoInicial = 'interface', projetoAtual,
           <div className="h-12 shrink-0 flex items-center px-6 border-b border-white/[0.06]">
             <div className="min-w-0 flex-1">
               <div className="text-[15px] font-semibold text-gray-100">{atual.rotulo}</div>
+            {AJUDA[secao] && (
+              <div className="text-[11px] text-gray-500 truncate">{AJUDA[secao]}</div>
+            )}
             </div>
             <button onClick={onFechar} title="Fechar (Esc)"
               className="p-1.5 rounded-md text-gray-500 hover:text-gray-100 hover:bg-white/[0.06]">
@@ -403,7 +565,11 @@ export function Configuracoes({ vocab, secaoInicial = 'interface', projetoAtual,
                 <p className="text-[11px] text-gray-500 mb-4">{NATUREZA[atual.grupo]}</p>
               )}
               {secao === 'sobre' && <SecaoSobre />}
+              {secao === 'manual' && <PainelManual />}
               {secao === 'interface' && <SecaoInterface onRedefinirLarguras={onRedefinirLarguras} />}
+              {secao === 'diagnostico' && <PainelDiagnostico />}
+              {secao === 'dados' && <PainelDados />}
+              {secao === 'conexao' && <SecaoConexao />}
               {secao === 'projetos' && (
                 <SecaoProjetos atual={projetoAtual} onAbrir={onAbrirProjeto} onMudou={onProjetosMudaram} />
               )}
@@ -411,10 +577,38 @@ export function Configuracoes({ vocab, secaoInicial = 'interface', projetoAtual,
                 <ConfigAparencia key={secao} embutido secao={secao as SecaoAparencia}
                   vocab={vocab} onFechar={onFechar} onSalvo={onVocab} />
               )}
+
+              {secao === 'agentes-aplicados' && (
+                <>
+                  <h3 className="text-[13px] font-semibold text-gray-200 mb-1">Arquétipos</h3>
+                  <PainelArquetipos />
+                  <h3 className="text-[13px] font-semibold text-gray-200 mb-1 mt-6">Nicknames</h3>
+                  <PainelNicknames />
+                  <h3 className="text-[13px] font-semibold text-gray-200 mb-1 mt-6">Regras</h3>
+                  <PainelRegras area="agentes" />
+                </>
+              )}
+              {secao === 'runtime-regras' && <PainelRegras area="runtime" />}
               {secao === 'protocolo' && <PainelRegras area="protocolo" />}
-              {secao === 'habilidades' && <PainelRegras area="habilidades" mostrarProtocolo={false} />}
+              {secao === 'learning' && (
+                <>
+                  <PainelRegras area="learning" mostrarProtocolo={false} />
+                  <div className="mt-7 pt-5 border-t border-white/[0.08]">
+                    <h3 className="text-[13px] font-semibold text-gray-200 mb-1">Tags</h3>
+                    <PainelTagsConfig />
+                  </div>
+                </>
+              )}
               {secao === 'perguntas' && <PainelTeses />}
-              {secao === 'organizacao-regras' && <PainelRegras area="organizacao" mostrarProtocolo={false} />}
+              {secao === 'organizacao-regras' && (
+                <>
+                  <PainelRegras area="organizacao" mostrarProtocolo={false} />
+                  <div className="mt-7 pt-5 border-t border-white/[0.08]">
+                    <h3 className="text-[13px] font-semibold text-gray-200 mb-1">Squads deste projeto</h3>
+                    <PainelSquads />
+                  </div>
+                </>
+              )}
       {secao === 'perguntas' && <PainelTeses />}
               {secao === 'xp' && <PainelRegras area="xp" mostrarProtocolo={false} />}
               {secao === 'nocturn' && <SecaoNocturn />}

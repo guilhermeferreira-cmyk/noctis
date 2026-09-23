@@ -2,7 +2,7 @@ import {
   useCallback, useEffect, useRef, useState, createContext, useContext,
 } from 'react'
 import {
-  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap, NodeResizer, Panel,
+  ReactFlow, ReactFlowProvider, Background, BackgroundVariant, Controls, MiniMap, NodeResizer, Panel,
   addEdge, applyNodeChanges, applyEdgeChanges, Handle, Position, MarkerType, SelectionMode,
   useReactFlow, useUpdateNodeInternals,
   type Node, type Edge, type Connection, type NodeChange, type EdgeChange, type NodeProps,
@@ -22,15 +22,17 @@ import { Aura, auraPorNo } from '../components/Aura'
 import { moverPanorama } from '../components/FundoEstrelado'
 import { SeletorIcone } from '../components/SeletorIcone'
 import { NovaMemoria } from '../components/NovaMemoria'
+import { GrafoMapa, type NoGrafo, type LigacaoGrafo } from '../components/GrafoMapa'
 import { BarraDoCard, DiscosDoAgente, useFicha } from '../components/Progresso'
 import { Switch } from '../components/Switch'
 import { copiar, textoDaReferencia } from '../lib/referencia'
 import { BlocoDecisao, AUTOR_LOCAL } from '../components/BlocoDecisao'
 import { EditorDecisao } from '../components/EditorDecisao'
+import { CarregandoNoctis, EsqueletoLinhas, EsqueletoPainel } from '../components/Esqueleto'
 import { ItemMenu, MenuIcon } from '../lib/menuIcons'
 import { GiTreasureMap } from 'react-icons/gi'
 import { EdgeGradiente } from '../components/EdgeGradiente'
-import { COLORS, KIND_META, KIND_ORDER, type DrawerTarget, ICON_SIZES, VIDRO, CEU, AURA, TIPO_META } from '../lib/kinds'
+import { COLORS, KIND_META, KIND_ORDER, type DrawerTarget, ICON_SIZES, VIDRO, CEU, AURA, TIPO_META, PONTILHADO } from '../lib/kinds'
 
 
 
@@ -240,7 +242,8 @@ function ResourceNode({ id, data, selected }: NodeProps) {
 
   const commitTag = () => { const t = tagInput.trim().replace(/^#/, ''); if (t) a.addTag(id, t); setTagInput('') }
   const Icon = getIcon(icon)
-  // A mesma ficha do grid — o cache evita uma requisição por card no mapa.
+  // Só a barra de baixo (borda fina de XP) ainda usa isto direto; os discos,
+  // acima, buscam por conta própria — ver o comentário deles.
   const ficha = useFicha(kind === 'agent' ? label : undefined)
   const tipoMem = TIPO_META[mtype || 'nota']
 
@@ -273,7 +276,10 @@ function ResourceNode({ id, data, selected }: NodeProps) {
       })}
 
       <div className="flex items-start gap-2.5 px-3 pt-3 pb-1.5 shrink-0">
-        {kind === 'agent' && <DiscosDoAgente ficha={ficha} cor={color} />}
+        {/* O nó do canvas não traz resumo consigo (o mapa guarda posição, não
+            ficha); poucos agentes soltos no mapa, então buscar de cara é
+            barato — não é a mesma multidão que a grade de Agentes tem. */}
+        {kind === 'agent' && <DiscosDoAgente agente={label} cor={color} eager />}
         {/* a moldura acompanha o ícone: sem isso, um ícone grande vaza da caixa */}
         <span className="relative shrink-0 flex items-center justify-center rounded-lg"
           style={{ background: color + '22', color,
@@ -351,7 +357,7 @@ function ResourceNode({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {kind === 'agent' && <BarraDoCard ficha={ficha} cor={color} />}
+      {kind === 'agent' && <BarraDoCard resumo={ficha} cor={color} />}
       <div className={`flex items-center gap-3 px-3 pt-1.5 border-t border-gray-800 text-[11px] text-gray-500 shrink-0 ${kind === 'agent' ? 'pb-2.5' : 'pb-1.5'}`}>
         {kind === 'memory' ? (
           <>
@@ -519,7 +525,7 @@ function FlowModal({ name, onClose }: { name: string; onClose: () => void }) {
           <button onClick={onClose} className="text-gray-500 hover:text-gray-200 text-xl leading-none px-1">✕</button>
         </div>
         <div className="p-5 overflow-auto">
-          {!flow ? <div className="text-gray-600 text-sm">Carregando…</div> : (
+          {!flow ? <EsqueletoLinhas linhas={6} /> : (
             <>
               {flow.description && <p className="text-sm text-gray-400 mb-4 leading-relaxed">{flow.description.trim()}</p>}
               <div className="space-y-0">
@@ -682,7 +688,7 @@ function InsertModal({ counts, onInsert, onClose }: {
           <button onClick={onClose} className="text-gray-500 hover:text-gray-200 text-xl leading-none px-1">✕</button>
         </div>
         <div className="p-4 overflow-auto space-y-5">
-          {!res ? <div className="text-gray-600 text-sm">Carregando…</div> : KIND_ORDER.map(kind => {
+          {!res ? <EsqueletoPainel itens={4} /> : KIND_ORDER.map(kind => {
             const meta = KIND_META[kind]
             const items = res[kind]
             return (
@@ -889,6 +895,15 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
   const [edges, setEdges] = useState<Edge[]>([])
   const [autoEdges, setAutoEdges] = useState<{ id: string; source: string; target: string; rel?: string }[]>([])
   const [showAuto, setShowAuto] = useState(true)
+  // O mapa em fantasma enquanto o arquivo do canvas é lido. Trocar de mapa
+  // também passa por aqui: sem isso, o mapa antigo fica na tela até o novo
+  // chegar, e por um instante você lê o mapa errado achando que é o certo.
+  const [carregandoMapa, setCarregandoMapa] = useState(true)
+  // Arranjo é onde você pôs cada coisa; grafo é o que está ligado a quê. Duas
+  // leituras do mesmo material, e a escolha fica lembrada por projeto.
+  const [vista, setVista] = useState<'arranjo' | 'grafo'>(
+    () => (localStorage.getItem('noctis.mapa.vista') as 'arranjo' | 'grafo') || 'arranjo')
+  useEffect(() => { try { localStorage.setItem('noctis.mapa.vista', vista) } catch { /* */ } }, [vista])
   const [novaMem, setNovaMem] = useState(false)
   // Vidro e céu vêm da tela de aparência, junto de cor, ícone e tamanho.
   const vidro = VIDRO.ativo
@@ -969,11 +984,13 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
   }
 
   const reload = useCallback(async () => {
+    setCarregandoMapa(true)
     loadedRef.current = false
     lastSavedRef.current = ''          // mapa novo: o payload anterior não vale
     const alvo = mapaId
     toRF(await api.getMemoryCanvas(alvo))
     mapaDosNodesRef.current = alvo
+    setCarregandoMapa(false)
     setTimeout(() => { loadedRef.current = true }, 50)
   }, [mapaId])
   useEffect(() => { reload() }, [reload])
@@ -1435,6 +1452,17 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
           </div>
           <div className="flex items-center gap-3">
             <CanvasPicker atual={mapaId} mapas={mapas} onTrocar={trocarMapa} onMudou={recarregarMapas} />
+            <div className="flex items-center rounded-lg border border-white/[0.08] overflow-hidden">
+              {([['arranjo', 'arranjo'], ['grafo', 'grafo']] as const).map(([id, rot]) => (
+                <button key={id} onClick={() => setVista(id)}
+                  title={id === 'arranjo' ? 'O mapa como você arrumou'
+                    : 'O mesmo material como grafo: o que está ligado a quê'}
+                  className={`text-[11px] px-2.5 py-1 ${vista === id
+                    ? 'bg-white/[0.09] text-gray-100' : 'text-gray-500 hover:text-gray-200'}`}>
+                  {rot}
+                </button>
+              ))}
+            </div>
             <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none" title="Conexões derivadas (por lane): agente→memórias, fluxo→agentes">
               <input type="checkbox" checked={showAuto} onChange={e => setShowAuto(e.target.checked)} className="accent-blue-600" />
               <span className="inline-block w-4 border-t border-dashed border-gray-500" /> auto ({autoCount})
@@ -1442,6 +1470,30 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
           </div>
         </div>
 
+        {vista === 'grafo' ? (
+          <div className="flex-1 relative">
+            <GrafoMapa
+              titulo={mapas.find(m => m.id === mapaId)?.name}
+              nos={nodes.filter(n => n.type === 'resource').map(n => {
+                const d = n.data as MemData
+                const lane = nodes.find(l => l.id === n.parentId)
+                return {
+                  id: n.id, label: d.title || d.label, kind: d.kind, tipo: d.mtype,
+                  cor: d.color, tags: d.tags,
+                  lane: lane ? String((lane.data as { name?: string }).name || '') : '',
+                } as NoGrafo
+              })}
+              ligacoes={[
+                ...edges.map(e => ({ source: e.source, target: e.target })),
+                ...(showAuto ? autoEdges.map(e => ({ source: e.source, target: e.target, auto: true })) : []),
+              ] as LigacaoGrafo[]}
+              onAbrir={id => {
+                const n = nodes.find(x => x.id === id)
+                const d = n?.data as MemData | undefined
+                if (d) abrirRecursoNaDoca(d.kind, d.label, reload)
+              }} />
+          </div>
+        ) : (
         <div className={`flex-1 relative ${panning ? 'tool-pan' : 'tool-select'} ${vidro ? 'vidro' : ''}`}>
           {/* céu por baixo de tudo; as nebulosas pegam as cores dos tipos de card.
               Desligado, o componente sai da árvore: nenhum ouvinte, nenhum quadro. */}
@@ -1463,6 +1515,11 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
             .react-flow__selection { background: rgba(59,130,246,.12); border: 1px solid #3b82f6 }
             .react-flow__node.selected > div { outline: 2px solid #3b82f6; outline-offset: 2px; border-radius: 12px }
           `}</style>
+          {carregandoMapa && (
+            <div className="absolute inset-0 z-20 bg-[#0c0c0c]/70 backdrop-blur-[1px]">
+              <CarregandoNoctis />
+            </div>
+          )}
           <ReactFlow
             onMove={(_, vp) => moverPanorama(vp.x, vp.y)}
             nodes={displayNodes}
@@ -1498,7 +1555,12 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
             defaultEdgeOptions={{ type: 'gradiente', markerEnd: { type: MarkerType.ArrowClosed } }}
             proOptions={{ hideAttribution: true }}
           >
-            <Background color="#222" gap={20} />
+            {/* O mesmo pontilhado da organização, ajustável em Aparência. */}
+            {PONTILHADO.ativo && (
+              <Background variant={BackgroundVariant.Dots} gap={PONTILHADO.espaco}
+                size={PONTILHADO.tamanho} color={PONTILHADO.cor}
+                style={{ opacity: PONTILHADO.opacidade / 100 }} />
+            )}
             {/* Zoom numa faixa vertical à direita, como no canvas do Obsidian. */}
             <Panel position="top-right" className="!m-3">
               <div className="flex flex-col gap-0.5 rounded-xl p-1 bg-[#18181c]/80 backdrop-blur-xl border border-white/[0.08] shadow-2xl shadow-black/40">
@@ -1626,6 +1688,7 @@ function Canvas({ mapaInicial }: { mapaInicial?: string }) {
             />
           )}
         </div>
+        )}
       </div>
     </ActionsCtx.Provider>
   )

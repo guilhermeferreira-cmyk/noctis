@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, getProject, type SkillDetalhe, type Observacao, type Hipotese, type Aprendizado,
+import { api, getProject, type LearningDetalhe, type Observacao, type Hipotese, type Aprendizado,
          type PerguntaEnquadramento } from '../api'
 import { Disco } from './Progresso'
 import { getIcon } from '../memoryIcons'
 import { Switch } from './Switch'
 import { MarkdownView } from './Drawer'
+import { EsqueletoLinhas } from './Esqueleto'
 
 /**
- * A habilidade inteira, aberta.
+ * O Learning inteira, aberta.
  *
  * O card responde "o que é e quem tem"; aqui está a história: todos os
  * aprendizados escritos, os documentos, e os eventos que construíram o nível de
@@ -157,10 +158,10 @@ function PainelDominio({ chave, cor, onMudou }: {
   )
 }
 
-/** A próxima pergunta desta habilidade, respondível aqui mesmo.
+/** A próxima pergunta desto Learning, respondível aqui mesmo.
  *
  * A Inbox do NOCTURN é a fila de tudo; aqui é o contrário — você abriu ESTA
- * habilidade e quer terminar de dizer o que ela é sem procurá-la numa lista.
+ * Learning e quer terminar de dizer o que ela é sem procurá-la numa lista.
  * Só escolha, como na Inbox: campo aberto virou o documento em markdown.
  */
 function ProximaPergunta({ chave, onRespondido }: { chave: string; onRespondido: () => void }) {
@@ -223,12 +224,12 @@ function ProximaPergunta({ chave, onRespondido }: { chave: string; onRespondido:
   )
 }
 
-export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
+export function DrawerLearning({ chave, onFechar, onMudou, embutido = false }: {
   chave: string; onFechar: () => void; onMudou: () => void
   /** Dentro de uma aba: ocupa o espaço todo. */
   embutido?: boolean
 }) {
-  const [d, setD] = useState<SkillDetalhe>()
+  const [d, setD] = useState<LearningDetalhe>()
   const [editando, setEditando] = useState(false)
   const [texto, setTexto] = useState('')
   const [aba, setAba] = useState<'corpo' | 'dominio' | 'aprendizados' | 'eventos'>('corpo')
@@ -238,21 +239,21 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
   const [preverCorpo, setPreverCorpo] = useState(false)
 
   const carregar = useCallback(() => {
-    api.skill(chave).then(x => { setD(x); setTexto(x.descricao || ''); setCorpo(x.corpo || '') })
+    api.learning(chave).then(x => { setD(x); setTexto(x.descricao || ''); setCorpo(x.corpo || '') })
   }, [chave])
   useEffect(() => { carregar() }, [carregar])
 
   if (!d) {
     return (
-      <div className={embutido ? 'p-4 text-sm text-gray-600'
-        : 'absolute top-0 right-0 h-full w-[26rem] bg-[#121212] border-l border-gray-800 z-30 p-4 text-sm text-gray-600'}>
-        carregando…
+      <div className={embutido ? 'p-4'
+        : 'absolute top-0 right-0 h-full w-[26rem] bg-[#121212] border-l border-gray-800 z-30 p-4'}>
+        <EsqueletoLinhas linhas={7} />
       </div>
     )
   }
 
-  // Quanto dela já foi dito. Não há mais "que tipo de habilidade é esta": toda
-  // habilidade tem passos e sensibilidade, em proporções diferentes.
+  // Quanto dela já foi dito. Não há mais "que tipo de Learning é esta": toda
+  // Learning tem passos e sensibilidade, em proporções diferentes.
   const dito = d.enquadramento ? Object.keys(d.enquadramento).length : 0
   const descobrindo = dito < 5
   const cor = d.estado === 'arquivada' ? '#52525b'
@@ -260,13 +261,13 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
   const Icone = getIcon('GiSkills')
 
   const salvar = async () => {
-    await api.editarSkill(chave, { descricao: texto })
+    await api.editarLearning(chave, { descricao: texto })
     setEditando(false); carregar(); onMudou()
   }
   const mudar = async (patch: Record<string, unknown>) => {
     // A API recusa tag de nome próprio e tag inventada por agente: o motivo
     // dela é a explicação boa, então mostramos em vez de engolir.
-    try { await api.editarSkill(chave, patch); carregar(); onMudou() }
+    try { await api.editarLearning(chave, patch); carregar(); onMudou() }
     catch (e) { alert((e as Error).message) }
   }
 
@@ -280,7 +281,7 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
           <div className="text-sm font-semibold text-gray-100 leading-tight">{d.rotulo}</div>
           <div className="flex items-center gap-2 mt-1">
             <span className="flex items-center gap-1 text-[11px]" style={{ color: cor }}>
-              <Icone size={13} aria-hidden="true" />{descobrindo ? `descobrindo ${dito}/5` : 'habilidade'}
+              <Icone size={13} aria-hidden="true" />{descobrindo ? `descobrindo ${dito}/5` : 'learning'}
             </span>
             <span className="text-[10px] text-gray-600">
               {d.eventos} evento{d.eventos !== 1 ? 's' : ''} · {Math.round(d.xp)} XP
@@ -290,10 +291,10 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
         <button onClick={onFechar} className="text-gray-500 hover:text-gray-200 text-lg leading-none px-1">✕</button>
       </div>
 
-      {/* Ações que mudam o destino da habilidade, e não o conteúdo dela. */}
+      {/* Ações que mudam o destino do Learning, e não o conteúdo dela. */}
       <div className="px-4 py-2 border-b border-gray-800 flex items-center gap-2 shrink-0 text-[11px]">
         {getProject() !== 'noctis' ? (
-          <button onClick={async () => { await api.promoverSkill(chave); carregar(); onMudou()
+          <button onClick={async () => { await api.promoverLearning(chave); carregar(); onMudou()
               alert('Subiu para a base. Todo projeto passa a encontrá-la ao consultar.') }}
             className="px-2 py-1 rounded" style={{ background: '#a78bfa22', color: '#a78bfa' }}>
             Promover à base
@@ -303,8 +304,8 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
         )}
         <span className="flex-1" />
         <button onClick={async () => {
-            if (!window.confirm(`Destruir "${d.rotulo}"? Some a habilidade e o texto. Não há como desfazer.`)) return
-            await api.destruirSkill(chave); onMudou(); onFechar()
+            if (!window.confirm(`Destruir "${d.rotulo}"? Some o Learning e o texto. Não há como desfazer.`)) return
+            await api.destruirLearning(chave); onMudou(); onFechar()
           }}
           className="px-2 py-1 rounded text-red-400 hover:bg-red-500/10">
           Destruir
@@ -406,7 +407,7 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
         )}
 
         <div className="flex border-b border-gray-800 text-[11px] sticky top-0 bg-[#121212] z-10">
-          {/* Toda habilidade aprende: a divisão entre "procedimento" e "assunto"
+          {/* Todo Learning aprende: a divisão entre "procedimento" e "assunto"
               caiu no dia em que ele disse "poderia ser os dois". */}
           {([['corpo', 'Documento'],
              ['dominio', 'Aprendizado'] as const,
@@ -472,7 +473,7 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
                 )}
                 <div className="flex items-center gap-1.5">
                   <button onClick={async () => {
-                      await api.escreverCorpoSkill(chave, corpo)
+                      await api.escreverCorpoLearning(chave, corpo)
                       setEditandoCorpo(false); setPreverCorpo(false); carregar(); onMudou()
                     }}
                     className="text-[11px] bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded">Salvar</button>
@@ -526,7 +527,7 @@ export function DrawerSkill({ chave, onFechar, onMudou, embutido = false }: {
                 ))
           ) : (
             d.eventosDetalhados.length === 0
-              ? <p className="text-[11px] text-gray-600">Nenhum trabalho registrado com esta habilidade.</p>
+              ? <p className="text-[11px] text-gray-600">Nenhum trabalho registrado com este Learning.</p>
               : d.eventosDetalhados.map(e => (
                   <div key={e.id} className="border-l-2 border-gray-800 pl-2.5 py-0.5">
                     <p className="text-xs text-gray-300 leading-snug">{e.resumo || e.despacho}</p>

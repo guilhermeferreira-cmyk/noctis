@@ -19,6 +19,7 @@ para perda de dados.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 _CONFIG: Path | None = None
@@ -39,22 +40,24 @@ def configurar(raiz: Path) -> None:
 
 AREAS = [
     ("protocolo",   "Protocolo dos agentes", "o que todo agente é obrigado a fazer, e em que momento"),
-    ("habilidades", "Habilidades",           "como uma habilidade nasce, se funde e quem pode mexer nela"),
+    ("learning",    "Learnings",             "como um Learning nasce, se funde e quem pode mexer nele"),
     ("xp",          "XP e níveis",           "quanto cada trabalho vale e quanto custa subir de nível"),
-    ("perguntas",   "Perguntas e teses",     "o que o Noctis pergunta para descobrir o que uma habilidade é"),
+    ("perguntas",   "Perguntas e teses",     "o que o Noctis pergunta para descobrir o que um Learning é"),
     ("aprendizado", "Aprendizado",           "como uma hipótese do agente vira conhecimento validado por você"),
     ("organizacao", "Organização",           "os papéis da cadeia de comando e o que a vista cobra de você"),
+    ("agentes",     "Agentes aplicados",     "arquétipos, nicknames e o que atravessa projeto"),
+    ("runtime",     "Runtime",               "o que a tela do que está rodando mostra, e quanto de cada vez"),
     ("nocturn",     "Supervisão",            "o que o NOCTURN cobra, e a partir de quando"),
     ("protecoes",   "Proteções",             "o que o Noctis nunca deixa acontecer"),
 ]
 
 CATALOGO: list[dict] = [
     # ── Protocolo ─────────────────────────────────────────────────────────────
-    {"id": "protocolo.auto_instalar", "area": "protocolo", "tipo": "bool", "padrao": True,
-     "titulo": "Instalar o protocolo em todo agente salvo",
-     "faz": "Todo agente criado ou editado pelo Noctis sai com o bloco de protocolo no system_prompt.",
-     "porque": "Sem isso, o sistema depende de alguém lembrar de rodar o instalador — e um agente sem protocolo não registra trabalho nem lê o que foi aprendido.",
-     "onde": ["servidor"]},
+    {"id": "protocolo.explicar_arquetipo", "area": "protocolo", "tipo": "bool", "padrao": True,
+     "titulo": "Dizer ao agente quem ele é e onde procurar",
+     "faz": "O bloco abre dizendo o nickname e o identificador `<projeto>:<agente>`, e aponta os dois lugares: o arquétipo (o que ele É, compartilhado) e o acoplamento (o que é só deste projeto).",
+     "porque": "Um arquétipo vive em vários projetos. Sem saber qual dos seus ele é, o agente consulta a memória do outro e reporta a um líder que não é o dele.",
+     "onde": ["protocolo"]},
     {"id": "protocolo.consultar_ao_comecar", "area": "protocolo", "tipo": "bool", "padrao": True,
      "titulo": "Consultar o repertório antes de começar",
      "faz": "O protocolo manda o agente rodar --consultar com o assunto da tarefa antes de agir.",
@@ -65,61 +68,82 @@ CATALOGO: list[dict] = [
      "faz": "O protocolo manda o agente registrar o que fez (tipo, resumo, evidência, dificuldade). É o que gera XP.",
      "porque": "Sem registro não há XP, não há histórico, e o NOCTURN não sabe quem está trabalhando.",
      "onde": ["protocolo"]},
-    {"id": "protocolo.declarar_habilidades", "area": "protocolo", "tipo": "bool", "padrao": True,
-     "titulo": "Agentes declaram e escrevem habilidades",
-     "faz": "Liga -s, --nova e --anotar: o agente nomeia habilidades ao registrar trabalho e escreve o texto delas. Desligado, o protocolo não fala disso e o servidor recusa as três operações — o trabalho continua sendo registrado e continua gerando XP.",
-     "porque": "É a chave para pausar a escrita enquanto o formato de habilidade é redefinido, sem parar o registro de trabalho.",
+    {"id": "protocolo.declarar_learnings", "area": "protocolo", "tipo": "bool", "padrao": True,
+     "titulo": "Agentes declaram e escrevem Learnings",
+     "faz": "Liga -s, --nova e --anotar: o agente nomeia Learnings ao registrar trabalho e escreve o texto deles. Desligado, o protocolo não fala disso e o servidor recusa as três operações — o trabalho continua sendo registrado e continua gerando XP.",
+     "porque": "É a chave para pausar a escrita enquanto o formato de Learning é redefinido, sem parar o registro de trabalho.",
      "onde": ["protocolo", "servidor"]},
 
-    # ── Habilidades ───────────────────────────────────────────────────────────
-    {"id": "habilidades.usar_firmar", "area": "habilidades", "tipo": "bool", "padrao": True,
-     "titulo": "Separar broto de habilidade firmada",
-     "faz": "Uma habilidade só conta cheio na aptidão depois de exercitada N vezes no projeto; antes disso é broto e pesa 0,45.",
-     "porque": "Filtro contra ruído num vocabulário sem critério. Com um formato de habilidade bem definido, pode ser dispensável.",
+    # ── Learnings ───────────────────────────────────────────────────────────
+    {"id": "learning.usar_firmar", "area": "learning", "tipo": "bool", "padrao": True,
+     "titulo": "Separar broto de Learning firmado",
+     "faz": "Um Learning só conta cheio na aptidão depois de exercitado N vezes no projeto; antes disso é broto e pesa 0,45.",
+     "porque": "Filtro contra ruído num vocabulário sem critério. Com um formato de Learning bem definido, pode ser dispensável.",
      "onde": ["servidor"]},
-    {"id": "habilidades.eventos_para_firmar", "area": "habilidades", "tipo": "int", "padrao": 3,
+    {"id": "learning.eventos_para_firmar", "area": "learning", "tipo": "int", "padrao": 3,
      "min": 1, "max": 20,
      "titulo": "Eventos para firmar",
-     "faz": "Quantas vezes o projeto precisa exercitar uma habilidade para ela deixar de ser broto.",
+     "faz": "Quantas vezes o projeto precisa exercitar um Learning para ele deixar de ser broto.",
      "porque": "Separa algo feito uma vez de algo que se repete.",
-     "onde": ["servidor"], "depende": "habilidades.usar_firmar"},
-    {"id": "habilidades.limiar_fusao", "area": "habilidades", "tipo": "float", "padrao": 0.82,
+     "onde": ["servidor"], "depende": "learning.usar_firmar"},
+    {"id": "learning.limiar_fusao", "area": "learning", "tipo": "float", "padrao": 0.82,
      "min": 0.6, "max": 1.0, "passo": 0.01,
      "titulo": "Semelhança para fundir nomes sozinho",
-     "faz": "Dois nomes com semelhança igual ou maior que isto viram a mesma habilidade automaticamente, e o nome novo vira apelido.",
+     "faz": "Dois nomes com semelhança igual ou maior que isto viram o mesmo Learning automaticamente, e o nome novo vira apelido.",
      "porque": "Impede que \"diagramação SVG\" e \"diagramas em SVG\" virem duas coisas que nunca sobem de nível. Alto demais deixa duplicatas passarem; baixo demais funde coisas diferentes.",
      "onde": ["servidor"]},
-    {"id": "habilidades.faixa_parecidas", "area": "habilidades", "tipo": "float", "padrao": 0.68,
+    {"id": "learning.faixa_parecidas", "area": "learning", "tipo": "float", "padrao": 0.68,
      "min": 0.4, "max": 0.95, "passo": 0.01,
      "titulo": "Semelhança para sugerir fusão",
-     "faz": "Entre este valor e o limiar de fusão, os nomes não se fundem sozinhos, mas o NOCTURN aponta como possível duplicata.",
+     "faz": "Entre este valor e o limiar de fusão, os nomes não se fundem sozinhos, mas o NOCTURN aponta como possível duplicata (mesma regra, agora sobre Learnings).",
      "porque": "A faixa que o casamento automático deixa passar e precisa de olho humano.",
      "onde": ["nocturn", "servidor"]},
-    {"id": "habilidades.curadoria_protegida", "area": "habilidades", "tipo": "bool", "padrao": True,
+    {"id": "learning.curadoria_protegida", "area": "learning", "tipo": "bool", "padrao": True,
      "titulo": "Agente não sobrescreve texto que você editou",
      "faz": "Descrição editada por você fica marcada como curada; escrita de agente sobre ela é ignorada. Texto de agente pode ser melhorado por outro agente.",
      "porque": "Curadoria não pode ser desfeita por um despacho.",
      "onde": ["servidor"]},
-    {"id": "habilidades.max_tags", "area": "habilidades", "tipo": "int", "padrao": 8,
+    {"id": "learning.max_tags", "area": "learning", "tipo": "int", "padrao": 8,
      "min": 1, "max": 20,
-     "titulo": "Máximo de tags por habilidade",
+     "titulo": "Máximo de tags por Learning",
      "faz": "Tags além deste número são cortadas ao salvar.",
-     "porque": "Habilidade com dez tags não está agrupada em lugar nenhum — está em todos, o que é o mesmo que em nenhum.",
+     "porque": "Learning com dez tags não está agrupado em lugar nenhum — está em todos, o que é o mesmo que em nenhum.",
      "onde": ["servidor"]},
-    {"id": "habilidades.peso_da_tag", "area": "habilidades", "tipo": "mapa",
+    {"id": "learning.peso_da_tag", "area": "learning", "tipo": "mapa",
      "padrao": {"armadilha": 1.35, "padrao": 1.15},
      "min": 0.5, "max": 3.0, "passo": 0.05,
      "titulo": "Peso de cada tag na consulta",
-     "faz": "Multiplica a nota da habilidade na busca quando ela tem aquela tag.",
+     "faz": "Multiplica a nota do Learning na busca quando ele tem aquela tag.",
      "porque": "Armadilha pesa mais porque é o que evita o erro — é por isso que se consulta antes de começar.",
      "onde": ["servidor"]},
-    {"id": "habilidades.min_termo_busca", "area": "habilidades", "tipo": "int", "padrao": 3,
+    {"id": "learning.min_termo_busca", "area": "learning", "tipo": "int", "padrao": 3,
      "min": 2, "max": 6,
      "titulo": "Tamanho mínimo do termo de busca",
      "faz": "Palavras menores que isto são ignoradas na consulta.",
      "porque": "Palavra de duas letras casa com tudo e não diz nada — traria o repertório inteiro como resposta.",
      "onde": ["servidor"]},
-    {"id": "habilidades.skills_nativas_intocaveis", "area": "habilidades", "tipo": "bool", "padrao": True,
+    {"id": "learning.so_o_dono_cria", "area": "learning", "tipo": "bool",
+     "padrao": True, "fixa": True,
+     "titulo": "Só você cria Learning",
+     "faz": "A API recusa criação de Learning por agente. Nome de Learning citado num evento que não existe no repertório NÃO abre entrada nova: fica como citação órfã, e o NOCTURN traz na ronda.",
+     "porque": "O agente nomeia o que acabou de fazer, e sai disso nome de arquivo do projeto — foi o que encheu o repertório de coisa específica e nos obrigou a zerar tudo. Quem decide o que é Learning é quem enxerga o conjunto.",
+     "onde": ["servidor", "protocolo"]},
+    {"id": "learning.agente_propoe", "area": "learning", "tipo": "bool", "padrao": True,
+     "titulo": "Agente pode PROPOR Learning novo",
+     "faz": "O agente manda uma proposta com nome, descrição e o trabalho de onde ela saiu. Ela não vira Learning: fica esperando você aceitar, recusar ou pedir ajuste.",
+     "porque": "Criar continua sendo do dono, mas quem está na tarefa é quem topa com o que o repertório não nomeia. Sem este caminho, o que ele descobre vira tese forçada num Learning errado — ou se perde.",
+     "onde": ["protocolo", "servidor", "cli"]},
+    {"id": "learning.exigir_no_trabalho", "area": "learning", "tipo": "bool", "padrao": False,
+     "titulo": "Recusar trabalho que não carrega Learning",
+     "faz": "Ligado, o xp.py RECUSA entrega, output, correção, revisão, retrabalho e consolidação sem -l, --observei, --propor ou --tese. Desligado, o comando registra mesmo assim e avisa em stderr.",
+     "porque": "Trabalho que não deixa nada para o próximo é o buraco que o repertório tenta tapar. Nasce desligada de propósito: despacho já aberto com o protocolo antigo tomaria recusa no meio do caminho — ligue depois que o parque estiver reinstalado.",
+     "onde": ["cli", "protocolo"]},
+    {"id": "learning.proposta_exige_resposta", "area": "learning", "tipo": "bool", "padrao": True,
+     "titulo": "Proposta de Learning não pode ficar sem veredito",
+     "faz": "Proposta pendente entra no relatório do NOCTURN e no contador da barra de status, e fica em destaque na Home até você aceitar, recusar ou pedir ajuste.",
+     "porque": "Recusar É resposta — é aprendizado sobre o que NÃO é a competência. O que não pode existir é o silêncio para sempre: o agente propôs a partir de trabalho real e nunca soube o que aconteceu.",
+     "onde": ["nocturn", "servidor"]},
+    {"id": "learning.skills_nativas_intocaveis", "area": "learning", "tipo": "bool", "padrao": True,
      "fixa": True,
      "titulo": "Agentes só mexem em skills criadas pelo Noctis",
      "faz": "Skills nativas do Claude e qualquer skill sua fora do Noctis nunca são criadas, editadas ou apagadas por agente nem pelo exportador.",
@@ -131,10 +155,10 @@ CATALOGO: list[dict] = [
     # A lista inteira é editável: acrescentar pergunta, reescrever tese, mudar a
     # ordem. O `campo` é a identidade da pergunta — mudá-lo faz o Noctis perguntar
     # de novo, porque as respostas antigas estão guardadas por ele.
-    {"id": "perguntas.habilidade", "area": "perguntas", "tipo": "perguntas",
+    {"id": "perguntas.learning", "area": "perguntas", "tipo": "perguntas",
      "padrao": [
          {"campo": "momento", "titulo": "Quando entra", "tipo": "multi",
-          "texto": "Em que momento do trabalho esta habilidade entra?",
+          "texto": "Em que momento do trabalho este Learning entra?",
           "opcoes": ["Antes de começar, para decidir o caminho",
                      "Durante a execução, a cada passo",
                      "Ao fechar, antes de entregar",
@@ -170,9 +194,9 @@ CATALOGO: list[dict] = [
                      "Domínio de uma ferramenta"],
           "frase": "Acertar depende de {escolhas}."},
      ],
-     "titulo": "As perguntas que descobrem o que uma habilidade é",
-     "faz": "A fila que aparece em Aprender e na doca da habilidade. Cada pergunta é uma tese ou um conjunto de teses, respondida por escolha — bool, radio ou múltipla. A `frase` é como a escolha aparece no documento que os agentes leem.",
-     "porque": "São perguntas fechadas para a resposta poder ser COMPARADA entre habilidades e projetos: cinco habilidades marcando a mesma tese são um padrão; cinco frases digitadas são cinco strings. E a lista é sua porque ela define o que o Noctis entende por habilidade.",
+     "titulo": "As perguntas que descobrem o que um Learning é",
+     "faz": "A fila que aparece em Aprender e na doca do Learning. Cada pergunta é uma tese ou um conjunto de teses, respondida por escolha — bool, radio ou múltipla. A `frase` é como a escolha aparece no documento que os agentes leem.",
+     "porque": "São perguntas fechadas para a resposta poder ser COMPARADA entre Learnings e projetos: cinco Learnings marcando a mesma tese são um padrão; cinco frases digitadas são cinco strings. E a lista é sua porque ela define o que o Noctis entende por Learning.",
      "onde": ["servidor"]},
 
     # ── Aprendizado ───────────────────────────────────────────────────────────
@@ -210,7 +234,7 @@ CATALOGO: list[dict] = [
     {"id": "aprendizado.no_protocolo", "area": "aprendizado", "tipo": "bool", "padrao": True,
      "titulo": "Pedir observação e hipótese aos agentes",
      "faz": "O protocolo instrui o agente a registrar o que observou nos domínios e a propor hipótese quando houver evidência bastante — e a citar qual aprendizado aplicou ao fechar o trabalho.",
-     "porque": "Sem isto o loop existe e ninguém alimenta: foi exatamente o que aconteceu com as habilidades, que ficaram vazias porque nada no prompt as pedia.",
+     "porque": "Sem isto o loop existe e ninguém alimenta: foi exatamente o que aconteceu com os Learnings, que ficaram vazias porque nada no prompt as pedia.",
      "onde": ["protocolo", "cli"]},
     {"id": "aprendizado.agente_nunca_conclui", "area": "aprendizado", "tipo": "bool",
      "padrao": True, "fixa": True,
@@ -251,8 +275,8 @@ CATALOGO: list[dict] = [
      "porque": "Trabalho revisado vale mais que trabalho só declarado.",
      "onde": ["servidor"]},
     {"id": "xp.mult_descoberta", "area": "xp", "tipo": "float", "padrao": 1.35, "min": 1.0, "max": 3.0, "passo": 0.05,
-     "titulo": "Bônus de habilidade nova",
-     "faz": "A primeira vez que um agente exercita uma habilidade, o XP do registro é multiplicado por isto.",
+     "titulo": "Bônus de Learning novo",
+     "faz": "A primeira vez que um agente exercita um Learning, o XP do registro é multiplicado por isto.",
      "porque": "Aprender algo novo vale mais que repetir.",
      "onde": ["servidor"]},
     {"id": "xp.teto_por_evento", "area": "xp", "tipo": "int", "padrao": 180, "min": 10, "max": 2000,
@@ -262,18 +286,23 @@ CATALOGO: list[dict] = [
      "onde": ["servidor"]},
     {"id": "xp.saturacao_diaria", "area": "xp", "tipo": "int", "padrao": 3, "min": 1, "max": 50,
      "titulo": "Repetições no mesmo dia antes de render menos",
-     "faz": "A partir do registro seguinte a este número, a mesma habilidade no mesmo dia rende metade.",
+     "faz": "A partir do registro seguinte a este número, o mesmo Learning no mesmo dia rende metade.",
      "porque": "Repetir a mesma coisa dez vezes num dia não é aprender dez vezes.",
      "onde": ["servidor"]},
     {"id": "xp.fator_saturado", "area": "xp", "tipo": "float", "padrao": 0.5,
      "min": 0.0, "max": 1.0, "passo": 0.05,
      "titulo": "Quanto vale o trabalho repetido no mesmo dia",
-     "faz": "Depois da saturação diária, cada novo registro na mesma habilidade vale este fator do normal.",
+     "faz": "Depois da saturação diária, cada novo registro no mesmo Learning vale este fator do normal.",
      "porque": "Cortar para zero puniria o dia produtivo de verdade; manter cheio premiaria picar o mesmo trabalho em dez registros.",
      "onde": ["servidor"]},
-    {"id": "protocolo.cobrar_habilidade", "area": "protocolo", "tipo": "bool", "padrao": True,
-     "titulo": "Cobrar habilidade ao fechar entrega",
-     "faz": "O comando avisa quando entrega, output ou correção são registrados sem dizer qual habilidade foi exercitada.",
+    {"id": "protocolo.exigir_identificador", "area": "protocolo", "tipo": "bool", "padrao": True,
+     "titulo": "Recusar registro fora do projeto do agente",
+     "faz": "O `xp.py` confere `<projeto>:<agente>` antes de escrever e RECUSA se aquele agente não estiver aplicado ali.",
+     "porque": "Substituiu o aviso do projeto ligado, que avisava depois de já ter gravado e falava da sessão, não do agente. Trabalho no projeto errado some do lugar onde alguém vai procurá-lo.",
+     "onde": ["cli"]},
+    {"id": "protocolo.cobrar_learning", "area": "protocolo", "tipo": "bool", "padrao": True,
+     "titulo": "Cobrar Learning ao fechar entrega",
+     "faz": "O comando avisa quando entrega, output ou correção são registrados sem dizer qual Learning foi exercitado.",
      "porque": "É a cobrança mais barata do sistema: uma linha no terminal, no momento em que a pessoa ainda lembra o que fez.",
      "onde": ["cli"]},
     {"id": "xp.curva_agente", "area": "xp", "tipo": "curva", "padrao": [100.0, 1.7],
@@ -281,10 +310,10 @@ CATALOGO: list[dict] = [
      "faz": "XP acumulado para o nível n = base × n^expoente. Não há nível máximo.",
      "porque": "Cada nível custa mais que o anterior: 40 entregas precisam parecer diferentes de 4.",
      "onde": ["servidor"]},
-    {"id": "xp.curva_skill", "area": "xp", "tipo": "curva", "padrao": [40.0, 1.6],
-     "titulo": "Curva de nível de habilidade",
-     "faz": "XP de uma habilidade para o nível n = base × n^expoente.",
-     "porque": "Mais barata que a do agente: a habilidade sobe antes, e é isso que mostra em que o agente é bom.",
+    {"id": "xp.curva_learning", "area": "xp", "tipo": "curva", "padrao": [40.0, 1.6],
+     "titulo": "Curva de nível de Learning",
+     "faz": "XP de um Learning para o nível n = base × n^expoente.",
+     "porque": "Mais barata que a do agente: o Learning sobe antes, e é isso que mostra em que o agente é bom.",
      "onde": ["servidor"]},
 
     # ── Supervisão ────────────────────────────────────────────────────────────
@@ -301,7 +330,7 @@ CATALOGO: list[dict] = [
 
     # ── Organização ───────────────────────────────────────────────────────────
     {"id": "organizacao.cores_dos_papeis", "area": "organizacao", "tipo": "cores",
-     "padrao": {"maestro": "#a78bfa", "lider": "#38bdf8", "agente": "#10b981"},
+     "padrao": {"warden": "#f59e0b", "maestro": "#a78bfa", "lider": "#38bdf8", "agente": "#10b981"},
      "titulo": "Cor de cada papel",
      "faz": "A cor da borda e do rótulo no card da vista de Organização.",
      "porque": "Bater o olho no organograma e saber quem coordena e quem executa, sem ler.",
@@ -323,6 +352,44 @@ CATALOGO: list[dict] = [
      "onde": ["nocturn"]},
 
     # ── Proteções ─────────────────────────────────────────────────────────────
+    # ── Agentes aplicados ───────────────────────────────────────────────────
+    {"id": "agentes.nickname_automatico", "area": "agentes", "tipo": "bool", "padrao": True,
+     "titulo": "Dar nickname a todo agente aplicado",
+     "faz": "Ao acoplar um agente a um projeto, ele recebe o próximo nickname livre do banco (estrelas e constelações).",
+     "porque": "O mesmo arquétipo vive em vários projetos, e 'o redator' deixa de bastar quando há três. O nickname é como se chama; quem endereça é o identificador.",
+     "onde": ["servidor"]},
+    {"id": "agentes.nickname_unico", "area": "agentes", "tipo": "bool", "padrao": True,
+     "fixa": True,
+     "titulo": "Nickname nunca se repete",
+     "faz": "Dois agentes aplicados jamais têm o mesmo nickname, em nenhum projeto.",
+     "porque": "É a única promessa que o nickname faz. Se repetir, ele deixa de identificar e vira enfeite — e alguém vai acabar usando como endereço.",
+     "onde": ["servidor"]},
+    {"id": "agentes.liberar_nickname_orfao", "area": "agentes", "tipo": "bool", "padrao": True,
+     "titulo": "Devolver ao banco o nickname sem agente",
+     "faz": "Nickname preso a um agente que não existe mais é liberado, e o nome volta a ficar disponível.",
+     "porque": "Apagar pela tela já devolve. Mas agente também some por projeto renomeado, pasta movida ou arquivo apagado na mão — e aí o nome fica reservado para um fantasma. Num banco finito, isso é vazamento.",
+     "onde": ["servidor"]},
+    {"id": "agentes.arquetipo_sem_projeto", "area": "agentes", "tipo": "bool", "padrao": True,
+     "fixa": True,
+     "titulo": "Arquétipo nunca cita projeto",
+     "faz": "O que é do projeto (nome, mapa, repositório) fica no acoplamento, nunca no arquétipo compartilhado.",
+     "porque": "É o que tira o LUGAR onde o vazamento mora. Conhecimento de projeto colado no prompt viaja junto na cópia; no arquétipo, não tem onde morar.",
+     "onde": ["servidor", "cli"]},
+
+    # ── Runtime ─────────────────────────────────────────────────────────────
+    {"id": "runtime.janela_agora", "area": "runtime", "tipo": "int", "padrao": 15,
+     "min": 1, "max": 1440,
+     "titulo": "Janela do \"trabalhando agora\", em minutos",
+     "faz": "Define quanto tempo atrás ainda conta como 'agora' na tela de Runtime.",
+     "porque": "Não existe 'comecei' e 'terminei': o evento que registra o trabalho é o único sinal. 'Agora' é uma janela sobre ele, e o tamanho certo depende do ritmo dos seus despachos.",
+     "onde": ["servidor"]},
+    {"id": "runtime.por_pagina", "area": "runtime", "tipo": "int", "padrao": 50,
+     "min": 10, "max": 200,
+     "titulo": "Registros por página no histórico",
+     "faz": "Quantos eventos o Runtime busca de cada vez ao rolar.",
+     "porque": "O histórico é para durar e não tem corte por tempo. Trazer tudo de uma vez custaria a velocidade que a paginação existe para proteger.",
+     "onde": ["servidor"]},
+
     {"id": "protecoes.base_permanente", "area": "protecoes", "tipo": "bool", "padrao": True, "fixa": True,
      "titulo": "A base de conhecimento não se apaga nem se renomeia",
      "faz": "O projeto `noctis` recusa exclusão e renomeação.",
@@ -338,6 +405,11 @@ CATALOGO: list[dict] = [
      "faz": "Só \"apagar de vez\", na lixeira, remove um projeto do disco.",
      "porque": "Um clique não pode apagar meses de trabalho sem volta.",
      "onde": ["servidor"]},
+    {"id": "protecoes.projeto_nao_cruza", "area": "protecoes", "tipo": "bool", "padrao": True, "fixa": True,
+     "titulo": "Um projeto não conversa com outro",
+     "faz": "Nenhum agente copia agente, memória ou Learning entre projetos. O que atravessa é o arquétipo de um agente, enviado pelo dono na tela — sem papel, squad ou histórico.",
+     "porque": "A fronteira do projeto é o que garante que o contexto de um cliente não vaze no outro. Se atravessar virar gesto de agente, a fronteira deixa de existir sem ninguém decidir isso.",
+     "onde": ["protocolo", "servidor"]},
     {"id": "protecoes.log_append_only", "area": "protecoes", "tipo": "bool", "padrao": True, "fixa": True,
      "titulo": "O histórico de trabalho só cresce",
      "faz": "Confirmação, fusão e destruição entram como registros novos; nenhum registro antigo é reescrito.",
@@ -441,33 +513,94 @@ def _validar(r: dict, v):
     raise ValueError(f"tipo desconhecido: {t}")
 
 
-def definir(rid: str, v) -> dict:
+# ── O rastro ──────────────────────────────────────────────────────────────────
+# Uma regra mudava e não havia como saber quando, nem de quanto para quanto. O
+# rastro é append-only, como o histórico de trabalho: cada mudança é uma linha, e
+# nenhuma linha é reescrita. Sem ele, "o XP está estranho desde ontem" não tinha
+# resposta.
+
+def _rastro_path() -> Path | None:
+    return (_CONFIG.parent / "config.jsonl") if _CONFIG else None
+
+
+def _anotar(rid: str, de, para, por: str, acao: str) -> None:
+    p = _rastro_path()
+    if not p:
+        return
+    linha = {
+        "quando": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "regra": rid, "acao": acao, "de": de, "para": para,
+        "por": (por or "usuario")[:120],
+    }
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(linha, ensure_ascii=False) + "\n")
+    except OSError:
+        pass          # rastro nunca pode impedir a mudança de acontecer
+
+
+def historico(rid: str = "") -> list[dict]:
+    """As mudanças, da mais recente para a mais antiga."""
+    p = _rastro_path()
+    if not p or not p.exists():
+        return []
+    out = []
+    for linha in p.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        try:
+            r = json.loads(linha)
+        except json.JSONDecodeError:
+            continue
+        if not rid or r.get("regra") == rid:
+            out.append(r)
+    out.reverse()
+    return out
+
+
+def ultima_mudanca(rid: str) -> dict | None:
+    h = historico(rid)
+    return h[0] if h else None
+
+
+def definir(rid: str, v, por: str = "usuario") -> dict:
     r = _POR_ID.get(rid)
     if not r:
         raise KeyError(rid)
     if r.get("fixa"):
         raise PermissionError(rid)
+    antes = valor(rid)
     valores = dict(_valores_salvos())
     valores[rid] = _validar(r, v)
     _CONFIG.parent.mkdir(parents=True, exist_ok=True)
     _CONFIG.write_text(json.dumps(valores, ensure_ascii=False, indent=2), encoding="utf-8")
     _cache["mtime"] = None
+    depois = valor(rid)
+    if depois != antes:
+        _anotar(rid, antes, depois, por, "mudou")
     return listar_uma(rid)
 
 
-def restaurar(rid: str) -> dict:
+def restaurar(rid: str, por: str = "usuario") -> dict:
+    antes = valor(rid)
     valores = dict(_valores_salvos())
+    tinha = rid in valores
     valores.pop(rid, None)
     _CONFIG.parent.mkdir(parents=True, exist_ok=True)
     _CONFIG.write_text(json.dumps(valores, ensure_ascii=False, indent=2), encoding="utf-8")
     _cache["mtime"] = None
+    if tinha:
+        _anotar(rid, antes, valor(rid), por, "voltou ao padrão")
     return listar_uma(rid)
 
 
 def listar_uma(rid: str) -> dict:
     r = _POR_ID[rid]
     atual = valor(rid)
-    return {**r, "valor": atual, "alterada": (not r.get("fixa")) and atual != r["padrao"]}
+    return {**r, "valor": atual, "alterada": (not r.get("fixa")) and atual != r["padrao"],
+            "ultimaMudanca": ultima_mudanca(rid)}
 
 
 def listar() -> dict:

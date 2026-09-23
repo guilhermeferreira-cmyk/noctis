@@ -16,11 +16,23 @@ const TRACADO = "M256.6 20.4c24.7 54-45.4 65.3-41 125.6l-43.4-39.6 14.8 67.2-65.
  * animável por classe. O id é único por instância (`useId`): dois logos na tela
  * com o mesmo id fariam o segundo herdar o gradiente do primeiro.
  */
-export function LogoNoctis({ size, className = '' }: { size?: number; className?: string }) {
+export function LogoNoctis({ size, className = '', gradiente, cor }: {
+  size?: number
+  className?: string
+  /** Força o modo gradiente independente da preferência global — usado onde o
+   *  próprio logo É a identidade visual (o Warden), e não um ícone qualquer
+   *  entre outros que devem seguir o padrão sólido/gradiente escolhido. */
+  gradiente?: boolean
+  /** Cor sólida própria, por cima da global — usada onde o logo aparece como
+   *  marca-d'água (o sol de espera), num tom perto do fundo em vez da cor de
+   *  identidade configurada em Aparência. Sem efeito quando `gradiente` está
+   *  ativo, porque o traçado é preenchido pelo gradiente, não por uma cor. */
+  cor?: string
+}) {
   const uid = useId().replace(/[^\w-]/g, '')
   const gid = `logo-grad-${uid}`
   const px = size ?? LOGO.tamanho
-  const grad = LOGO.modo === 'gradiente'
+  const grad = gradiente ?? (LOGO.modo === 'gradiente')
 
   return (
     <svg viewBox="0 0 512 512" width={px} height={px} className={className}
@@ -38,7 +50,7 @@ export function LogoNoctis({ size, className = '' }: { size?: number; className?
         </defs>
       )}
       <path d={TRACADO} fill={grad ? `url(#${gid})` : 'currentColor'}
-        style={grad ? undefined : { color: LOGO.cor }} />
+        style={grad ? undefined : { color: cor ?? LOGO.cor }} />
     </svg>
   )
 }

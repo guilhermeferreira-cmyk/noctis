@@ -25,9 +25,19 @@ export const KIND_META: Record<ResourceKind, { label: string; ext: string; icon:
  *   card  — o desenho grande do card, no grid e no mapa
  *   menu  — ícone de item de menu e de botão de ação
  *   nav   — ícone da barra lateral
- *   disco — os discos de nível e de habilidades, na borda do card de agente
+ *   disco — os discos de nível e de Learnings, na borda do card de agente
  */
-export const ICON_SIZES = { card: 30, menu: 15, nav: 19, disco: 32 }
+export const ICON_SIZES = {
+  card: 30,          // o desenho grande, na grade e no mapa
+  menu: 15,          // itens de menu e botões de ação
+  nav: 19,           // a faixa de seções, à esquerda
+  disco: 32,         // nível e Learnings, na borda do card do agente
+  arvore: 13,        // os ícones da árvore de recursos
+  doca: 15,          // os botões da doca da direita
+  organizacao: 17,   // o card do agente na vista de Organização
+  squad: 14,         // o ícone da squad
+  habilidade: 12,    // a espécie e o estado, no card do Learning
+}
 
 export function aplicarTamanhos(t?: Partial<typeof ICON_SIZES>) {
   if (!t) return
@@ -35,6 +45,33 @@ export function aplicarTamanhos(t?: Partial<typeof ICON_SIZES>) {
     const v = t[k]
     if (typeof v === 'number' && v > 0) ICON_SIZES[k] = v
   }
+}
+
+/** Ícone e cor de cada lugar do sistema — seções, doca, papéis, estados.
+ *
+ * Tipos de recurso e de memória já eram seus; o resto tinha desenho cravado no
+ * código. Agora tudo que tem ícone próprio passa por aqui, e o servidor guarda
+ * só o que você mudou.
+ */
+export const SISTEMA: Record<string, { grupo: string; label: string; icon: string; color: string }> = {}
+
+export function aplicarSistema(s?: Record<string, { grupo: string; label: string; icon: string; color: string }>) {
+  if (!s) return
+  for (const k of Object.keys(s)) SISTEMA[k] = { ...s[k] }
+}
+
+/** O ícone e a cor de um lugar, com o padrão de reserva se ele ainda não veio. */
+export function doSistema(chave: string, iconePadrao = 'GiSkills', corPadrao = '#a1a1aa') {
+  const s = SISTEMA[chave]
+  return { icon: s?.icon || iconePadrao, color: s?.color || corPadrao, label: s?.label || chave }
+}
+
+/** O pontilhado atrás dos canvases: mapa, cosmos e organização. */
+export const PONTILHADO = { ativo: true, opacidade: 22, espaco: 20, tamanho: 1, cor: '#8b8b8b' }
+
+export function aplicarPontilhado(p?: Partial<typeof PONTILHADO>) {
+  if (!p) return
+  Object.assign(PONTILHADO, p)
 }
 
 /** Ajustes da aura, mutáveis pelo mesmo motivo de `KIND_META`. */

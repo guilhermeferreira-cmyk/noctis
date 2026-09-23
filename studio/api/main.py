@@ -9,7 +9,7 @@ import os
 import re
 import json
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import shutil
 import base64
 import mimetypes
@@ -25,9 +25,15 @@ import html as html_mod
 from starlette.background import BackgroundTask
 import exportar_pdf as pdf
 import progresso as prog
+import arquetipos as arqs
+import nicknames as nick
 import repertorio as rep
 import aprendizado as apr
 import enquadramento as enq
+import diagnostico as diag
+import teses as tse
+import templates as tpl
+import skills_claude as skc
 import organizacao as org
 import nocturn as noc
 import regras
@@ -93,13 +99,24 @@ def _raiz_dos_dados() -> Path:
 EFEMERO       = bool(os.environ.get("VERCEL")) and not os.environ.get("NOCTIS_DATA")
 BASE_DIR      = _raiz_dos_dados()
 PROJECTS_DIR  = BASE_DIR / "projects"
-TEMPLATES_DIR = Path(__file__).parent.parent.parent / "_templates"
+# Os moldes são só-leitura: moram no repositório, não nos dados. Num pacote
+# serverless a raiz do repo não viaja junto, então uma cópia fica ao lado deste
+# arquivo e vale quando a de cima não existe.
+def _pasta_dos_moldes() -> Path:
+    aqui = Path(__file__).parent
+    for cand in (aqui.parent.parent / "_templates", aqui / "_templates"):
+        if cand.is_dir():
+            return cand
+    return aqui.parent.parent / "_templates"
+
+
+TEMPLATES_DIR = _pasta_dos_moldes()
 RESOURCE_DIRS = ("agents", "flows", "memory", "personas", "outputs")
 
 PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # A base de conhecimento do Noctis: um projeto permanente, que não se apaga nem
-# se renomeia, e cujas habilidades todo agente de todo projeto encontra ao
+# se renomeia, e cujos Learnings todo agente de todo projeto encontra ao
 # consultar. É para onde sobe o que foi aprendido num projeto e vale para os
 # outros — e é o que faz o conhecimento parar de morrer com o projeto que o gerou.
 BASE_SLUG = "noctis"
@@ -119,6 +136,31 @@ def _e_repositorio(base: Path) -> bool:
     return (base / ".git").exists() and not (base / "project.yaml").exists()
 
 
+# ── Projetos escondidos ───────────────────────────────────────────────────────
+# `projects/` guarda também repositórios de código e projetos que já morreram.
+# Apagar um repositório dali destruiria trabalho de verdade, então a proteção
+# continua de pé — o que faltava era poder tirá-los da LISTA sem tocar no disco.
+def _ocultos_path() -> Path:
+    return BASE_DIR / "config" / "projetos_ocultos.json"
+
+
+def _ocultos() -> set[str]:
+    p = _ocultos_path()
+    if not p.exists():
+        return set()
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        return set(d if isinstance(d, list) else d.get("ocultos", []))
+    except json.JSONDecodeError:
+        return set()
+
+
+def _gravar_ocultos(s: set[str]) -> None:
+    p = _ocultos_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(sorted(s), ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def _garantir_base() -> None:
     base = PROJECTS_DIR / BASE_SLUG
     for pasta in ("agents", "flows", "memory", "personas", "outputs"):
@@ -130,10 +172,12 @@ def _garantir_base() -> None:
 
 _garantir_base()
 regras.configurar(BASE_DIR)
+arqs.configurar(PROJECTS_DIR / BASE_SLUG)
 
-if EFEMERO and not any(PROJECTS_DIR.iterdir()):
-    # Instância nova e vazia: nasce um projeto para a pessoa ter por onde
-    # começar, senão a primeira tela é um beco sem saída.
+if EFEMERO and not (PROJECTS_DIR / "demonstracao").exists():
+    # Instância nova: nasce um projeto para a pessoa ter por onde começar,
+    # senão a primeira tela é um beco sem saída. Perguntar se a pasta está
+    # vazia não serve — _garantir_base() acabou de criar a base ali.
     demo = PROJECTS_DIR / "demonstracao"
     for pasta in RESOURCE_DIRS:
         (demo / pasta).mkdir(parents=True, exist_ok=True)
@@ -153,10 +197,20 @@ if EFEMERO and not any(PROJECTS_DIR.iterdir()):
             '- Aura, vidro e o céu com parallax — tudo regulável em Aparência',
             '- Tipos de memória, cards de decisão e o identificador copiável',
             '',
+            '## Para trabalhar nas suas pastas',
+            '',
+            'Esta página é só o cliente. O Noctis de verdade é o servidor, e é ele que tem',
+            'acesso a um disco — por isso, para criar projetos dentro das **suas** pastas,',
+            'rode o servidor na sua máquina e aponte esta página para ele em',
+            '**Configurações → Conexão**. O endereço fica guardado neste navegador.',
+            '',
             '## O que não funciona aqui',
             '',
             'A exportação em PDF: ela imprime pelo Chrome instalado na máquina, e não',
             'existe navegador dentro de uma função serverless.',
+            '',
+            'As Skills do Claude: elas são lidas de `~/.claude` no seu computador, que',
+            'não existe aqui. A página aparece, mas vem vazia.',
             '',
         ]), encoding="utf-8")
 
@@ -255,6 +309,47 @@ class _LiteralStr(str):
     pass
 
 
+# ── Agentes: o ponto ÚNICO de leitura ────────────────────────────────────────
+# Todo lugar que precisa saber o que um agente é passa por aqui. Ler o YAML cru
+# em outro canto entrega um agente sem cabeça no dia em que ele for acoplado a
+# um arquétipo — e o sintoma seria silencioso, que é o pior tipo.
+
+def nickname_de(projeto: str, nome: str) -> str:
+    """O nickname do agente aplicado, criando um se ele ainda não tem.
+
+    Atribuir na LISTAGEM, e não só em quem cria, é de propósito. Um agente
+    entra num projeto por vários caminhos — criado na tela, enviado de outro
+    projeto, instanciado de um molde, vindo no scaffold de projeto novo — e,
+    como isto aqui é sistema de arquivos, também por alguém copiando um yaml
+    na pasta. Remendar cada caminho deixaria justamente o último de fora, e o
+    sintoma seria um card sem nickname até alguém abrir a ficha.
+
+    Escreve só na primeira vez: nas leituras seguintes é consulta pura.
+    """
+    if not regras.valor("agentes.nickname_automatico"):
+        return nick.de(BASE_DIR, projeto, nome)
+    return nick.atribuir(BASE_DIR, projeto, nome)
+
+
+def ler_agente_do_arquivo(path: Path, protocolo: bool = True) -> dict:
+    # O projeto sai do próprio caminho (projects/<slug>/agents/<nome>.yaml): é
+    # ele que decide qual bloco de protocolo o agente recebe.
+    #
+    # `protocolo=False` para quem não vai olhar o prompt. Montar o bloco custa
+    # ~46 ms — ele lê regras, papel e nickname —, e a grade de agentes lê 26 de
+    # uma vez só para mostrar nome e descrição: 1,3 s de espera para produzir
+    # um texto que ninguém ia ler. Não é caso de cache, é de não fazer.
+    projeto = path.parent.parent.name
+    return arqs.resolver(load_yaml(path), PROJECTS_DIR / BASE_SLUG,
+                         projeto=projeto if protocolo else "",
+                         agente=path.stem if protocolo else "")
+
+
+def ler_agente(base: Path, nome: str) -> dict:
+    p = caminho_de_recurso(base, "agents", nome, ".yaml")
+    return ler_agente_do_arquivo(p) if p.exists() else {}
+
+
 def _literal_representer(dumper, data):
     if "\n" in data:
         return dumper.represent_scalar("tag:yaml.org,2002:str", data, style="|")
@@ -284,8 +379,24 @@ def save_yaml(path: Path, data: dict) -> None:
 
 # ── Projetos (tenants) ────────────────────────────────────────────────────────
 
+@app.get("/api/saude")
+def saude():
+    """Aperto de mão. A UI pode ser servida de qualquer lugar (inclusive de um
+    deploy público) e precisa descobrir se o endereço que apontaram é mesmo um
+    Noctis, e sobre qual pasta ele está trabalhando — é a pasta que responde
+    pela pergunta "onde meus projetos vão parar"."""
+    return {
+        "noctis": True,
+        "raiz": str(BASE_DIR),
+        "efemero": EFEMERO,
+        "projetos": sum(1 for _ in PROJECTS_DIR.iterdir()) if PROJECTS_DIR.is_dir() else 0,
+    }
+
+
 @app.get("/api/projects")
-def list_projects():
+def list_projects(incluir_ocultos: bool = False):
+    """Os projetos. Escondidos ficam de fora, a menos que você peça para ver."""
+    ocultos = _ocultos()
     result = []
     # A base vem primeiro: é o chão de todos os outros.
     pastas = sorted(PROJECTS_DIR.iterdir(), key=lambda b: (b.name != BASE_SLUG, b.name))
@@ -293,7 +404,10 @@ def list_projects():
         # Pastas com ponto são do sistema (a lixeira mora numa delas).
         if not base.is_dir() or base.name.startswith("."):
             continue
+        if base.name in ocultos and not incluir_ocultos:
+            continue
         result.append({
+            "oculto":      base.name in ocultos,
             "slug":        base.name,
             "displayName": _project_display_name(base),
             "permanente":  base.name == BASE_SLUG,
@@ -306,6 +420,23 @@ def list_projects():
             },
         })
     return result
+
+
+@app.post("/api/projects/{project}/ocultar")
+def ocultar_projeto(project: str, data: dict | None = None):
+    """Tira o projeto da lista — ou o traz de volta. Nada é apagado.
+
+    É o caminho para repositório de código e projeto morto: some da navegação,
+    e a pasta continua exatamente onde está. Apagar de verdade segue sendo no
+    disco, pela sua mão, que é onde essa decisão deve estar.
+    """
+    if project == BASE_SLUG:
+        raise HTTPException(400, "a base não se esconde: todo projeto a consulta")
+    esconder = bool((data or {}).get("oculto", True))
+    o = _ocultos()
+    o.add(project) if esconder else o.discard(project)
+    _gravar_ocultos(o)
+    return {"ok": True, "oculto": esconder, "ocultos": sorted(o)}
 
 
 @app.post("/api/projects")
@@ -408,6 +539,75 @@ def rename_project(project: str, data: dict):
 # A cadeia vive nos yaml dos agentes (papel, squad), e não num índice à parte:
 # índice separado desatualiza, e aí a tela mente.
 
+@app.get("/api/projects/{project}/diagnostico")
+def ler_diagnostico(project: str):
+    """O que está torto na estrutura do projeto, agora. Nada disso trava nada."""
+    return {"achados": diag.achados(project_base(project))}
+
+
+@app.get("/api/projects/{project}/dados")
+def ler_dados(project: str):
+    """Onde cada coisa é gravada, e quanto pesa — a garantia de que nada está preso."""
+    return diag.dados(project_base(project), BASE_DIR)
+
+
+@app.get("/api/projects/{project}/organizacao/layout")
+def ler_layout_org(project: str):
+    """O arranjo da organização: onde cada card está no canvas.
+
+    Mora num arquivo só do arranjo, como os mapas de memória: a posição é
+    visual e não tem nada a ver com a cadeia de comando, que vive nos yaml.
+    """
+    p = project_base(project) / "organizacao.json"
+    if not p.exists():
+        return {"pos": {}, "viewport": None}
+    try:
+        d = json.loads(p.read_text(encoding="utf-8")) or {}
+    except json.JSONDecodeError:
+        return {"pos": {}, "viewport": None}
+    return {"pos": d.get("pos") or {}, "tam": d.get("tam") or {},
+            "links": d.get("links") or [],
+            # Quem foi tirado do desenho. O agente continua existindo e continua
+            # na squad dele: sair do desenho é um gesto visual, como tirar um
+            # card do mapa de memória sem apagar o arquivo.
+            "fora": [str(n)[:120] for n in (d.get("fora") or [])][:500],
+            "viewport": d.get("viewport")}
+
+
+@app.put("/api/projects/{project}/organizacao/layout")
+def salvar_layout_org(project: str, data: dict):
+    """Grava o arranjo: posição, tamanho das lanes e os conectores que você puxou.
+
+    Nada de papel ou squad por aqui — isso vive nos yaml. O que está neste
+    arquivo é só desenho: mover, esticar e ligar.
+    """
+    pos, tam = {}, {}
+    for k, v in (data.get("pos") or {}).items():
+        try:
+            pos[str(k)[:120]] = {"x": float(v["x"]), "y": float(v["y"])}
+        except (KeyError, TypeError, ValueError):
+            continue
+    for k, v in (data.get("tam") or {}).items():
+        try:
+            tam[str(k)[:120]] = {"w": max(120.0, float(v["w"])), "h": max(80.0, float(v["h"]))}
+        except (KeyError, TypeError, ValueError):
+            continue
+    # Conectores livres: você desenha a relação que quiser entre dois cards. A
+    # cadeia de comando continua sendo papel + squad; isto é anotação visual.
+    links = []
+    for l in (data.get("links") or [])[:400]:
+        a, b = str(l.get("source") or "")[:120], str(l.get("target") or "")[:120]
+        if a and b and a != b:
+            links.append({"source": a, "target": b, "rotulo": str(l.get("rotulo") or "")[:60]})
+    fora = sorted({str(n)[:120] for n in (data.get("fora") or []) if str(n).strip()})[:500]
+    p = project_base(project) / "organizacao.json"
+    p.write_text(json.dumps({"pos": pos, "tam": tam, "links": links, "fora": fora,
+                             "viewport": data.get("viewport")},
+                            ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "cards": len(pos), "lanes": len(tam), "links": len(links),
+            "fora": len(fora)}
+
+
 @app.get("/api/projects/{project}/organizacao")
 def ler_organizacao(project: str):
     """Maestro, squads, líderes e quem está fora de squad — com o que está torto."""
@@ -425,6 +625,43 @@ def definir_organizacao(project: str, nome: str, data: dict):
         raise HTTPException(404, f"agente '{nome}' não encontrado")
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/projects/{project}/agents/{nome}/enviar")
+def enviar_agente(project: str, nome: str, data: dict):
+    """Manda o ARQUÉTIPO de um agente para outro projeto.
+
+    Só o que o agente é — prompt, ferramentas, temperatura, memórias que ele
+    carrega por padrão. Papel, squad e o histórico ficam onde estão: eles não
+    descrevem o agente, descrevem o trabalho dele naquele projeto. Por isso a
+    cópia nunca chega mandando em ninguém do outro lado.
+
+    O original não se mexe. Se lá já existe alguém com o nome, o novo entra com
+    sufixo em vez de sobrescrever — nada de agente comido em silêncio.
+    """
+    destino_slug = str((data or {}).get("para") or "").strip()
+    origem, destino = project_base(project), PROJECTS_DIR / destino_slug
+    if not destino.is_dir():
+        raise HTTPException(404, f"projeto '{destino_slug}' não encontrado")
+    if destino_slug == project:
+        raise HTTPException(400, "esse agente já está neste projeto")
+    fonte = origem / "agents" / f"{nome}.yaml"
+    if not fonte.exists():
+        raise HTTPException(404, f"agente '{nome}' não encontrado")
+
+    cfg = ler_agente_do_arquivo(fonte)
+    for campo in ("papel", "squad", "reporta_a"):
+        cfg.pop(campo, None)
+
+    (destino / "agents").mkdir(parents=True, exist_ok=True)
+    alvo, n = destino / "agents" / f"{nome}.yaml", 1
+    while alvo.exists():
+        n += 1
+        alvo = destino / "agents" / f"{nome}_{n}.yaml"
+    alvo.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False, width=88),
+                    encoding="utf-8")
+    return {"ok": True, "para": destino_slug, "nome": alvo.stem,
+            "renomeado": alvo.stem != nome}
 
 
 @app.post("/api/projects/{project}/squads")
@@ -446,8 +683,10 @@ def editar_squad(project: str, chave: str, data: dict):
     """Renomeia, troca a cor, o ícone ou o que a squad cuida."""
     try:
         return {"ok": True, "squad": org.editar_squad(project_base(project), chave, data)}
-    except KeyError:
-        raise HTTPException(404, f"squad '{chave}' não encontrada")
+    except KeyError as e:
+        raise HTTPException(404, f"squad '{e.args[0] if e.args else chave}' não encontrada")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.delete("/api/projects/{project}/squads/{chave}")
@@ -471,13 +710,174 @@ def ler_cadeia(project: str, nome: str):
 def list_agents(project: str):
     result = []
     for f in sorted(agents_dir(project).glob("*.yaml")):
-        cfg = load_yaml(f)
+        cfg = ler_agente_do_arquivo(f, protocolo=False)
         result.append({
             "name":        f.stem,
+            "nickname":     nickname_de(project, f.stem),
             "displayName": cfg.get("name", f.stem),
             "description": (cfg.get("description") or "").strip()[:80],
         })
     return result
+
+
+# ── A ficha do agente ────────────────────────────────────────────────────────
+# A tela do agente precisa de seis coisas: o que ele é, o que ele faz AQUI, a
+# memória que carrega, XP e nível, os Learnings e o histórico. Buscar isso em
+# quatro pedidos foi o que deixou a troca de projeto lenta antes — então é um
+# só, e as duas metades vêm SEPARADAS de propósito: quem desenha a tela não
+# pode ter de adivinhar o que é herdado e o que é daqui.
+
+def _learnings_do_agente(base: Path, nome: str) -> list[dict]:
+    fora = []
+    for chave, s in (rep.carregar(base) or {}).items():
+        if nome not in (s.get("vinculados") or []):
+            continue
+        fora.append({"chave": chave, "rotulo": s.get("rotulo") or chave,
+                     "estado": s.get("estado") or "broto",
+                     "especie": s.get("especie") or "", "tags": s.get("tags") or [],
+                     "temCorpo": bool(s.get("temCorpo")),
+                     "descricao": (s.get("descricao") or "").strip()})
+    fora.sort(key=lambda x: (x["estado"] != "firmada", x["rotulo"].lower()))
+    return fora
+
+
+def _contexto_acoplado(base: Path, cfg: dict) -> list[dict]:
+    """As memórias que este agente carrega, com o tipo de cada uma — é o que a
+    seção "Contexto acoplado" mostra."""
+    idx = _load_identity(base)
+    fora = []
+    for mf in (cfg.get("memory_files") or []):
+        stem = Path(str(mf)).stem
+        meta = idx.get(f"memory:{stem}", {}) or {}
+        p = base / "memory" / f"{stem}.md"
+        fora.append({"nome": stem, "existe": p.exists(),
+                     "tipo": meta.get("type") or "", "origem": meta.get("origin") or "",
+                     "autor": meta.get("autor") or ""})
+    return fora
+
+
+@app.get("/api/nicknames")
+def listar_nicknames():
+    """O banco de nicknames: quem tem qual, e quantos nomes ainda há.
+
+    Serve à tela de Configurações. O identificador vem junto porque é ele que
+    endereça — ver os dois lado a lado é o que impede confundi-los.
+    """
+    base = PROJECTS_DIR
+    # A varredura de órfãos acontece aqui, e não em toda listagem de recursos:
+    # ela percorre o banco inteiro e olha o disco de todos os projetos. Pagar
+    # isso a cada grade de cards seria caro para um caso que só muda quando um
+    # agente some — e quem abre esta tela é justamente quem quer o banco em dia.
+    liberados = (nick.liberar_orfaos(BASE_DIR, base)
+                 if regras.valor("agentes.liberar_nickname_orfao") else [])
+
+    dados = nick.todos(BASE_DIR)
+    fora = []
+    for ident, nome in sorted(dados.items(), key=lambda kv: kv[1].lower()):
+        proj, _, agente = ident.partition(":")
+        fora.append({"identificador": ident, "nickname": nome,
+                     "projeto": proj, "agente": agente,
+                     "existe": (base / proj / "agents" / f"{agente}.yaml").exists()})
+    return {"nicknames": fora, "usados": len(dados),
+            "livres": len(nick.livres(BASE_DIR)), "banco": len(nick.BANCO),
+            # Dizer o que foi liberado, e não liberar em silêncio: o nome de um
+            # agente aparece no histórico de quem leu, e sumir sem aviso é pior
+            # do que continuar preso.
+            "liberados": [{"identificador": i, "nickname": n} for i, n in liberados]}
+
+
+@app.put("/api/nicknames/{projeto}/{agente}")
+def trocar_nickname(projeto: str, agente: str, data: dict):
+    try:
+        novo = nick.definir(BASE_DIR, projeto, agente, str((data or {}).get("nickname") or ""))
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"ok": True, "nickname": novo}
+
+
+@app.get("/api/arquetipos")
+def listar_arquetipos():
+    fora = []
+    for a in arqs.listar(PROJECTS_DIR / BASE_SLUG):
+        a["acoplado_em"] = [d.name for d in sorted(PROJECTS_DIR.iterdir())
+                            if (d / "agents" / f"{a['slug']}.yaml").exists()
+                            and load_yaml(d / "agents" / f"{a['slug']}.yaml").get("arquetipo") == a["slug"]]
+        fora.append(a)
+    return {"arquetipos": fora}
+
+
+@app.get("/api/arquetipos/{slug}")
+def ver_arquetipo(slug: str):
+    """O agente CRU: o que ele é, e onde ele trabalha.
+
+    A tabela de contextos é a resposta a "quero ver todos os contextos por
+    projeto". Cada linha traz nível, XP, Learnings e último trabalho DAQUELE
+    projeto — nunca um número somado, porque nível cross-projeto seria mentira:
+    o agente subiria de nível onde nunca trabalhou.
+    """
+    arq = arqs.ler(PROJECTS_DIR / BASE_SLUG, slug)
+    if arq is None:
+        raise HTTPException(404, f"arquétipo '{slug}' não encontrado")
+
+    contextos = []
+    for d in sorted(PROJECTS_DIR.iterdir()):
+        f = d / "agents" / f"{slug}.yaml"
+        if not f.exists() or load_yaml(f).get("arquetipo") != slug:
+            continue
+        cru = load_yaml(f)
+        pr = ler_progresso_agente(d.name, slug)
+        contextos.append({
+            "projeto": d.name, "projetoNome": _project_display_name(d),
+            "papel": cru.get("papel") or "", "squad": cru.get("squad") or "",
+            "memorias": len(cru.get("memory_files") or []),
+            "temPromptLocal": bool(str(cru.get("prompt_local") or "").strip()),
+            "nivel": pr.get("nivel", 0), "xp": pr.get("xp", 0),
+            "eventos": pr.get("eventos", 0), "ultima": pr.get("ultima"),
+            "learnings": len(_learnings_do_agente(d, slug)),
+        })
+    return {"slug": slug, "arquetipo": arq, "contextos": contextos}
+
+
+@app.get("/api/projects/{project}/agents/{name}/ficha")
+def ficha_do_agente(project: str, name: str):
+    base = project_base(project)
+    caminho = caminho_de_recurso(base, "agents", name, ".yaml")
+    if not caminho.exists():
+        raise HTTPException(404, f"Agente '{name}' não encontrado")
+
+    cru = load_yaml(caminho)
+    resolvido = ler_agente_do_arquivo(caminho)
+    slug = str(cru.get("arquetipo") or "").strip()
+
+    herdado, daqui = arqs.partir(resolvido)
+    if not slug:
+        # Agente local: tudo é daqui, e a tela diz isso em vez de fingir herança.
+        daqui = {**herdado, **daqui}
+        herdado = {}
+
+    return {
+        "nome": name, "projeto": project,
+        # O endereço e o nome. O primeiro é derivado e serve para máquina; o
+        # segundo vem do banco e serve para gente. Nunca trocam de pnick.
+        "identificador": nick.identificador(project, name),
+        # Atribuir na leitura é o que faz todo agente já existente ter um sem
+        # ninguém rodar nada. Com a regra desligada, só mostra o que já tem.
+        "nickname": nickname_de(project, name),
+        "arquetipo": slug or None,
+        "desacoplado": bool(cru.get("desacoplado")),
+        "arquetipo_ausente": resolvido.get("arquetipo_ausente"),
+        "herdado": herdado,
+        "daqui": {k: v for k, v in daqui.items()
+                  if k not in ("arquetipo", "desacoplado", "arquetipo_ausente")},
+        "contexto": _contexto_acoplado(base, resolvido),
+        "progresso": ler_progresso_agente(project, name),
+        "learnings": _learnings_do_agente(base, name),
+        # Onde mais este mesmo arquétipo está acoplado — a ponte para o modo cru.
+        "tambem_em": [d.name for d in sorted(PROJECTS_DIR.iterdir())
+                      if slug and d.name != project
+                      and (d / "agents" / f"{name}.yaml").exists()
+                      and load_yaml(d / "agents" / f"{name}.yaml").get("arquetipo") == slug],
+    }
 
 
 @app.get("/api/projects/{project}/agents/{name}")
@@ -485,36 +885,45 @@ def get_agent(project: str, name: str):
     path = caminho_de_recurso(project_base(project), "agents", name, ".yaml")
     if not path.exists():
         raise HTTPException(404, f"Agente '{name}' não encontrado")
-    return load_yaml(path)
-
-
-def _garantir_protocolo(caminho: Path, projeto: str) -> None:
-    """Todo agente salvo pelo Noctis sai com o protocolo de aprendizado.
-
-    É o que torna o sistema agnóstico de verdade: não depende de alguém lembrar
-    de rodar o instalador, nem de o projeto ter um orquestrador. Agente novo,
-    agente editado na tela, agente de projeto recém-criado — todos saem iguais.
-    Idempotente: se o bloco já está lá, é atualizado, não duplicado.
-    """
-    if not regras.valor("protocolo.auto_instalar"):
-        return
-    try:
-        import sys as _sys
-        pasta = str(BASE_DIR / "tools" / "xp")
-        if pasta not in _sys.path:
-            _sys.path.insert(0, pasta)
-        import instalar_protocolo as _ip
-        _ip.aplicar(caminho, projeto, False)
-    except Exception:
-        # Instalação do protocolo nunca pode impedir o agente de ser salvo.
-        pass
+    return ler_agente_do_arquivo(path)
 
 
 @app.put("/api/projects/{project}/agents/{name}")
 def save_agent(project: str, name: str, data: dict):
     caminho = caminho_de_recurso(project_base(project), "agents", name, ".yaml")
+
+    # Se este agente é um acoplamento, o que chega vem RESOLVIDO — a tela leu o
+    # agente inteiro, arquétipo incluído. Gravar isso direto enfiaria o prompt
+    # herdado dentro do acoplamento, que passaria a sombrear o arquétipo: o
+    # vínculo morreria em silêncio e as melhorias feitas no arquétipo parariam
+    # de chegar aqui. Então a gravação separa as duas metades de volta.
+    atual = load_yaml(caminho) if caminho.exists() else {}
+    slug = str(atual.get("arquetipo") or "").strip()
+    if slug and not atual.get("desacoplado"):
+        arq_novo, aco = arqs.partir(dict(data))
+        aco["arquetipo"] = slug
+        aco.pop("arquetipo_ausente", None)
+
+        # O prompt que volta traz o bloco de protocolo, que é gerado e não
+        # editado. Ele sai antes da comparação, senão toda gravação pareceria
+        # uma mudança do arquétipo.
+        if arq_novo.get("system_prompt"):
+            arq_novo["system_prompt"] = arqs.sem_protocolo(str(arq_novo["system_prompt"])).rstrip() + "\n"
+        arq_antigo = arqs.ler(PROJECTS_DIR / BASE_SLUG, slug) or {}
+        mudou = [k for k in arqs.CAMPOS_DO_ARQUETIPO
+                 if k in arq_novo and str(arq_novo.get(k)) != str(arq_antigo.get(k))]
+        if mudou:
+            arqs.gravar(PROJECTS_DIR / BASE_SLUG, slug, {**arq_antigo, **arq_novo})
+
+        save_yaml(caminho, aco)
+        outros = [d.name for d in PROJECTS_DIR.iterdir()
+                  if d.name != project
+                  and (d / "agents" / f"{name}.yaml").exists()
+                  and load_yaml(d / "agents" / f"{name}.yaml").get("arquetipo") == slug]
+        return {"ok": True, "arquetipo": slug, "mudou_no_arquetipo": mudou,
+                "afetou": outros if mudou else []}
+
     save_yaml(caminho, data)
-    _garantir_protocolo(caminho, project_base(project).name)
     return {"ok": True}
 
 
@@ -524,6 +933,9 @@ def delete_agent(project: str, name: str):
     if not path.exists():
         raise HTTPException(404)
     path.unlink()
+    # O nickname volta ao banco: ele é do agente aplicado, e o agente aplicado
+    # deixou de existir. Segurar o nome só esgotaria o banco com fantasmas.
+    nick.soltar(BASE_DIR, project, name)
     return {"ok": True}
 
 
@@ -539,6 +951,12 @@ def rename_agent(project: str, name: str, data: dict):
     if new.exists():
         raise HTTPException(409, f"'{new_name}' já existe")
     old.rename(new)
+    # O identificador muda com o nome do arquivo, então o nickname muda de
+    # endereço junto. O nome em si não muda: quem era Vega continua Vega.
+    antigo = nick.de(BASE_DIR, project, name)
+    nick.soltar(BASE_DIR, project, name)
+    if antigo:
+        nick.definir(BASE_DIR, project, new_name, antigo)
     return {"ok": True}
 
 
@@ -1313,9 +1731,69 @@ def _cor_valida(v, padrao: str) -> str:
 # Tamanho dos ícones, em px. Limites frouxos o bastante para servir a quem quer
 # o card compacto e a quem quer o desenho grande, e apertados o bastante para o
 # layout não quebrar.
-TAMANHOS_PADRAO = {"card": 30, "menu": 15, "nav": 19, "disco": 32}
+# Cada lugar onde um ícone é desenhado tem o seu ajuste. A lista cresceu junto
+# com o sistema: organização, squad, doca e árvore nasceram depois dos quatro
+# primeiros, e sem entrar aqui ficavam num tamanho fixo que ninguém controlava.
+# ── Ícone e cor de tudo o mais ────────────────────────────────────────────────
+# Tipos de recurso e de memória já eram configuráveis; o resto do sistema tinha
+# ícone cravado no código. Agora cada lugar com desenho próprio entra aqui:
+# as seções da faixa, os botões da doca, os papéis da organização e os estados
+# do Learning. Grupo/chave é o que a tela usa para agrupar os controles.
+SISTEMA_PADRAO: dict[str, dict] = {
+    # seções da faixa de ícones
+    "secao.agents":      {"grupo": "Seções", "label": "Agentes", "icon": "GiRobotGolem", "color": "#10b981"},
+    "secao.organizacao": {"grupo": "Seções", "label": "Organização", "icon": "GiFamilyTree", "color": "#a78bfa"},
+    "secao.memory":      {"grupo": "Seções", "label": "Memória", "icon": "GiBrain", "color": "#3b82f6"},
+    "secao.flows":       {"grupo": "Seções", "label": "Fluxos", "icon": "GiDirectionSigns", "color": "#f59e0b"},
+    "secao.personas":    {"grupo": "Seções", "label": "Personas", "icon": "GiDna1", "color": "#ec4899"},
+    "secao.learning":     {"grupo": "Seções", "label": "Learning", "icon": "GiSkills", "color": "#10b981"},
+    "secao.skillsclaude": {"grupo": "Seções", "label": "Skills", "icon": "GiBookCover", "color": "#0ea5e9"},
+    "secao.runtime":     {"grupo": "Seções", "label": "Runtime", "icon": "GiPulse", "color": "#f472b6"},
+    "secao.canvas":      {"grupo": "Seções", "label": "Mapa de Memória", "icon": "GiTreasureMap", "color": "#06b6d4"},
+    "secao.cosmos":      {"grupo": "Seções", "label": "Cosmos", "icon": "GiGalaxy", "color": "#a78bfa"},
+    "secao.controle":    {"grupo": "Seções", "label": "Controle", "icon": "GiControlTower", "color": "#38bdf8"},
+    "secao.setup":       {"grupo": "Seções", "label": "Gerar Setup", "icon": "GiMagicSwirl", "color": "#a855f7"},
+    "secao.config":      {"grupo": "Seções", "label": "Configurações", "icon": "GiGears", "color": "#71717a"},
+    # a casa: o Warden e as camadas dele
+    "warden.identidade": {"grupo": "Warden", "label": "Warden", "icon": "GiSpikedShield",
+                         "color": "#f59e0b", "marca": True},   # a marca é o logo do Noctis:
+                         # cor e ícone daqui não pintam nada, e o painel não os oferece.
+    "warden.catalogo":   {"grupo": "Warden", "label": "Catálogo", "icon": "GiArchiveResearch", "color": "#38bdf8"},
+    "warden.propria":    {"grupo": "Warden", "label": "Camada do Warden", "icon": "GiCastle", "color": "#f59e0b"},
+    "warden.templates":  {"grupo": "Warden", "label": "Templates", "icon": "GiStoneBlock", "color": "#a78bfa"},
+    "warden.projetos":   {"grupo": "Warden", "label": "Projetos", "icon": "GiEmptyChessboard", "color": "#10b981"},
+    # os papéis da organização
+    "pnick.warden":      {"grupo": "Papéis", "label": "Warden", "icon": "GiSpikedShield", "color": "#f59e0b"},
+    # a doca da direita
+    # Sinais: estados que o card precisa gritar de longe. Havia aqui também um
+    # `sinal.ligado`, do play; ele saiu junto com o play, senão seria um
+    # controle em Configurações que não pinta mais nada. Estavam cravados em
+    # âmbar dentro do JSX, fora deste catálogo — então não obedeciam a
+    # Configurações e destoavam do vocabulário do resto da interface. O padrão
+    # é o violeta de acento, no gesto do Obsidian: fundo sutil e filete, nunca
+    # um anel colorido cercando o card.
+    "sinal.pendente":    {"grupo": "Sinais", "label": "Decisão em aberto", "icon": "GiStamper", "color": "#8b5cf6"},
+
+    "doca.contexto":     {"grupo": "Doca", "label": "Contexto", "icon": "GiInfo", "color": "#a1a1aa"},
+    "doca.detalhe":      {"grupo": "Doca", "label": "Detalhe", "icon": "GiNotebook", "color": "#a1a1aa"},
+    # os papéis da organização
+    "pnick.maestro":     {"grupo": "Papéis", "label": "Maestro", "icon": "GiShipWheel", "color": "#a78bfa"},
+    "pnick.lider":       {"grupo": "Papéis", "label": "Líder de squad", "icon": "GiCrenelCrown", "color": "#38bdf8"},
+    "pnick.agente":      {"grupo": "Papéis", "label": "Agente", "icon": "GiRobotGolem", "color": "#10b981"},
+    # estados do Learning
+    "estado.broto":      {"grupo": "Learnings", "label": "Broto", "icon": "GiPlantSeed", "color": "#a1a1aa"},
+    "estado.firmada":    {"grupo": "Learnings", "label": "Firmada", "icon": "GiCheckMark", "color": "#10b981"},
+    "estado.arquivada":  {"grupo": "Learnings", "label": "Arquivada", "icon": "GiArchiveResearch", "color": "#52525b"},
+    "estado.descobrindo": {"grupo": "Learnings", "label": "Descobrindo", "icon": "GiMagnifyingGlass", "color": "#8b5cf6"},
+}
+
+TAMANHOS_PADRAO = {"card": 30, "menu": 15, "nav": 19, "disco": 32,
+                   "arvore": 13, "doca": 15, "organizacao": 17, "squad": 14,
+                   "habilidade": 12}
 TAMANHO_LIMITES = {"card": (14, 64), "menu": (10, 26), "nav": (12, 32),
-                   "disco": (22, 64)}
+                   "disco": (22, 64), "arvore": (10, 22), "doca": (11, 26),
+                   "organizacao": (12, 34), "squad": (10, 26),
+                   "habilidade": (10, 22)}
 
 
 # A aura: o borrão de cor atrás dos cards do mapa e do cosmos.
@@ -1325,6 +1803,12 @@ AURA_PADRAO = {"difusao": 26, "tamanho": 24}
 # Ligar/desligar mora junto do ajuste: quem regula é quem apaga.
 LIGADO_PADRAO = {"aura": True, "vidro": True, "ceu": True}
 AURA_LIMITES = {"difusao": (0, 80), "tamanho": (0, 90)}
+
+# O pontilhado atrás do mapa, do cosmos e da organização. Opacidade em %, e a
+# malha em px: quem trabalha no canvas o dia inteiro quer poder sumir com ele.
+PONTILHADO_PADRAO = {"ativo": True, "opacidade": 22, "espaco": 20, "tamanho": 1,
+                     "cor": "#8b8b8b"}
+PONTILHADO_LIMITES = {"opacidade": (0, 100), "espaco": (8, 80), "tamanho": (1, 4)}
 
 
 # O logo: tamanho, e cor sólida ou gradiente animado.
@@ -1398,6 +1882,19 @@ def _aura(ap: dict) -> dict:
     return out
 
 
+def _pontilhado(ap: dict) -> dict:
+    dado = ap.get("pontilhado") or {}
+    out = dict(PONTILHADO_PADRAO)
+    for k, (lo, hi) in PONTILHADO_LIMITES.items():
+        try:
+            out[k] = max(lo, min(hi, int(dado.get(k, PONTILHADO_PADRAO[k]))))
+        except (TypeError, ValueError):
+            pass
+    out["ativo"] = bool(dado.get("ativo", PONTILHADO_PADRAO["ativo"]))
+    out["cor"] = _cor_valida(dado.get("cor"), PONTILHADO_PADRAO["cor"])
+    return out
+
+
 def _tamanhos(ap: dict) -> dict:
     dado = ap.get("iconSizes") or {}
     out = {}
@@ -1426,9 +1923,16 @@ def _vocabulario() -> dict:
         tipos[t] = {**base,
                     "color": _cor_valida(sob.get("color"), base["color"]),
                     "icon": str(sob.get("icon") or base["icon"])}
-    return {"kinds": kinds, "types": tipos, "origins": MEMORY_ORIGINS,
+    sistema = {}
+    for chave, base in SISTEMA_PADRAO.items():
+        sob = (ap.get("sistema") or {}).get(chave) or {}
+        sistema[chave] = {**base,
+                          "color": _cor_valida(sob.get("color"), base["color"]),
+                          "icon": str(sob.get("icon") or base["icon"])}
+    return {"kinds": kinds, "types": tipos, "origins": MEMORY_ORIGINS, "sistema": sistema,
             "iconSizes": _tamanhos(ap), "iconSizeLimits": TAMANHO_LIMITES,
             "aura": _aura(ap), "auraLimits": AURA_LIMITES,
+            "pontilhado": _pontilhado(ap), "pontilhadoLimits": PONTILHADO_LIMITES,
             "logo": _logo(ap), "logoLimits": LOGO_LIMITES,
             "ceu": _ceu(ap), "ceuLimits": CEU_LIMITES, "ceuEstilos": list(CEU_ESTILOS),
             "vidro": bool(ap.get("vidro", LIGADO_PADRAO["vidro"])),
@@ -1461,9 +1965,25 @@ def save_memory_types(data: dict):
                 sob["icon"] = ico
             if sob:
                 ap[grupo][chave] = sob
+    ap["sistema"] = {}
+    for chave, base in SISTEMA_PADRAO.items():
+        veio = (data.get("sistema") or {}).get(chave) or {}
+        cor = _cor_valida(veio.get("color"), base["color"])
+        ico = str(veio.get("icon") or base["icon"])
+        sob = {}
+        if cor != base["color"]:
+            sob["color"] = cor
+        if ico != base["icon"]:
+            sob["icon"] = ico
+        if sob:
+            ap["sistema"][chave] = sob
+    if not ap["sistema"]:
+        ap.pop("sistema")
     tam = _tamanhos({"iconSizes": data.get("iconSizes") or {}})
     if tam != TAMANHOS_PADRAO:
         ap["iconSizes"] = tam
+    if data.get("pontilhado"):
+        ap["pontilhado"] = _pontilhado({"pontilhado": data["pontilhado"]})
     if data.get("aura"):
         ap["aura"] = _aura({"aura": data["aura"]})
     if data.get("logo"):
@@ -1710,7 +2230,7 @@ def _agents_using_memory(base: Path) -> dict:
     adir = base / "agents"
     if adir.is_dir():
         for f in sorted(adir.glob("*.yaml")):
-            cfg  = load_yaml(f)
+            cfg  = ler_agente_do_arquivo(f, protocolo=False)
             disp = cfg.get("name", f.stem)
             for mf in (cfg.get("memory_files") or []):
                 stem = Path(str(mf)).stem
@@ -2038,6 +2558,22 @@ def list_resources(project: str):
     usage = _agents_using_memory(base)
     idx = _load_identity(base)
 
+    # O nível e os Learnings de cada agente, numa conta só para a listagem
+    # inteira. Sem isto, ordenar a grade por nível exigiria uma chamada por
+    # card — e a ordenação é justamente o que se faz quando há muitos cards.
+    fichas: dict[str, dict] = {}
+    try:
+        estado = prog.estado_do_projeto(base, rep.indice(rep.carregar(base)),
+                                        rep.firmadas(rep.carregar(base)))
+        for nome, a in (estado.get("agentes") or {}).items():
+            fichas[nome] = {"nivel": a.get("nivel", 0), "xp": a.get("xp", 0),
+                            "eventos": a.get("eventos", 0),
+                            "progresso": a.get("progresso", 0),
+                            "proximo_nivel": a.get("proximo_nivel", 0),
+                            "skills": sorted((a.get("habilidades") or {}).keys())}
+    except Exception:
+        pass
+
     def items(kind: str):
         folder, pattern = KIND_DIRS[kind]
         d = base / folder
@@ -2047,16 +2583,473 @@ def list_resources(project: str):
         for f in sorted(d.glob(pattern)):
             name = f.stem
             summary = _node_summary(base, kind, name, usage)
+            try:
+                st = f.stat()
+                # No Windows, st_ctime É a criação. Em outros sistemas ele é a
+                # mudança de metadados — e aí a data de criação simplesmente não
+                # existe no disco; mandar mtime nos dois evita inventar.
+                criado = datetime.fromtimestamp(min(st.st_ctime, st.st_mtime),
+                                                timezone.utc).isoformat(timespec="seconds")
+                mudado = datetime.fromtimestamp(st.st_mtime,
+                                                timezone.utc).isoformat(timespec="seconds")
+                tamanho = st.st_size
+            except OSError:
+                criado = mudado = ""
+                tamanho = 0
             out.append({
                 "name": name,
                 "displayName": summary.get("title") or name,
                 "kind": kind,
+                "criado": criado, "mudado": mudado, "bytes": tamanho,
+                # Agente sem evento não tem ficha no log — e "sem ficha" e
+                # "nível 0" são a mesma coisa para quem ordena a grade.
+                **({"ficha": fichas.get(name) or {"nivel": 0, "xp": 0, "eventos": 0,
+                                                     "progresso": 0, "proximo_nivel": 0, "skills": []},
+                    # O nickname vem no card porque é por ele que se chama este
+                    # agente. Sai daqui já pronto: o card não deve ter de pedir
+                    # um por um — a grade tem 26.
+                    "nickname": nickname_de(project, name)}
+                   if kind == "agent" else {}),
                 **summary,
                 **_identity_of(base, kind, name, idx),
             })
         return out
 
     return {k: items(k) for k in ("memory", "agent", "flow", "persona")}
+
+
+# ── A visão de todos os projetos ─────────────────────────────────────────────
+# O projeto base é o andar de cima: aberto nele, cada módulo pode mostrar o que
+# existe em TODOS os projetos, com o projeto carimbado em cada item e um filtro
+# para recortar. Nada é copiado para cá — o que se vê são os arquivos de cada
+# projeto, lidos ao vivo. Copiar criaria uma segunda verdade, e duas verdades
+# sobre a mesma memória é como um acervo começa a mentir.
+
+def _projetos_visiveis() -> list[str]:
+    ocultos = _ocultos()
+    return [b.name for b in sorted(PROJECTS_DIR.iterdir())
+            if b.is_dir() and not b.name.startswith(".") and b.name not in ocultos
+            and not _e_repositorio(b)]
+
+
+def _warden_base() -> Path:
+    """A casa do Warden é o projeto base: é ali que moram as três camadas."""
+    return PROJECTS_DIR / BASE_SLUG
+
+
+# ── A camada de templates ────────────────────────────────────────────────────
+# Moldes destilados de trabalho que já provou servir. O catálogo mostra o que os
+# projetos produziram e muda quando eles mudam; o molde só muda quando alguém
+# decide mudá-lo — é essa a diferença entre os dois.
+
+@app.get("/api/templates")
+def listar_templates(kind: str = ""):
+    try:
+        return {"templates": tpl.listar(_warden_base(), kind)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/templates")
+def guardar_template(data: dict):
+    """Salva um recurso de QUALQUER projeto como molde. O original não se mexe."""
+    kind = str(data.get("kind") or "")
+    if kind not in tpl.TIPOS:
+        raise HTTPException(400, f"tipo inválido: {kind}")
+    origem = str(data.get("projeto") or "").strip()
+    nome = str(data.get("nome") or "").strip()
+    if not origem or not nome:
+        raise HTTPException(400, "informe `projeto` e `nome` do recurso de origem")
+    base = project_base(origem)
+    folder, ext = tpl.TIPOS[kind]
+    fonte = base / folder / f"{nome}{ext}"
+    if not fonte.exists():
+        raise HTTPException(404, f"{kind} '{nome}' não existe em '{origem}'")
+
+    if kind == "memory":
+        conteudo = fonte.read_text(encoding="utf-8")
+        rotulo = str(data.get("rotulo") or nome)
+    else:
+        conteudo = yaml.safe_load(fonte.read_text(encoding="utf-8")) or {}
+        rotulo = str(data.get("rotulo") or conteudo.get("name") or nome)
+    try:
+        return {"ok": True, "template": tpl.guardar(
+            _warden_base(), kind, rotulo, conteudo, de=nome, de_projeto=origem)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/templates/skills")
+def listar_templates_skill():
+    return {"templates": skc.listar_templates(_warden_base())}
+
+
+@app.post("/api/templates/skills")
+def guardar_template_skill(data: dict):
+    """Guarda a skill de um projeto como molde — a mesma pergunta que os
+    outros fazedores fazem: de onde destilar."""
+    origem = str(data.get("projeto") or "").strip()
+    slug_ = str(data.get("slug") or "").strip()
+    if not origem or not slug_:
+        raise HTTPException(400, "informe `projeto` e `slug` da skill de origem")
+    try:
+        return {"ok": True, "template": skc.guardar_template(_warden_base(), project_base(origem), slug_)}
+    except KeyError:
+        raise HTTPException(404, f"skill '{slug_}' não existe em '{origem}'")
+
+
+@app.post("/api/templates/skills/{slug}/instanciar")
+def instanciar_template_skill(slug: str, data: dict):
+    destino_slug = str((data or {}).get("para") or "").strip()
+    if not (PROJECTS_DIR / destino_slug).is_dir():
+        raise HTTPException(404, f"projeto '{destino_slug}' não encontrado")
+    try:
+        return {"ok": True, "para": destino_slug,
+                **skc.instanciar_template(_warden_base(), slug, PROJECTS_DIR / destino_slug)}
+    except KeyError:
+        raise HTTPException(404, f"molde de skill '{slug}' não encontrado")
+
+
+@app.post("/api/templates/{kind}/{chave}/instanciar")
+def instanciar_template(kind: str, chave: str, data: dict):
+    """Põe uma cópia do molde num projeto. Nome ocupado ganha sufixo."""
+    if kind not in tpl.TIPOS:
+        raise HTTPException(400, f"tipo inválido: {kind}")
+    destino_slug = str((data or {}).get("para") or "").strip()
+    if not (PROJECTS_DIR / destino_slug).is_dir():
+        raise HTTPException(404, f"projeto '{destino_slug}' não encontrado")
+    try:
+        r = tpl.instanciar(_warden_base(), kind, chave, PROJECTS_DIR / destino_slug,
+                           str((data or {}).get("nome") or ""))
+    except KeyError:
+        raise HTTPException(404, f"template '{chave}' não encontrado")
+    # Agente que nasce de um molde não precisa receber o protocolo aqui: ele é
+    # montado na leitura, já com o projeto de destino.
+    return {"ok": True, "para": destino_slug, **r}
+
+
+@app.delete("/api/templates/{kind}/{chave}")
+def apagar_template(kind: str, chave: str):
+    if kind not in tpl.TIPOS:
+        raise HTTPException(400, f"tipo inválido: {kind}")
+    try:
+        tpl.apagar(_warden_base(), kind, chave)
+    except KeyError:
+        raise HTTPException(404, f"template '{chave}' não encontrado")
+    return {"ok": True}
+
+
+# ── Skill: exatamente a definição do Claude ──────────────────────────────────
+# Sem XP, sem tese, sem proposta — isso é Learning. Aqui é só: o que existe de
+# fato em `.claude/skills`, e o que o Noctis pode criar e vincular a Learnings.
+
+@app.get("/api/projects/{project}/skills-claude")
+def listar_skills_claude(project: str, globais: bool = True):
+    """As skills que este projeto enxerga: as dele, mais as que o Claude tem
+    (suas, em `~/.claude/skills`, e as de plugin). As de fora vêm marcadas
+    como nativas — leitura apenas; para mexer, duplique."""
+    fora = skc.listar(project_base(project))
+    if globais:
+        fora = fora + skc.globais()
+    return {"skills": fora}
+
+
+@app.post("/api/projects/{project}/skills-claude/{slug}/duplicar")
+def duplicar_skill_claude(project: str, slug: str, data: dict | None = None):
+    """Traz uma cópia para dentro do projeto. A original não se toca."""
+    try:
+        return {"ok": True, "skill": skc.duplicar(project_base(project), slug,
+                                                  str((data or {}).get("origem") or ""))}
+    except KeyError:
+        raise HTTPException(404, f"skill '{slug}' não encontrada")
+
+
+@app.put("/api/projects/{project}/skills-claude/{slug}")
+def editar_skill_claude(project: str, slug: str, data: dict):
+    """Reescreve nome, descrição e corpo — só nas skills do Noctis."""
+    try:
+        return {"ok": True, "skill": skc.editar(project_base(project), slug, data or {})}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except KeyError:
+        raise HTTPException(404, f"skill '{slug}' não encontrada")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/projects/{project}/skills-claude/{slug}")
+def ler_skill_claude(project: str, slug: str):
+    try:
+        return skc.ler(project_base(project), slug)
+    except KeyError:
+        raise HTTPException(404, f"skill '{slug}' não encontrada")
+
+
+@app.post("/api/projects/{project}/skills-claude")
+def criar_skill_claude(project: str, data: dict):
+    """Cria uma skill nova — do zero, ou a partir de um Learning que já existe."""
+    base = project_base(project)
+    de_learning = str(data.get("de_learning") or "").strip()
+    nome = str(data.get("nome") or "").strip()
+    descricao = str(data.get("descricao") or "").strip()
+    corpo = str(data.get("corpo") or "")
+    if de_learning:
+        # Destila o que o Learning já sabe: o nome e a descrição são um
+        # convite a editar, não uma cópia obrigatória.
+        chave = prog.slug(de_learning)
+        rep_ = rep.carregar(base)
+        if chave not in rep_:
+            raise HTTPException(404, f"Learning '{de_learning}' não encontrado")
+        sk = rep_[chave]
+        nome = nome or sk.get("rotulo") or chave
+        descricao = descricao or (sk.get("descricao") or "").strip()
+        corpo = corpo or rep.ler_corpo(base, chave)
+    try:
+        return {"ok": True, "skill": skc.criar(base, nome, descricao, corpo,
+                                               data.get("learnings") or [],
+                                               prog.slug(de_learning) if de_learning else "")}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.put("/api/projects/{project}/skills-claude/{slug}/vincular")
+def vincular_skill_claude(project: str, slug: str, data: dict):
+    try:
+        return {"ok": True, **skc.vincular(project_base(project), slug, data.get("learnings") or [])}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+
+
+@app.get("/api/projects/{project}/skills-claude-perguntas")
+def perguntas_skills_claude(project: str):
+    """As perguntas em aberto de cada skill do Noctis, pelos Learnings que ela
+    vincula — aparece mesmo vazia, de propósito (ver `perguntas_vinculadas`)."""
+    return {"skills": skc.perguntas_vinculadas(project_base(project), enq.perguntas)}
+
+
+@app.get("/api/todos/skills-claude-perguntas")
+def perguntas_skills_claude_todos():
+    """A mesma coisa, de todos os projetos — o que alimenta o destaque no
+    dashboard do Warden."""
+    fora = []
+    for slug_p in _projetos_visiveis():
+        base = PROJECTS_DIR / slug_p
+        nome = _project_display_name(base)
+        try:
+            skills = skc.perguntas_vinculadas(base, enq.perguntas)
+        except Exception:
+            continue
+        for s in skills:
+            fora.append({**s, "projeto": slug_p, "projetoNome": nome})
+    return {"skills": fora}
+
+
+@app.get("/api/todos/skills-claude")
+def listar_skills_claude_todos(projetos: str = ""):
+    """As skills de todos os projetos — o que alimenta o Catálogo do Warden."""
+    escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
+    fora = []
+    for slug_p in _projetos_visiveis():
+        if escolhidos and slug_p not in escolhidos:
+            continue
+        base = PROJECTS_DIR / slug_p
+        nome = _project_display_name(base)
+        try:
+            for s in skc.listar(base):
+                fora.append({**s, "projeto": slug_p, "projetoNome": nome})
+        except Exception:
+            continue
+    return {"skills": fora}
+
+
+@app.get("/api/todos/runtime")
+def runtime_todos(projetos: str = "", minutos: int = 0,
+                  cursor: str = "", por_pagina: int = 0):
+    """O sistema RODANDO e o que já rodou: QUEM trabalhou, quando, em quê.
+
+    A unidade aqui é o trabalho de um agente, não o uso de um Skill. Um
+    despacho que não declarou `--skill` continua sendo trabalho e continua
+    tendo de aparecer: quem trabalhou é a pergunta, e a Skill usada é um
+    detalhe dela.
+
+    `minutos` governa só o rótulo "agora" — quem está trabalhando neste
+    instante. O histórico NÃO é cortado por tempo: ele é para durar, e por
+    isso vem paginado. `cursor` é o `quando` do último item que você já tem,
+    e a página seguinte traz o que for estritamente mais antigo que ele.
+    Cursor por data, e não deslocamento, porque o log só cresce pelo fim: com
+    deslocamento, um evento novo empurraria a página e duplicaria linhas.
+    """
+    escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
+    # Sem valor do cliente, manda a regra — é o que faz o ajuste em
+    # Configurações valer de verdade, e não só quando a tela lembra de pedir.
+    minutos = minutos or int(regras.valor("runtime.janela_agora") or 15)
+    por_pagina = por_pagina or int(regras.valor("runtime.por_pagina") or 50)
+    corte = (datetime.now(timezone.utc) - timedelta(minutes=max(1, minutos)))
+    tamanho = min(200, max(1, por_pagina))
+
+    tudo = []
+    for slug in _projetos_visiveis():
+        if escolhidos and slug not in escolhidos:
+            continue
+        base = PROJECTS_DIR / slug
+        nome = _project_display_name(base)
+        try:
+            eventos = prog.ler_log(base)
+        except Exception:
+            continue
+        for r in eventos:
+            if r.get("registro") != "evento":
+                continue
+            quando = str(r.get("quando") or "")
+            try:
+                vivo = datetime.fromisoformat(quando.replace("Z", "+00:00")) >= corte
+            except (ValueError, TypeError):
+                vivo = False
+            tudo.append({"id": r.get("id"), "quando": quando, "agente": r.get("agente"),
+                         "tipo": r.get("tipo"), "resumo": r.get("resumo"),
+                         "despacho": r.get("despacho"), "skills": r.get("skills") or [],
+                         "agora": vivo, "projeto": slug, "projetoNome": nome})
+    # Desempate pelo id: dois eventos podem cair no mesmo segundo, e sem um
+    # critério estável a fronteira da página fica ambígua.
+    tudo.sort(key=lambda u: (u["quando"], str(u["id"] or "")), reverse=True)
+
+    # A ficha de cada agente é do histórico INTEIRO, não da página: "quem
+    # trabalhou" não pode mudar de resposta só porque você rolou a lista.
+    fichas: dict[tuple[str, str], dict] = {}
+    for u in tudo:
+        agente = u["agente"] or "(sem agente)"
+        chave = (u["projeto"], agente)
+        f = fichas.get(chave)
+        if not f:
+            f = {"agente": agente, "projeto": u["projeto"], "projetoNome": u["projetoNome"],
+                 "eventos": 0, "agora": False, "ultimo": u["quando"], "primeiro": u["quando"],
+                 "skills": []}
+            fichas[chave] = f
+        f["eventos"] += 1
+        f["agora"] = f["agora"] or u["agora"]
+        f["primeiro"] = u["quando"]          # a lista desce no tempo
+        for sk in u["skills"]:
+            if sk not in f["skills"]:
+                f["skills"].append(sk)
+    # Quem está trabalhando agora sobe; depois, o mais recente primeiro.
+    agentes = sorted(fichas.values(), key=lambda f: (f["agora"], f["ultimo"]), reverse=True)
+
+    # O cursor carrega data E id justamente por causa do empate acima: com só a
+    # data, um evento do mesmo segundo que o último da página sumia da listagem.
+    def _chave(u):
+        return (u["quando"], str(u["id"] or ""))
+
+    alvo = tuple(cursor.split("|", 1)) if cursor else None
+    if alvo and len(alvo) == 1:
+        alvo = (alvo[0], "")
+    restantes = [u for u in tudo if not alvo or _chave(u) < alvo]
+    pagina = restantes[:tamanho]
+    proxima = ("|".join(_chave(pagina[-1]))
+               if pagina and len(restantes) > len(pagina) else None)
+
+    return {"usos": pagina, "proxima": proxima, "total": len(tudo),
+            "janela": max(1, minutos),
+            "agora": sum(1 for u in tudo if u["agora"]),
+            "trabalhando": [f for f in agentes if f["agora"]],
+            "agentes": agentes,
+            "projetos": [{"slug": s, "nome": _project_display_name(PROJECTS_DIR / s)}
+                         for s in _projetos_visiveis()]}
+
+
+@app.get("/api/todos/propostas")
+def propostas_todos(projetos: str = ""):
+    """As propostas de Learning esperando veredito, de TODOS os projetos.
+
+    Silêncio para sempre é o que fica proibido: recusar é resposta válida —
+    aprendizado sobre o que NÃO é a competência —, não responder não é.
+    """
+    escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
+    fora = []
+    for slug in _projetos_visiveis():
+        if escolhidos and slug not in escolhidos:
+            continue
+        base = PROJECTS_DIR / slug
+        nome = _project_display_name(base)
+        try:
+            todas = tse.propostas(base)
+        except Exception:
+            continue
+        for pr in todas:
+            if not pr.get("pendente"):
+                continue
+            fora.append({**pr, "projeto": slug, "projetoNome": nome})
+    fora.sort(key=lambda p: str(p.get("quando") or ""), reverse=True)
+    return {"propostas": fora, "pendentes": len(fora)}
+
+
+@app.get("/api/todos/resources")
+def list_resources_todos(projetos: str = ""):
+    """Memórias, agentes, fluxos e personas de todos os projetos, de uma vez.
+
+    `projetos` recorta por uma lista separada por vírgula — é o filtro, feito no
+    servidor para a tela não carregar o que vai jogar fora.
+    """
+    escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
+    alvo = [p for p in _projetos_visiveis() if not escolhidos or p in escolhidos]
+    fora: dict[str, list] = {k: [] for k in ("memory", "agent", "flow", "persona")}
+    for slug in alvo:
+        try:
+            um = list_resources(slug)
+        except Exception:
+            continue
+        nome = _project_display_name(PROJECTS_DIR / slug)
+        for k, itens in um.items():
+            for it in itens:
+                # O id ganha o projeto: `memory:tokens` existe em dois lugares e
+                # são coisas diferentes. Sem isto a tela funde as duas.
+                fora[k].append({**it, "projeto": slug, "projetoNome": nome,
+                                "id": f"{slug}/{k}:{it['name']}"})
+    return {**fora, "projetos": [{"slug": s, "nome": _project_display_name(PROJECTS_DIR / s)}
+                                 for s in _projetos_visiveis()]}
+
+
+@app.get("/api/todos/learnings")
+def list_skills_todos(projetos: str = ""):
+    """O repertório inteiro, de todos os projetos."""
+    escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
+    fora = []
+    for slug in _projetos_visiveis():
+        if escolhidos and slug not in escolhidos:
+            continue
+        base = PROJECTS_DIR / slug
+        nome = _project_display_name(base)
+        try:
+            for chave, sk in rep.carregar(base).items():
+                fora.append({**sk, "chave": chave, "projeto": slug, "projetoNome": nome})
+        except Exception:
+            continue
+    return {"skills": fora,
+            "projetos": [{"slug": s, "nome": _project_display_name(PROJECTS_DIR / s)}
+                         for s in _projetos_visiveis()]}
+
+
+@app.get("/api/todos/canvases")
+def list_canvases_todos(projetos: str = ""):
+    """Os mapas de todos os projetos — o cosmos de cima."""
+    escolhidos = [p.strip() for p in projetos.split(",") if p.strip()]
+    fora = []
+    for slug in _projetos_visiveis():
+        if escolhidos and slug not in escolhidos:
+            continue
+        base = PROJECTS_DIR / slug
+        nome = _project_display_name(base)
+        for f in sorted((base / "canvases").glob("*.json")) if (base / "canvases").is_dir() else []:
+            try:
+                d = json.loads(f.read_text(encoding="utf-8")) or {}
+            except json.JSONDecodeError:
+                continue
+            fora.append({"id": f"{slug}/{f.stem}", "canvas": f.stem,
+                         "nome": d.get("name") or f.stem,
+                         "cards": len(d.get("nodes") or []), "lanes": len(d.get("lanes") or []),
+                         "projeto": slug, "projetoNome": nome})
+    return {"mapas": fora,
+            "projetos": [{"slug": s, "nome": _project_display_name(PROJECTS_DIR / s)}
+                         for s in _projetos_visiveis()]}
 
 
 @app.put("/api/projects/{project}/resources/{kind}/{name}/identity")
@@ -2586,7 +3579,7 @@ def exportar_lane_pdf(project: str, lane_id: str, canvas: str | None = None):
                         background=BackgroundTask(lambda: arquivo.unlink(missing_ok=True)))
 
 
-# ── Progresso dos agentes: XP, níveis e habilidades ───────────────────────────
+# ── Progresso dos agentes: XP, níveis e Learnings ───────────────────────────
 
 @app.get("/api/projects/{project}/progresso")
 def ler_progresso(project: str):
@@ -2594,7 +3587,7 @@ def ler_progresso(project: str):
     base = project_base(project)
     r = rep.sincronizar(base)
     estado = prog.estado_do_projeto(base, rep.indice(r), rep.firmadas(r))
-    estado["curvas"] = {"agente": regras.valor("xp.curva_agente"), "skill": regras.valor("xp.curva_skill")}
+    estado["curvas"] = {"agente": regras.valor("xp.curva_agente"), "skill": regras.valor("xp.curva_learning")}
     estado["tipos"] = regras.valor("xp.base_por_tipo")
     return estado
 
@@ -2627,9 +3620,9 @@ def registrar_evento(project: str, data: dict):
     nome = str(data.get("agente") or "").strip()
     if nome and not (base / kind_dir / f"{nome_de_recurso(nome)}.yaml").exists():
         raise HTTPException(404, f"agente '{nome}' não existe neste projeto")
-    # Escrita de habilidades pausada nas Regras: o trabalho é registrado e rende
-    # XP, mas os nomes de habilidade são descartados antes de entrar no log.
-    if not regras.valor("protocolo.declarar_habilidades"):
+    # Escrita de Learnings pausada nas Regras: o trabalho é registrado e rende
+    # XP, mas os nomes de Learning são descartados antes de entrar no log.
+    if not regras.valor("protocolo.declarar_learnings"):
         data = {**data, "habilidades": [], "descricoes": {}}
 
     # Nível ANTES do evento: é a comparação que revela a subida, e é ela que
@@ -2649,7 +3642,7 @@ def registrar_evento(project: str, data: dict):
     # O repertório acolhe o nome novo na hora, e não na próxima visita à página.
     r = rep.sincronizar(base)
 
-    # Descrição escrita por quem criou a habilidade, no mesmo comando. Só entra
+    # Descrição escrita por quem criou o Learning, no mesmo comando. Só entra
     # onde está vazio: ninguém reescreve por cima do que já foi curado.
     idx = rep.indice(r)
     declaradas = []
@@ -2672,7 +3665,7 @@ def registrar_evento(project: str, data: dict):
     ficha = prog.estado_do_projeto(base, rep.indice(r), rep.firmadas(r))["agentes"].get(nome, {})
     agora_hab = {**ficha.get("habilidades", {}), **ficha.get("brotos", {})}
 
-    # Só sobe quem já existia: habilidade nova nasce no nível 1, e chamar isso de
+    # Só sobe quem já existia: Learning novo nasce no nível 1, e chamar isso de
     # subida faria o CLI pedir "o que mudou" sobre algo que acabou de começar.
     subiram = [{"chave": k, "rotulo": agora_hab[k]["rotulo"], "nivel": agora_hab[k]["nivel"]}
                for k in declaradas
@@ -2706,29 +3699,29 @@ def confirmar_evento(project: str, evento_id: str, data: dict | None = None):
 
 @app.post("/api/projects/{project}/marcos")
 def registrar_marco(project: str, data: dict):
-    """O que um agente aprendeu ao subir de nível numa habilidade."""
+    """O que um agente aprendeu ao subir de nível num Learning."""
     base = project_base(project)
     agente = str(data.get("agente") or "").strip()
     hab = str(data.get("habilidade") or "").strip()
     texto = str(data.get("texto") or "").strip()
     if not (agente and hab and texto):
-        raise HTTPException(400, "informe agente, habilidade e texto")
+        raise HTTPException(400, "informe agente, Learning e texto")
     autor_de_agente = True
-    if autor_de_agente and not regras.valor("protocolo.declarar_habilidades"):
-        raise HTTPException(403, "A escrita de habilidades por agentes está pausada nas Regras do Noctis.")
+    if autor_de_agente and not regras.valor("protocolo.declarar_learnings"):
+        raise HTTPException(403, "A escrita de Learnings por agentes está pausada nas Regras do Noctis.")
     r = rep.carregar(base)
     chave = rep.indice(r).get(prog.slug(hab)) or prog.slug(hab)
     m = prog.registrar_marco(base, agente, chave, texto, int(data.get("nivel") or 0))
-    # Habilidade sem descrição herda o primeiro marco: um aprendizado escrito
+    # Learning sem descrição herda o primeiro marco: um aprendizado escrito
     # explica melhor do que um campo vazio, e a curadoria pode melhorá-lo depois.
     if chave in r and not (r[chave].get("descricao") or "").strip():
         rep.atualizar(base, chave, {"descricao": texto}, agente)
     return {"ok": True, "marco": m}
 
 
-@app.post("/api/projects/{project}/habilidades/fundir")
+@app.post("/api/projects/{project}/learnings/fundir")
 def fundir_habilidades(project: str, data: dict):
-    """Funde habilidades que são a mesma coisa com nomes diferentes.
+    """Funde Learnings que são a mesma coisa com nomes diferentes.
 
     Vale retroativamente: a fusão entra no log e o recálculo passa a somar tudo
     no destino.
@@ -2742,7 +3735,7 @@ def fundir_habilidades(project: str, data: dict):
     return {"ok": True, "estado": prog.estado_do_projeto(base)["agentes"]}
 
 
-@app.put("/api/projects/{project}/skills/{chave}/corpo")
+@app.put("/api/projects/{project}/learnings/{chave}/corpo")
 def escrever_corpo_skill(project: str, chave: str, data: dict):
     """Reescreve o corpo inteiro com o markdown que você escreveu — curadoria.
 
@@ -2753,30 +3746,30 @@ def escrever_corpo_skill(project: str, chave: str, data: dict):
     """
     base = project_base(project)
     if chave not in rep.carregar(base):
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     corpo = str(data.get("corpo") or "")
     rep.atualizar(base, chave, {"corpo_curado": bool(corpo.strip())})
     return {"ok": True, "corpo": rep.escrever_corpo(base, chave, corpo)}
 
 
-@app.post("/api/projects/{project}/skills/{chave}/corpo")
+@app.post("/api/projects/{project}/learnings/{chave}/corpo")
 def anexar_corpo_skill(project: str, chave: str, data: dict):
     """Acrescenta um trecho assinado ao corpo. É assim que o agente contribui."""
     base = project_base(project)
     if chave not in rep.carregar(base):
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     texto = str(data.get("texto") or "").strip()
     if not texto:
         raise HTTPException(400, "texto vazio")
     autor = str(data.get("autor") or "usuario").strip()
     autor_de_agente = autor != "usuario"
-    if autor_de_agente and not regras.valor("protocolo.declarar_habilidades"):
-        raise HTTPException(403, "A escrita de habilidades por agentes está pausada nas Regras do Noctis.")
+    if autor_de_agente and not regras.valor("protocolo.declarar_learnings"):
+        raise HTTPException(403, "A escrita de Learnings por agentes está pausada nas Regras do Noctis.")
 
     return {"ok": True, "corpo": rep.anexar_ao_corpo(base, chave, texto, autor)}
 
 
-@app.get("/api/projects/{project}/skills-consulta")
+@app.get("/api/projects/{project}/learnings-consulta")
 def consultar_skills(project: str, q: str = "", agente: str = "", modo: str = "consulta",
                      limite: int = 5):
     """O que o projeto já aprendeu sobre um assunto.
@@ -2808,7 +3801,7 @@ def consultar_skills(project: str, q: str = "", agente: str = "", modo: str = "c
             a["corpo"] = a["corpo"][:4000]
     if agente:
         rep.registrar_consulta(base, agente, q, [a["chave"] for a in achados], modo)
-    # Junto com as habilidades vai o que já foi VALIDADO nos domínios achados —
+    # Junto com os Learnings vai o que já foi VALIDADO nos domínios achados —
     # curto e com id, para o agente citar no fim o que aplicou. Contexto que
     # viaja inteiro a cada despacho é o desperdício que o Noctis evita.
     chaves = [x.get("chave") for x in achados if x.get("chave")]
@@ -2817,33 +3810,36 @@ def consultar_skills(project: str, q: str = "", agente: str = "", modo: str = "c
 
 
 @app.get("/api/projects/{project}/aptidao")
-def ler_aptidao(project: str, habilidades: str = ""):
-    """Quem está mais apto para um despacho, dadas as habilidades desejadas."""
+def ler_aptidao(project: str, learnings: str = ""):
+    """Quem está mais apto para um despacho, dadas os Learnings desejadas."""
     base = project_base(project)
-    desejadas = [h.strip() for h in habilidades.split(",") if h.strip()]
+    desejadas = [h.strip() for h in learnings.split(",") if h.strip()]
     if not desejadas:
-        raise HTTPException(400, "informe ?habilidades=a,b,c")
+        raise HTTPException(400, "informe ?learnings=a,b,c")
     return {"desejadas": desejadas, "ranking": prog.aptidao(base, desejadas)}
 
 
-# ── Repertório de habilidades ─────────────────────────────────────────────────
+# ── Repertório de Learnings ─────────────────────────────────────────────────
 
-@app.get("/api/projects/{project}/skills")
+@app.get("/api/projects/{project}/learnings")
 def ler_skills(project: str):
-    """O repertório do projeto, com quem tem cada habilidade e em que nível."""
+    """O repertório do projeto, com quem tem cada Learning e em que nível."""
     return rep.visao(project_base(project))
 
 
-@app.post("/api/projects/{project}/skills")
+@app.post("/api/projects/{project}/learnings")
 def criar_skill(project: str, data: dict):
-    """Cria uma habilidade sem evento — o aprendizado que já existe em documento."""
+    """Cria um Learning sem evento — o aprendizado que já existe em documento."""
     base = project_base(project)
     rotulo = str(data.get("rotulo") or "").strip()
     if not rotulo:
         raise HTTPException(400, "informe `rotulo`")
     autor_de_agente = str(data.get("autor") or "usuario") != "usuario"
-    if autor_de_agente and not regras.valor("protocolo.declarar_habilidades"):
-        raise HTTPException(403, "A escrita de habilidades por agentes está pausada nas Regras do Noctis.")
+    # Criar Learning é seu. O agente propõe TESE sobre um Learning que já
+    # existe (POST /skills/{chave}/teses) — nomear o repertório, não.
+    if autor_de_agente and regras.valor("learning.so_o_dono_cria"):
+        raise HTTPException(
+            403, "criar Learning é do dono — o agente propõe tese sobre um Learning existente")
 
     # Procurar antes de criar: duas entradas para a mesma coisa são o jeito mais
     # rápido de um repertório virar pilha.
@@ -2862,13 +3858,49 @@ def criar_skill(project: str, data: dict):
         raise HTTPException(400, str(e))
 
 
+# ── Propostas de Learning ──────────────────────────────────────────────────
+# O agente não cria repertório, mas topa com o que o repertório não nomeia.
+# Propor é dele; aceitar é seu. Sem isto, o que ele descobre só tinha dois
+# destinos: virar tese forçada num Learning que não era aquela, ou sumir.
+
+@app.get("/api/projects/{project}/propostas")
+def ler_propostas(project: str, so_pendentes: bool = False):
+    todas = tse.propostas(project_base(project))
+    return {"propostas": [p for p in todas if p["pendente"]] if so_pendentes else todas,
+            "pendentes": sum(1 for p in todas if p["pendente"])}
+
+
+@app.post("/api/projects/{project}/propostas")
+def propor_habilidade(project: str, data: dict):
+    """O agente propõe. Nada nasce daqui sem a sua resposta."""
+    if not regras.valor("learning.agente_propoe"):
+        raise HTTPException(403, "propor Learning está desligado nas regras do Noctis")
+    try:
+        return {"ok": True, "proposta": tse.propor_habilidade(project_base(project), data)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/projects/{project}/propostas/{pid}/responder")
+def responder_proposta(project: str, pid: str, data: dict):
+    """Aceita, recusa ou pede ajuste. Aceitar é o único caminho que cria."""
+    try:
+        return {"ok": True, **tse.responder_proposta(project_base(project), pid, data)}
+    except KeyError:
+        raise HTTPException(404, f"proposta '{pid}' não encontrada")
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
 # ── O loop de aprendizado ────────────────────────────────────────────────────
 # observação → hipótese → pergunta → sua resposta → aprendizado. O agente
 # escreve só os dois primeiros; o aprendizado nasce da resposta da pessoa.
 
 @app.get("/api/projects/{project}/teses")
 def ler_teses(project: str):
-    """Cada pergunta com quantas habilidades marcaram cada tese.
+    """Cada pergunta com quantos Learnings marcaram cada tese.
 
     Tese que ninguém nunca marca é tese ruim — ou está mal escrita, ou não
     descreve trabalho real. O painel mostra isso para você reescrever ou cortar,
@@ -2891,22 +3923,22 @@ def ler_teses(project: str):
 
 @app.get("/api/projects/{project}/enquadramento")
 def ler_enquadramento(project: str):
-    """As perguntas que descobrem o que cada habilidade é, e quantas faltam."""
+    """As perguntas que descobrem o que cada Learning é, e quantas faltam."""
     return enq.estado(project_base(project))
 
 
-@app.get("/api/projects/{project}/skills/{chave}/enquadramento-md")
+@app.get("/api/projects/{project}/learnings/{chave}/enquadramento-md")
 def ler_enquadramento_md(project: str, chave: str):
     """O markdown que as suas respostas renderiam — para inserir num corpo seu."""
     d = rep.carregar(project_base(project)).get(chave)
     if not d:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     return {"markdown": enq.corpo_de(d)}
 
 
-@app.post("/api/projects/{project}/skills/{chave}/enquadrar")
+@app.post("/api/projects/{project}/learnings/{chave}/enquadrar")
 def enquadrar_skill(project: str, chave: str, data: dict):
-    """Sua resposta a uma pergunta de enquadramento — ela preenche a habilidade."""
+    """Sua resposta a uma pergunta de enquadramento — ela preenche o Learning."""
     try:
         return {"ok": True, "skill": enq.responder(
             project_base(project), str(chave), str(data.get("campo") or ""),
@@ -2915,7 +3947,7 @@ def enquadrar_skill(project: str, chave: str, data: dict):
     except PermissionError as e:
         raise HTTPException(403, str(e))
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -2944,7 +3976,7 @@ def criar_observacao(project: str, data: dict):
     try:
         return {"ok": True, "observacao": apr.registrar_observacao(project_base(project), data)}
     except KeyError as e:
-        raise HTTPException(404, f"habilidade '{e.args[0]}' não encontrada")
+        raise HTTPException(404, f"Learning '{e.args[0]}' não encontrado")
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -2955,7 +3987,7 @@ def criar_hipotese(project: str, data: dict):
     try:
         return {"ok": True, "hipotese": apr.propor_hipotese(project_base(project), data)}
     except KeyError as e:
-        raise HTTPException(404, f"habilidade '{e.args[0]}' não encontrada")
+        raise HTTPException(404, f"Learning '{e.args[0]}' não encontrado")
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -2981,7 +4013,7 @@ def criar_aprendizado(project: str, data: dict):
     try:
         return {"ok": True, "aprendizado": apr.escrever_aprendizado(project_base(project), data)}
     except KeyError as e:
-        raise HTTPException(404, f"habilidade '{e.args[0]}' não encontrada")
+        raise HTTPException(404, f"Learning '{e.args[0]}' não encontrado")
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -2995,9 +4027,60 @@ def aposentar_aprendizado(project: str, aid: str, por: str = "usuario"):
         raise HTTPException(404, f"aprendizado '{aid}' não encontrado")
 
 
-@app.get("/api/projects/{project}/skills-tags")
+# ── Teses: o executor propõe, você decide ────────────────────────────────────
+# O fluxo: você cria o Learning → ela desce no despacho → o executor faz a
+# tarefa e propõe teses sobre ela → volta com as perguntas → você responde →
+# ele ajusta ou a tese é validada. Tese confirmada entra no documento.
+
+@app.get("/api/projects/{project}/teses-do-learning")
+def ler_teses_skill(project: str, skill: str = ""):
+    """As teses propostas, com o estado que os seus vereditos deram a cada uma."""
+    return {"teses": tse.estado(project_base(project), skill)}
+
+
+@app.get("/api/projects/{project}/teses-inbox")
+def ler_teses_inbox(project: str):
+    """As teses esperando sua resposta — o que voltou dos despachos."""
+    return {"teses": tse.inbox(project_base(project))}
+
+
+@app.post("/api/projects/{project}/teses-do-learning")
+def propor_tese(project: str, data: dict):
+    """O executor propõe uma tese sobre um Learning que já existe."""
+    try:
+        return {"ok": True, "tese": tse.propor(project_base(project), data)}
+    except KeyError as e:
+        raise HTTPException(404, f"Learning '{e.args[0]}' não existe — criar Learning é do dono")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/projects/{project}/teses-do-learning/{tid}/responder")
+def responder_tese(project: str, tid: str, data: dict):
+    """Sua resposta: confirma, refuta ou pede ajuste."""
+    try:
+        return {"ok": True, **tse.responder(project_base(project), tid, data)}
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except KeyError:
+        raise HTTPException(404, f"tese '{tid}' não encontrada")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/projects/{project}/learnings-orfaos")
+def ler_orfas(project: str):
+    """Nomes citados em eventos que não existem no repertório.
+
+    Matéria-prima para você decidir: criar como Learning, virar apelido de uma
+    que já existe, ou ignorar. Nada disso o agente decide.
+    """
+    return {"orfas": rep.orfas(project_base(project))}
+
+
+@app.get("/api/projects/{project}/learnings-tags")
 def ler_tags_skills(project: str):
-    """O vocabulário de tags do projeto, com quantas habilidades usam cada uma.
+    """O vocabulário de tags do projeto, com quantos Learnings usam cada uma.
 
     É o que a tela sugere antes de deixar criar uma tag nova: vocabulário que
     nasce do uso não envelhece como lista fixa, mas precisa ser mostrado para
@@ -3006,9 +4089,9 @@ def ler_tags_skills(project: str):
     return {"tags": rep.tags_do_projeto(project_base(project))}
 
 
-@app.put("/api/projects/{project}/skills-tags/{tag}")
+@app.put("/api/projects/{project}/learnings-tags/{tag}")
 def renomear_tag_skills(project: str, tag: str, data: dict):
-    """Renomeia a tag em todas as habilidades. Nome que já existe funde as duas."""
+    """Renomeia a tag em todos os Learnings. Nome que já existe funde os dois."""
     try:
         n = rep.renomear_tag(project_base(project), tag, str(data.get("para") or ""))
     except ValueError as e:
@@ -3016,22 +4099,22 @@ def renomear_tag_skills(project: str, tag: str, data: dict):
     return {"ok": True, "habilidades": n}
 
 
-@app.delete("/api/projects/{project}/skills-tags/{tag}")
+@app.delete("/api/projects/{project}/learnings-tags/{tag}")
 def apagar_tag_skills(project: str, tag: str):
-    """Tira a tag de todas as habilidades. As habilidades ficam."""
+    """Tira a tag de todos os Learnings. Os Learnings ficam."""
     return {"ok": True, "habilidades": rep.apagar_tag(project_base(project), tag)}
 
 
-@app.get("/api/projects/{project}/skills/{chave}")
+@app.get("/api/projects/{project}/learnings/{chave}")
 def ler_skill(project: str, chave: str):
-    """Uma habilidade inteira, com os eventos que a construíram."""
+    """Um Learning inteira, com os eventos que a construíram."""
     try:
         return rep.detalhe(project_base(project), chave)
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
 
 
-@app.put("/api/projects/{project}/skills/{chave}")
+@app.put("/api/projects/{project}/learnings/{chave}")
 def editar_skill(project: str, chave: str, data: dict):
     """Renomeia, descreve, firma ou arquiva.
 
@@ -3042,24 +4125,24 @@ def editar_skill(project: str, chave: str, data: dict):
         return {"ok": True, "skill": rep.atualizar(project_base(project), chave, data,
                                                    str(data.get("autor") or "usuario"))}
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     except ValueError as e:
         raise HTTPException(400, str(e))
 
 
-@app.delete("/api/projects/{project}/skills/{chave}")
+@app.delete("/api/projects/{project}/learnings/{chave}")
 def destruir_skill(project: str, chave: str, por: str = "usuario"):
-    """Destrói a habilidade: entrada, texto e apelidos. Os eventos ficam no log."""
+    """Destrói o Learning: entrada, texto e nicknames. Os eventos ficam no log."""
     try:
         rep.destruir(project_base(project), chave, por)
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     return {"ok": True}
 
 
-@app.post("/api/projects/{project}/skills/{chave}/promover")
+@app.post("/api/projects/{project}/learnings/{chave}/promover")
 def promover_skill(project: str, chave: str, data: dict | None = None):
-    """Sobe a habilidade para a base de conhecimento, onde todo projeto a encontra."""
+    """Sobe o Learning para a base de conhecimento, onde todo projeto a encontra."""
     origem = project_base(project)
     if origem.name == BASE_SLUG:
         raise HTTPException(400, "já está na base")
@@ -3067,13 +4150,13 @@ def promover_skill(project: str, chave: str, data: dict | None = None):
         sk = rep.promover(origem, PROJECTS_DIR / BASE_SLUG, chave, origem.name,
                           str((data or {}).get("por") or "usuario"))
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
     return {"ok": True, "skill": sk}
 
 
-@app.post("/api/projects/{project}/skills/{chave}/vincular")
+@app.post("/api/projects/{project}/learnings/{chave}/vincular")
 def vincular_skill(project: str, chave: str, data: dict):
-    """Declara que um agente deve ter a habilidade — sem XP, que não houve."""
+    """Declara que um agente deve ter o Learning — sem XP, que não houve."""
     agente = str(data.get("agente") or "").strip()
     if not agente:
         raise HTTPException(400, "informe `agente`")
@@ -3081,7 +4164,7 @@ def vincular_skill(project: str, chave: str, data: dict):
         return {"ok": True, "skill": rep.vincular(project_base(project), chave, agente,
                                                   bool(data.get("ligado", True)))}
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado")
 
 
 # ── NOCTURN ───────────────────────────────────────────────────────────────────
@@ -3122,7 +4205,7 @@ def nocturn_falar(data: dict):
 
 @app.post("/api/nocturn/descrever")
 def nocturn_descrever(data: dict):
-    """Atalho do dock: dar descrição a uma habilidade sem sair da conversa."""
+    """Atalho do dock: dar descrição a um Learning sem sair da conversa."""
     projeto = str(data.get("projeto") or "").strip()
     chave = str(data.get("chave") or "").strip()
     descricao = str(data.get("descricao") or "").strip()
@@ -3131,7 +4214,7 @@ def nocturn_descrever(data: dict):
     try:
         skill = rep.atualizar(project_base(projeto), chave, {"descricao": descricao})
     except KeyError:
-        raise HTTPException(404, f"habilidade '{chave}' não encontrada em {projeto}")
+        raise HTTPException(404, f"Learning '{chave}' não encontrado em {projeto}")
     noc.dizer(BASE_DIR, f'"{skill["rotulo"]}" agora tem descrição.', "nocturn", projeto, chave)
     return {"ok": True, "skill": skill}
 
@@ -3151,7 +4234,10 @@ def controle():
         if not base.is_dir() or base.name.startswith("."):
             continue
         agentes = sorted((base / "agents").glob("*.yaml")) if (base / "agents").is_dir() else []
-        com_protocolo = sum(1 for f in agentes if "[noctis-xp]" in f.read_text(encoding="utf-8"))
+        # O protocolo é montado na leitura, então todo agente tem o dele, e
+        # sempre atual. Contar o bloco no arquivo diria 0 desde que os arquivos
+        # deixaram de guardá-lo — um alarme falso no lugar de uma informação.
+        com_protocolo = len(agentes)
         log = prog.ler_log(base)
         r = rep.carregar(base)
         projetos.append({
@@ -3175,49 +4261,8 @@ def controle():
     return {"projetos": projetos, "base": BASE_SLUG, "naLixeira": lix}
 
 
-@app.post("/api/projects/{project}/protocolo")
-def instalar_protocolo_rota(project: str, data: dict | None = None):
-    """Instala (ou remove) o protocolo de aprendizado em todos os agentes do projeto."""
-    base = project_base(project)
-    remover = bool((data or {}).get("remover"))
-    import sys as _sys
-    pasta = str(BASE_DIR / "tools" / "xp")
-    if pasta not in _sys.path:
-        _sys.path.insert(0, pasta)
-    import instalar_protocolo as _ip
-    resultado = {}
-    for f in sorted((base / "agents").glob("*.yaml")):
-        resultado[f.stem] = _ip.aplicar(f, base.name, remover)
-    return {"ok": True, "agentes": resultado}
-
-
 # ── Regras ────────────────────────────────────────────────────────────────────
 # Tudo que o Noctis exige, num lugar só, com o valor que está valendo agora.
-
-def _reinstalar_protocolo_em_todos() -> dict:
-    """Mudou uma regra do protocolo: todo agente precisa receber o texto novo.
-
-    Senão o painel diria uma coisa e o prompt dos agentes, outra — exatamente o
-    desencontro que o registro de regras existe para impedir.
-    """
-    import sys as _sys
-    pasta = str(BASE_DIR / "tools" / "xp")
-    if pasta not in _sys.path:
-        _sys.path.insert(0, pasta)
-    import instalar_protocolo as _ip
-    feitos = {}
-    for base in sorted(PROJECTS_DIR.iterdir()):
-        if not base.is_dir() or base.name.startswith(".") or not (base / "agents").is_dir():
-            continue
-        n = 0
-        for f in sorted((base / "agents").glob("*.yaml")):
-            if "[noctis-xp]" in f.read_text(encoding="utf-8"):
-                _ip.aplicar(f, base.name, False)
-                n += 1
-        if n:
-            feitos[base.name] = n
-    return feitos
-
 
 @app.get("/api/regras")
 def listar_regras():
@@ -3227,16 +4272,18 @@ def listar_regras():
 @app.put("/api/regras/{rid}")
 def definir_regra(rid: str, data: dict):
     try:
-        r = regras.definir(rid, data.get("valor"))
+        r = regras.definir(rid, data.get("valor"), str(data.get("por") or "usuario"))
     except KeyError:
         raise HTTPException(404, f"regra '{rid}' não existe")
     except PermissionError:
         raise HTTPException(403, "esta regra é uma proteção fixa e não se edita")
     except (TypeError, ValueError, IndexError) as e:
         raise HTTPException(400, f"valor inválido: {e}")
-    reinstalados = _reinstalar_protocolo_em_todos() if rid.startswith(("protocolo.", "habilidades.skills_nativas")) \
-        or rid == "xp.base_por_tipo" else {}
-    return {"ok": True, "regra": r, "protocoloAtualizadoEm": reinstalados}
+    # Mudar uma regra do protocolo não reescreve agente nenhum: o bloco é
+    # montado na leitura, então a regra nova já vale no pedido seguinte. Antes
+    # isto percorria os 56 arquivos a cada clique — e ainda assim deixava para
+    # trás os que o instalador não sabia editar.
+    return {"ok": True, "regra": r, "protocoloAtualizadoEm": {}}
 
 
 @app.delete("/api/regras/{rid}")
@@ -3245,8 +4292,17 @@ def restaurar_regra(rid: str):
         r = regras.restaurar(rid)
     except KeyError:
         raise HTTPException(404, f"regra '{rid}' não existe")
-    reinstalados = _reinstalar_protocolo_em_todos() if rid.startswith("protocolo.") else {}
-    return {"ok": True, "regra": r, "protocoloAtualizadoEm": reinstalados}
+    return {"ok": True, "regra": r, "protocoloAtualizadoEm": {}}
+
+
+@app.get("/api/regras-historico")
+def ler_historico_regras(regra: str = "", limite: int = 80):
+    """O rastro das mudanças de regra: o que mudou, quando, de quanto para quanto.
+
+    Append-only, como o histórico de trabalho. É o que responde "isto está
+    estranho desde quando?".
+    """
+    return {"mudancas": regras.historico(regra)[:max(1, min(limite, 500))]}
 
 
 @app.get("/api/regras/protocolo")

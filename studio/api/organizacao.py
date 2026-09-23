@@ -16,7 +16,7 @@ frase dizendo de que ela cuida. Squad citada num yaml e ausente do registro é
 adotada na leitura — assim nada se perde quando um agente inventa uma squad nova
 num despacho.
 
-Quem pode mexer: você e os agentes. Diferente das habilidades, aqui não há o que
+Quem pode mexer: você e os agentes. Diferente dos Learnings, aqui não há o que
 proteger de palpite — desenhar a própria organização é parte do trabalho deles, e
 o desenho errado é visível na hora, na tela.
 """
@@ -29,6 +29,10 @@ from datetime import date
 from pathlib import Path
 
 _PAPEIS_BASE = {
+    # O Warden está acima da linha do projeto: ele é o único papel que enxerga
+    # todos, e o único que pode dar ordem a um Maestro. Há um só em todo o
+    # Noctis — dois guardiões do conjunto seriam dois conjuntos.
+    "warden":  {"label": "Warden", "desc": "responde por todos os projetos e ordena aos Maestros"},
     "maestro": {"label": "Maestro", "desc": "visão do todo: decompõe o objetivo e despacha"},
     "lider":   {"label": "Líder de squad", "desc": "manda no domínio dele e consolida o que sobe"},
     "agente":  {"label": "Agente", "desc": "executa com profundidade no que sabe fazer"},
@@ -89,7 +93,7 @@ def criar_squad(base: Path, nome: str, por: str = "usuario", cor: str = "",
     if chave in sq:
         raise KeyError(chave)
     sq[chave] = {"nome": nome, "cor": (cor or COR_PADRAO)[:9], "icone": (icone or ICONE_PADRAO)[:60],
-                 "descricao": str(descricao).strip()[:300],
+                 "descricao": str(descricao).strip()[:300], "pai": "",
                  "criada_em": date.today().isoformat(), "criada_por": str(por)[:120]}
     salvar(base, sq)
     return {**sq[chave], "chave": chave}
@@ -105,6 +109,22 @@ def editar_squad(base: Path, chave: str, patch: dict) -> dict:
     for campo, limite in (("cor", 9), ("icone", 60), ("descricao", 300)):
         if campo in patch:
             d[campo] = str(patch[campo] or "").strip()[:limite] or d.get(campo, "")
+    # A squad-mãe: "Marketing" com "Conteúdo" e "Performance" dentro. Uma squad
+    # grande demais vira departamento, e departamento não cabe numa lane só.
+    if "pai" in patch:
+        pai = slug(str(patch["pai"] or ""))
+        if pai == chave:
+            raise ValueError("uma squad não pode ser mãe de si mesma")
+        if pai and pai not in sq:
+            raise KeyError(pai)
+        # Ciclo é o erro que trava a leitura inteira: A dentro de B dentro de A.
+        visto, cursor = {chave}, pai
+        while cursor:
+            if cursor in visto:
+                raise ValueError("isso fecharia um ciclo entre as squads")
+            visto.add(cursor)
+            cursor = slug(sq.get(cursor, {}).get("pai") or "")
+        d["pai"] = pai
     salvar(base, sq)
     return {**d, "chave": chave}
 
@@ -113,6 +133,10 @@ def apagar_squad(base: Path, chave: str) -> int:
     """Tira a squad do registro e solta quem estava nela. Nenhum agente é apagado."""
     sq = carregar(base)
     sq.pop(chave, None)
+    # As filhas sobem um nível em vez de sumirem junto.
+    for d in sq.values():
+        if slug(d.get("pai") or "") == chave:
+            d["pai"] = ""
     salvar(base, sq)
     soltos = 0
     for f in (base / "agents").glob("*.yaml"):
@@ -126,10 +150,13 @@ def apagar_squad(base: Path, chave: str) -> int:
 # ── Os agentes ────────────────────────────────────────────────────────────────
 
 def _yaml(base: Path, nome: str) -> dict:
+    """O agente resolvido. Papel e squad são do acoplamento, mas o nome de
+    exibição vem do arquétipo — ler cru mostraria o slug no lugar do nome."""
     import yaml
+    import arquetipos as arqs
     p = base / "agents" / f"{nome}.yaml"
     try:
-        return yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        return arqs.resolver(yaml.safe_load(p.read_text(encoding="utf-8")) or {})
     except (OSError, yaml.YAMLError):
         return {}
 
@@ -196,9 +223,23 @@ def definir(base: Path, nome: str, papel: str | None = None, squad: str | None =
     if not p.exists():
         raise KeyError(nome)
     cfg = _yaml(base, nome)
+    rebaixado = ""
     if papel is not None:
         if papel and papel not in PAPEIS:
             raise ValueError(f"papel inválido: {papel!r}")
+        # Maestro é UM. Dois donos do todo viram dois planos, e o agente no meio
+        # não sabe a quem reportar. Promover alguém rebaixa quem estava lá —
+        # para líder se ele lidera uma squad, para agente se não lidera.
+        # Warden e Maestro são únicos, e pelo mesmo motivo: quem responde pelo
+        # todo não pode ser dois. A diferença é o alcance — o Maestro é único
+        # no projeto, o Warden é único em todo o Noctis (a checagem entre
+        # projetos é feita no servidor, que é quem enxerga a pasta inteira).
+        if papel in ("maestro", "warden"):
+            for outro in _agentes(base):
+                if outro["papel"] == papel and outro["nome"] != nome:
+                    novo = "lider" if outro["squad"] else "agente"
+                    definir(base, outro["nome"], papel=novo)
+                    rebaixado = f'{outro["titulo"]} virou {PAPEIS[novo]["label"].lower()}'
         cfg["papel"] = papel or PAPEL_PADRAO
     if squad is not None:
         s = " ".join(str(squad).strip().split())[:60]
@@ -218,7 +259,8 @@ def definir(base: Path, nome: str, papel: str | None = None, squad: str | None =
             cfg.pop("reporta_a", None)
     p.write_text(yaml.safe_dump(cfg, allow_unicode=True, sort_keys=False, width=88),
                  encoding="utf-8")
-    return {"nome": nome, "papel": cfg.get("papel"), "squad": cfg.get("squad", "")}
+    return {"nome": nome, "papel": cfg.get("papel"), "squad": cfg.get("squad", ""),
+            "rebaixado": rebaixado}
 
 
 # ── A leitura ─────────────────────────────────────────────────────────────────
@@ -239,32 +281,51 @@ def ler(base: Path) -> dict:
     if mudou:
         salvar(base, registro)
 
+    # O Warden fica fora das listas de execução: ele não é membro de squad nem
+    # "solto falando com o Maestro" — é o degrau acima do Maestro, e a tela o
+    # desenha ali. Tratá-lo como agente comum o jogava numa lane qualquer.
+    wardens = [a for a in agentes if a["papel"] == "warden"]
     maestros = [a for a in agentes if a["papel"] == "maestro"]
     lideres = [a for a in agentes if a["papel"] == "lider"]
     comuns = [a for a in agentes if a["papel"] == "agente"]
 
     squads = []
     for chave, d in sorted(registro.items(), key=lambda kv: kv[1].get("nome", "").lower()):
+        pai = slug(d.get("pai") or "")
         squads.append({
             "chave": chave, **d,
+            "pai": pai if pai in registro else "",
+            "filhas": sorted(k for k, v in registro.items() if slug(v.get("pai") or "") == chave),
             "lider": next((l for l in lideres if l["squad"] == chave), None),
             "membros": [a for a in comuns if a["squad"] == chave],
         })
+
+    # Profundidade: serve para a tela desenhar a lane de dentro dentro da de
+    # fora, e para o despacho saber quantos degraus tem até o Maestro.
+    por_chave = {s["chave"]: s for s in squads}
+    for s in squads:
+        nivel, cursor, guarda = 0, s["pai"], 0
+        while cursor and guarda < 12:
+            nivel += 1
+            cursor = por_chave.get(cursor, {}).get("pai", "")
+            guarda += 1
+        s["nivel"] = nivel
 
     soltos = [a for a in comuns if not a["squad"]]
     sem_squad_lider = [l for l in lideres if not l["squad"]]
     return {
         "papeis": papeis(),
+        "wardens": wardens,
         "maestros": maestros,
         "squads": squads,
         "soltos": soltos,
         "lideresSemSquad": sem_squad_lider,
         "total": len(agentes),
-        "avisos": _avisos(maestros, squads, soltos, sem_squad_lider, len(agentes)),
+        "avisos": _avisos(maestros, squads, soltos, sem_squad_lider, len(agentes), wardens),
     }
 
 
-def _avisos(maestros, squads, soltos, lideres_sem_squad, total) -> list[str]:
+def _avisos(maestros, squads, soltos, lideres_sem_squad, total, wardens=()) -> list[str]:
     import regras
     try:
         liga = regras.valor("organizacao.avisos")
@@ -277,14 +338,18 @@ def _avisos(maestros, squads, soltos, lideres_sem_squad, total) -> list[str]:
     avisos = []
     if on("sem_maestro") and total and not maestros:
         avisos.append("Nenhum Maestro: ninguém responde pela visão do todo neste projeto.")
+    if on("dois_maestros") and len(wardens) > 1:
+        avisos.append(f"{len(wardens)} Wardens — quem responde pelo conjunto é UM.")
     if on("dois_maestros") and len(maestros) > 1:
-        avisos.append(f"{len(maestros)} Maestros — dois donos do todo costumam virar dois planos.")
+        avisos.append(f"{len(maestros)} Maestros — o Noctis tem UM; promova de novo para acertar.")
     for s in squads:
         if on("squad_sem_lider") and not s["lider"] and len(s["membros"]) > 2:
             avisos.append(f'A squad "{s["nome"]}" tem {len(s["membros"])} agentes e nenhum líder.')
-        if on("squad_vazia") and not s["lider"] and not s["membros"]:
+        # Squad com sub-squads não está vazia: ela delega. O aviso é para a
+        # que não tem ninguém nem filha nenhuma.
+        if on("squad_vazia") and not s["lider"] and not s["membros"] and not s["filhas"]:
             avisos.append(f'A squad "{s["nome"]}" está vazia.')
-        if on("squad_vazia") and s["lider"] and not s["membros"]:
+        if on("squad_vazia") and s["lider"] and not s["membros"] and not s["filhas"]:
             avisos.append(f'"{s["lider"]["titulo"]}" lidera a squad "{s["nome"]}", que está vazia.')
     for l in (lideres_sem_squad if on("lider_sem_squad") else []):
         avisos.append(f'"{l["titulo"]}" é líder sem squad: diga qual domínio ele lidera.')
@@ -306,10 +371,20 @@ def cadeia_de(base: Path, nome: str) -> list[dict]:
     cadeia = [{"papel": "usuario", "nome": "usuario", "titulo": "Você"}]
     if org["maestros"]:
         cadeia.append(org["maestros"][0])
-    if eu["papel"] == "agente" and eu["squad"]:
-        lider = next((s["lider"] for s in org["squads"] if s["chave"] == eu["squad"]), None)
-        if lider:
-            cadeia.append(lider)
+    if eu["papel"] in ("agente", "lider") and eu["squad"]:
+        # Sobe pela árvore de squads: o líder da squad, depois o líder da
+        # squad-mãe, e assim por diante até o Maestro.
+        por_chave = {s["chave"]: s for s in org["squads"]}
+        cursor = por_chave.get(eu["squad"])
+        degraus = []
+        guarda = 0
+        while cursor and guarda < 12:
+            lider = cursor.get("lider")
+            if lider and lider["nome"] != nome:
+                degraus.append(lider)
+            cursor = por_chave.get(cursor.get("pai") or "")
+            guarda += 1
+        cadeia.extend(reversed(degraus))
     if eu["papel"] != "maestro" or not org["maestros"]:
         cadeia.append(eu)
     return cadeia

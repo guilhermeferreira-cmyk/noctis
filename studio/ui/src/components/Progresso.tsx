@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { GiSkills } from 'react-icons/gi'
-import { api, type FichaAgente, type Habilidade } from '../api'
+import { api, type FichaAgente, type Learning } from '../api'
 import { ICON_SIZES } from '../lib/kinds'
+import { EsqueletoLinhas, EsqueletoPainel } from './Esqueleto'
 
 /**
- * XP, nível e habilidades na tela.
+ * XP, nível e Learnings na tela.
  *
  * A leitura tem duas alturas. No card, o mínimo que responde "quanto ele já
  * trabalhou e em quê" — um anel de nível, uma barra fina e três chips. Na ficha
- * do drawer, tudo: cada habilidade com sua barra, os brotos e o histórico.
+ * do drawer, tudo: cada Learning com sua barra, os brotos e o histórico.
  *
- * As habilidades não têm lista prévia: nascem do que cada agente declara ter
+ * Os Learnings não têm lista prévia: nascem do que cada agente declara ter
  * exercitado. Por isso a barra importa mais que o nome — é ela que mostra que
  * aquilo está virando competência e não foi dito uma vez.
  */
@@ -20,12 +21,29 @@ import { ICON_SIZES } from '../lib/kinds'
 const cache = new Map<string, FichaAgente>()
 const esperando = new Map<string, Promise<FichaAgente>>()
 
-export function useFicha(agente: string | undefined, versao = 0) {
+/**
+ * A ficha completa de um agente — nível, XP e cada Learning com sua barra.
+ *
+ * `ativo` decide SE ela busca. Por padrão busca (`true`), do jeito que sempre
+ * foi — é o que a ficha do drawer (`FichaDeProgresso`, um agente por vez) quer.
+ * Mas o mesmo hook, chamado para os discos de UMA GRADE de vinte ou trinta
+ * cards, virava vinte ou trinta requisições simultâneas — e cada uma delas
+ * relia e recalculava o projeto INTEIRO no servidor só para extrair um nome.
+ * É esse coro que fazia trocar de projeto (ou abrir o Warden, que soma cards
+ * de todo mundo) demorar.
+ *
+ * A saída é `ativo: false` até haver um motivo de verdade para saber tudo —
+ * quem chama com isso recebe `undefined` sem rede nenhuma, e liga a busca
+ * quando o gesto (o hover, no caso de `DiscosDoAgente`) pedir de fato.
+ */
+export function useFicha(agente: string | undefined,
+                         opts: { versao?: number; ativo?: boolean } = {}) {
+  const { versao = 0, ativo = true } = opts
   const [ficha, setFicha] = useState<FichaAgente | undefined>(
     agente ? cache.get(agente) : undefined)
 
   useEffect(() => {
-    if (!agente) return
+    if (!agente || !ativo) return
     let vivo = true
     if (versao > 0) { cache.delete(agente); esperando.delete(agente) }
     const emCache = cache.get(agente)
@@ -38,9 +56,15 @@ export function useFicha(agente: string | undefined, versao = 0) {
     }
     p.then(f => { if (vivo) setFicha(f) }).catch(() => {}).finally(() => esperando.delete(agente))
     return () => { vivo = false }
-  }, [agente, versao])
+  }, [agente, versao, ativo])
 
   return ficha
+}
+
+/** O resumo que já vem junto do card — sem ele, `DiscosDoAgente` não desenha nada. */
+export type ResumoFicha = {
+  nivel: number; xp: number; eventos: number; progresso: number
+  proximo_nivel: number; skills: string[]
 }
 
 /**
@@ -57,7 +81,7 @@ if (typeof window !== 'undefined') {
                           { passive: true })
 }
 
-/** Espelha o backend: abaixo disto a habilidade ainda é broto. */
+/** Espelha o backend: abaixo disto o Learning ainda é broto. */
 const EVENTOS_PARA_PROMOVER = 3
 
 /** Zera o cache — para depois de confirmar um evento, por exemplo. */
@@ -80,7 +104,7 @@ export function Barra({ progresso, cor, altura = 4, titulo }: {
  * Disco com um número dentro e um anel em volta.
  *
  * É a unidade de linguagem do progresso: o mesmo desenho vale para o nível do
- * agente, para a contagem de habilidades e para o nível de cada habilidade. O
+ * agente, para a contagem de Learnings e para o nível de cada Learning. O
  * número vai em branco, e não na cor do recurso — dentro de um aro colorido, a
  * cor sobre a cor perde o contraste justamente no algarismo, que é o que se lê.
  */
@@ -117,7 +141,7 @@ export function Disco({ numero, progresso, cor, tamanho = 32, titulo, apagado }:
 }
 
 /**
- * A coluna de discos do card de agente: nível e quantidade de habilidades.
+ * A coluna de discos do card de agente: nível e quantidade de Learnings.
  *
  * Fica DENTRO do card, na coluna que a caixa de seleção ocupava antes de virar
  * chave — é a primeira coisa à esquerda, antes do ícone. Montá-los na borda
@@ -127,18 +151,43 @@ export function Disco({ numero, progresso, cor, tamanho = 32, titulo, apagado }:
  * espaço: à esquerda quando cabe, à direita quando não — na primeira coluna da
  * grade, um painel fixo à esquerda cairia atrás da barra lateral.
  */
-export function DiscosDoAgente({ ficha, cor }: { ficha?: FichaAgente; cor: string }) {
+export function DiscosDoAgente({ agente, resumo, cor, eager = false }: {
+  agente: string
+  /** O que o card já trazia embutido (ver `ResumoFicha`) — o suficiente para
+   *  desenhar os discos sem rede nenhuma. Quem não tem de onde tirar isso
+   *  (a Organização, cujo endpoint não embute ficha) passa `eager` em vez
+   *  disto, e volta a buscar de cara como sempre foi — lá o time costuma ser
+   *  pequeno o bastante para não doer. */
+  resumo?: ResumoFicha
+  cor: string
+  eager?: boolean
+}) {
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const painelRef = useRef<HTMLDivElement>(null)
 
-  // Nada de `return` antes dos hooks: numa passada sem ficha, os de baixo não
-  // rodariam e o React derrubaria a árvore com "rendered more hooks than
-  // during the previous render". A saída fica depois de todos eles.
-  const skills = Object.entries(ficha?.habilidades || {})
-  const brotos = Object.entries(ficha?.brotos || {})
-  const trabalhou = (ficha?.eventos || 0) > 0
-  const faltam = Math.max(0, Math.round((ficha?.proximo_nivel || 0) - (ficha?.xp || 0)))
+  // A busca completa (nível de cada Learning, o histórico) só começa quando
+  // alguém pede — o hover, mais abaixo — ou de cara, se `eager` disser que não
+  // há resumo nenhum para desenhar em cima enquanto isso.
+  const [pedirCompleta, setPedirCompleta] = useState(eager)
+  const completa = useFicha(agente, { ativo: pedirCompleta })
+
+  // Nada de `return` antes dos hooks: numa passada sem nada para mostrar, os
+  // de baixo não rodariam e o React derrubaria a árvore com "rendered more
+  // hooks than during the previous render". A saída fica depois de todos eles.
+  const nivel = completa?.nivel ?? resumo?.nivel ?? 0
+  const xp = completa?.xp ?? resumo?.xp ?? 0
+  const eventos = completa?.eventos ?? resumo?.eventos ?? 0
+  const progresso = completa?.progresso ?? resumo?.progresso ?? 0
+  const proximoNivel = completa?.proximo_nivel ?? resumo?.proximo_nivel ?? 0
+  const skills = Object.entries(completa?.habilidades || {})
+  const brotos = Object.entries(completa?.brotos || {})
+  // Antes de a busca completa chegar, a contagem vem do resumo — só o nome de
+  // cada Learning, sem nível nem barra, mas já diz "quantas".
+  const numLearnings = completa ? skills.length : (resumo?.skills.length || 0)
+  const numBrotos = brotos.length
+  const trabalhou = eventos > 0
+  const faltam = Math.max(0, Math.round(proximoNivel - xp))
   const d = ICON_SIZES.disco
   const LARGURA = 288
   const ALTURA_MAX = 380
@@ -147,7 +196,7 @@ export function DiscosDoAgente({ ficha, cor }: { ficha?: FichaAgente; cor: strin
    * Abre o painel POR CIMA dos discos, e não ao lado.
    *
    * Ao lado havia um vão entre o gatilho e o painel: atravessá-lo com o mouse
-   * fechava a ficha antes de chegar nela, e a lista de habilidades ficava sem
+   * fechava a ficha antes de chegar nela, e a lista de Learnings ficava sem
    * como ser rolada. Cobrindo os discos, o ponteiro já nasce dentro.
    *
    * A posição é medida a cada abertura, não fixada no CSS: o card pode estar em
@@ -201,20 +250,23 @@ export function DiscosDoAgente({ ficha, cor }: { ficha?: FichaAgente; cor: strin
     return () => { vivo = false; cancelAnimationFrame(id) }
   }, [pos !== null, calcular])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const abrir = () => setPos(calcular())
+  // O hover é o gesto que dá o motivo de saber tudo: aí sim vale pagar a
+  // busca completa, agora com o servidor recalculando UM projeto, não vinte
+  // requisições fazendo isso ao mesmo tempo.
+  const abrir = () => { setPedirCompleta(true); setPos(calcular()) }
 
-  if (!ficha) return null
+  if (!resumo && !completa) return null
 
   return (
     <div ref={ref} onMouseEnter={abrir} onMouseLeave={() => setPos(null)}
       className="nodrag relative flex flex-col gap-1.5 shrink-0 self-start">
-      <Disco numero={ficha.nivel} progresso={trabalhou ? ficha.progresso : 0} cor={cor}
+      <Disco numero={nivel} progresso={trabalhou ? progresso : 0} cor={cor}
         tamanho={d} apagado={!trabalhou}
-        titulo={trabalhou ? `nível ${ficha.nivel} · ${Math.round(ficha.xp)} XP` : 'sem trabalho registrado'} />
-      <Disco numero={skills.length + brotos.length} cor={cor} tamanho={Math.round(d * 0.82)}
+        titulo={trabalhou ? `nível ${nivel} · ${Math.round(xp)} XP` : 'sem trabalho registrado'} />
+      <Disco numero={numLearnings + numBrotos} cor={cor} tamanho={Math.round(d * 0.82)}
         apagado={!trabalhou}
-        titulo={`${skills.length} habilidade${skills.length !== 1 ? 's' : ''}`
-                + (brotos.length ? ` · ${brotos.length} brotando` : '')} />
+        titulo={`${numLearnings} learning${numLearnings !== 1 ? 's' : ''}`
+                + (numBrotos ? ` · ${numBrotos} brotando` : '')} />
 
       {/* Portal para o `body`, e não só `fixed`.
           `position: fixed` NÃO escapa de um ancestral com `transform` — e o
@@ -228,25 +280,34 @@ export function DiscosDoAgente({ ficha, cor }: { ficha?: FichaAgente; cor: strin
                      flex flex-col gap-2.5"
           style={{ left: pos.left, top: pos.top, width: LARGURA, maxHeight: ALTURA_MAX }}>
           <div className="flex items-center gap-2.5 shrink-0">
-            <Disco numero={ficha.nivel} progresso={trabalhou ? ficha.progresso : 0} cor={cor}
+            <Disco numero={nivel} progresso={trabalhou ? progresso : 0} cor={cor}
               tamanho={d} apagado={!trabalhou} />
             <div className="min-w-0 flex-1">
               <div className="text-[11px] text-gray-400">Nível + XP</div>
               <div className="flex items-baseline gap-2">
                 <span className="text-sm font-semibold tabular-nums text-gray-100">
-                  {Math.round(ficha.xp)}<span className="text-gray-500">/{Math.round(ficha.proximo_nivel)}</span>
+                  {Math.round(xp)}<span className="text-gray-500">/{Math.round(proximoNivel)}</span>
                 </span>
                 <span className="text-[10px] text-gray-500 tabular-nums">
                   {trabalhou ? `nxt: ${faltam}` : 'sem trabalho'}
                 </span>
               </div>
             </div>
-            {ficha.eventos > 0 && (
-              <span className="text-[10px] text-gray-600 shrink-0">{ficha.eventos} ev</span>
+            {eventos > 0 && (
+              <span className="text-[10px] text-gray-600 shrink-0">{eventos} ev</span>
             )}
           </div>
 
-          {(skills.length > 0 || brotos.length > 0) && (
+          {/* A quebra por Learning só existe depois que a busca completa
+              chega — o resumo do card não sabe o nível de cada uma, só a
+              contagem. Enquanto espera, o painel mostra que está vindo, em vez
+              de fingir que já sabe. */}
+          {!completa && pedirCompleta && (numLearnings > 0) && (
+            <div className="border-t border-gray-800 pt-2.5">
+              <EsqueletoLinhas linhas={Math.min(3, numLearnings)} />
+            </div>
+          )}
+          {completa && (skills.length > 0 || brotos.length > 0) && (
             <div className="space-y-2 overflow-y-auto pr-0.5 border-t border-gray-800 pt-2.5 min-h-0">
               {skills.map(([k, h]) => (
                 <div key={k} className="flex items-center gap-2.5">
@@ -278,10 +339,13 @@ export function DiscosDoAgente({ ficha, cor }: { ficha?: FichaAgente; cor: strin
  * Uma barra dentro do corpo seria mais um elemento competindo com o conteúdo;
  * assim ela vira moldura.
  */
-export function BarraDoCard({ ficha, cor, raio = 11 }: {
-  ficha?: FichaAgente; cor: string; raio?: number
+export function BarraDoCard({ resumo, cor, raio = 11 }: {
+  /** Só precisa do que o card já trouxe — eventos e progresso, nada mais. */
+  resumo?: { eventos: number; progresso: number }
+  cor: string
+  raio?: number
 }) {
-  if (!ficha || !ficha.eventos) return null
+  if (!resumo || !resumo.eventos) return null
   return (
     <div aria-hidden="true"
       className="absolute left-0 right-0 bottom-0 h-1 overflow-hidden pointer-events-none"
@@ -289,7 +353,7 @@ export function BarraDoCard({ ficha, cor, raio = 11 }: {
       <div className="absolute inset-0 bg-black/50" />
       <div className="absolute inset-y-0 left-0"
         style={{
-          width: `${Math.max(1.5, ficha.progresso * 100)}%`,
+          width: `${Math.max(1.5, resumo.progresso * 100)}%`,
           background: `linear-gradient(90deg, ${cor}55, ${cor})`,
           transition: 'width .6s ease',
         }} />
@@ -297,7 +361,7 @@ export function BarraDoCard({ ficha, cor, raio = 11 }: {
   )
 }
 
-function LinhaHabilidade({ h, cor, broto }: { h: Habilidade; cor: string; broto?: boolean }) {
+function LinhaLearning({ h, cor, broto }: { h: Learning; cor: string; broto?: boolean }) {
   return (
     <div className={broto ? 'opacity-60' : ''}>
       <div className="flex items-baseline gap-2">
@@ -331,11 +395,11 @@ export function FichaDeProgresso({ agente, cor, onMudou }: {
   agente: string; cor: string; onMudou?: () => void
 }) {
   const [versao, setVersao] = useState(0)
-  const ficha = useFicha(agente, versao)
+  const ficha = useFicha(agente, { versao })
 
-  if (!ficha) return <div className="text-xs text-gray-600">carregando ficha…</div>
+  if (!ficha) return <EsqueletoPainel itens={3} />
 
-  const habilidades = Object.entries(ficha.habilidades)
+  const learnings = Object.entries(ficha.habilidades)
   const brotos = Object.entries(ficha.brotos)
 
   const confirmar = async (id: string) => {
@@ -362,12 +426,12 @@ export function FichaDeProgresso({ agente, cor, onMudou }: {
         </div>
       </div>
 
-      {habilidades.length > 0 && (
+      {learnings.length > 0 && (
         <div className="space-y-2.5">
           <div className="text-[10px] uppercase tracking-wider text-gray-600">
-            Habilidades ({habilidades.length})
+            Learning ({learnings.length})
           </div>
-          {habilidades.map(([k, h]) => <LinhaHabilidade key={k} h={h} cor={cor} />)}
+          {learnings.map(([k, h]) => <LinhaLearning key={k} h={h} cor={cor} />)}
         </div>
       )}
 
@@ -377,7 +441,7 @@ export function FichaDeProgresso({ agente, cor, onMudou }: {
             Brotando ({brotos.length})
             <span className="normal-case tracking-normal"> — firma com 3 eventos no projeto</span>
           </div>
-          {brotos.map(([k, h]) => <LinhaHabilidade key={k} h={h} cor={cor} broto />)}
+          {brotos.map(([k, h]) => <LinhaLearning key={k} h={h} cor={cor} broto />)}
         </div>
       )}
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { GiOpenFolder, GiMagnifyingGlass, GiSkills, GiTreasureMap, GiCycle,
          GiContract } from 'react-icons/gi'
 import { api, type CanvasMeta, type ResourceItem, type ResourceKind } from '../../api'
-import { KIND_META } from '../../lib/kinds'
+import { KIND_META, ICON_SIZES } from '../../lib/kinds'
 import { copiar, textoDaReferencia } from '../../lib/referencia'
 import { getIcon } from '../../memoryIcons'
 
@@ -65,7 +65,7 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
   const recarregar = useCallback(() => {
     api.getResources().then(r => setRecursos(r as unknown as Record<string, ResourceItem[]>)).catch(() => {})
     api.listCanvases().then(setMapas).catch(() => setMapas([]))
-    api.skills().then(v => setSkills(Object.values(v.skills)
+    api.learnings().then(v => setSkills(Object.values(v.skills)
       .filter(s => s.estado !== 'arquivada')
       .map(s => ({ chave: s.chave, rotulo: s.rotulo, estado: s.estado })))).catch(() => setSkills([]))
   }, [])
@@ -89,7 +89,7 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
       deKind('memory', 'memory', 'Memórias'),
       deKind('flow', 'flow', 'Fluxos'),
       deKind('persona', 'persona', 'Personas'),
-      { id: 'skills', rotulo: 'Habilidades', selo: 'SKILL', cor: '#10b981', Icone: GiSkills,
+      { id: 'learning', rotulo: 'Learning', selo: 'LEARNING', cor: '#10b981', Icone: GiSkills,
         itens: skills.map(s => ({ id: `skill:${s.chave}`, titulo: s.rotulo,
           abrir: { tipo: 'skill', chave: s.chave, titulo: s.rotulo } as AbrirItem })) },
       { id: 'mapas', rotulo: 'Mapas', selo: 'MAPA', cor: '#06b6d4', Icone: GiTreasureMap,
@@ -100,7 +100,7 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
 
   // A página de grade de cada pasta, para quem quer a visão de conjunto.
   const PAGINA_DA_PASTA: Record<string, string> = {
-    agent: 'agents', memory: 'memory', flow: 'flows', persona: 'personas', skills: 'skills', mapas: 'canvas',
+    agent: 'agents', memory: 'memory', flow: 'flows', persona: 'personas', skills: 'learning', mapas: 'canvas',
   }
 
   const alternar = (id: string) => setAbertas(a => {
@@ -145,7 +145,7 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
       } else if (a.tipo === 'mapa') {
         await api.renameCanvas(a.mapa, novo)
       } else {
-        await api.editarSkill(a.chave, { rotulo: novo })
+        await api.editarLearning(a.chave, { rotulo: novo })
       }
       recarregar()
     } catch (e) { alert((e as Error).message) }
@@ -189,7 +189,7 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
                   className="flex-1 flex items-center gap-1.5 px-2 py-[3px] rounded-md text-left text-[12.5px]
                              text-gray-300 hover:bg-white/[0.05]">
                   <span className={`text-gray-600 text-[10px] transition-transform ${aberta ? 'rotate-90' : ''}`}>▶</span>
-                  <span style={{ color: p.cor }} className="shrink-0 grid place-items-center"><p.Icone size={13} /></span>
+                  <span style={{ color: p.cor }} className="shrink-0 grid place-items-center"><p.Icone size={ICON_SIZES.arvore} /></span>
                   <span className="truncate">{p.rotulo}</span>
                   <span className="text-[10px] text-gray-600 tabular-nums ml-auto">{p.itens.length}</span>
                 </button>
@@ -207,7 +207,7 @@ export function Explorador({ projeto, projetoNome, onAbrir, onAbrirPagina, onTro
       {menu && (() => {
         const { i, p } = menu
         const a = i.abrir
-        const ref = a.tipo === 'recurso' ? textoDaReferencia({ tipo: 'recurso', kind: a.kind, nome: a.nome })
+        const ref = a.tipo === 'recurso' ? textoDaReferencia({ tipo: 'recurso', kind: a.kind, nome: a.nome, rotulo: i.titulo })
           : a.tipo === 'skill' ? `skill:${a.chave}` : `mapa:${a.mapa} · ${a.titulo}`
         const opcao = (rotulo: string, fn: () => void, perigo = false) => (
           <button onMouseDown={e => { e.stopPropagation(); setMenu(null); fn() }}

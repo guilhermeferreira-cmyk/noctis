@@ -1,18 +1,53 @@
 import { useCallback, useEffect, useState } from 'react'
-import { GiSkills } from 'react-icons/gi'
-import { api, getProject, type SkillsView, type SkillCard, type EspecieSkill } from '../api'
+// (o ícone do cabeçalho vem de Configurações › Ícones e cores, ver `iconeSecao` abaixo)
+import { api, getProject, type LearningsView, type LearningCard, type EspecieSkill, type PropostaLearning } from '../api'
 import { getIcon } from '../memoryIcons'
 import { Disco } from '../components/Progresso'
 import { ItemMenu } from '../lib/menuIcons'
-import { KIND_META } from '../lib/kinds'
+import { KIND_META, doSistema } from '../lib/kinds'
 import { Switch } from '../components/Switch'
 import { abrirSkillNaDoca } from '../lib/doca'
+import { CarregandoNoctis } from '../components/Esqueleto'
+import { BarraOrdem, aplicar, useOrdem, type CampoOrdem, type Recorte } from '../components/Ordenar'
+
+/** O que se pergunta a um repertório quando ele cresce.
+ *
+ * "Quem carrega isto e em que nível" é a pergunta do despacho: quero mandar a
+ * tarefa para quem já sabe. "O que ninguém nunca exercitou" é a pergunta da
+ * curadoria: entrou no repertório e não virou trabalho. As duas são ordens
+ * sobre a mesma lista.
+ */
+const ORDENS_SKILL: CampoOrdem<LearningCard>[] = [
+  { id: 'nome', rotulo: 'nome (A→Z)', valor: s => s.rotulo },
+  { id: 'nivel', rotulo: 'maior nível de um portador',
+    valor: s => Math.max(0, ...(s.portadores || []).map(p => p.nivel)), desc: true },
+  { id: 'portadores', rotulo: 'nº de portadores', valor: s => (s.portadores || []).length, desc: true },
+  { id: 'eventos', rotulo: 'trabalho acumulado',
+    valor: s => (s.portadores || []).reduce((n, p) => n + (p.eventos || 0), 0), desc: true },
+  { id: 'ultima', rotulo: 'exercitada por último',
+    valor: s => (s.portadores || []).map(p => p.ultima || '').sort().pop() || '', desc: true },
+  { id: 'nasceu', rotulo: 'mais nova', valor: s => s.nasceu_em || '', desc: true },
+  { id: 'antiga', rotulo: 'mais antiga', valor: s => s.nasceu_em || '' },
+]
+
+const RECORTES_SKILL: Recorte<LearningCard>[] = [
+  { id: 'firmadas', rotulo: 'firmadas', dica: 'Já provaram existir no trabalho',
+    passa: s => s.estado === 'firmada' },
+  { id: 'brotos', rotulo: 'brotos', dica: 'Ainda descobrindo o que são',
+    passa: s => s.estado === 'broto' },
+  { id: 'sem_portador', rotulo: 'ninguém exercita', dica: 'Entrou no repertório e não virou trabalho',
+    passa: s => (s.portadores || []).length === 0 },
+  { id: 'sem_descricao', rotulo: 'sem descrição', dica: 'Falta dizer o que ela é, em uma frase',
+    passa: s => !(s.descricao || '').trim() },
+  { id: 'sem_tag', rotulo: 'sem tag', dica: 'A fila de arrumação do vocabulário',
+    passa: s => (s.tags || []).length === 0 },
+]
 
 /**
- * O repertório: as habilidades como coisas, não como texto solto nos eventos.
+ * O repertório: os Learnings como coisas, não como texto solto nos eventos.
  *
- * Elas não entram no mapa de propósito — habilidade é informação implícita do
- * agente, e oito agentes com cinco habilidades cada virariam quarenta nós ali
+ * Elas não entram no mapa de propósito — Learning é informação implícita do
+ * agente, e oito agentes com cinco Learnings cada virariam quarenta nós ali
  * dentro. Aqui cada uma tem card próprio: quem a tem, em que nível, desde
  * quando, e o que ela significa.
  *
@@ -20,12 +55,15 @@ import { abrirSkillNaDoca } from '../lib/doca'
  * despacho; renomear, descrever, firmar e arquivar é curadoria.
  */
 
-const COR_ESTADO: Record<string, string> = {
-  firmada: '#10b981', broto: '#a1a1aa', arquivada: '#52525b',
-}
+// As cores dos estados são configuráveis (Configurações › Ícones e cores ›
+// Learnings). Estavam cravadas aqui, e por isso o grupo inteiro daquele painel
+// não pintava nada. O valor no código passa a ser só a reserva.
+const corDoEstado = (estado: string) =>
+  doSistema(`estado.${estado}`, 'GiSkills',
+    { firmada: '#10b981', broto: '#a1a1aa', arquivada: '#52525b' }[estado] || '#a1a1aa').color
 
 function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
-  s: SkillCard; agentes: string[]
+  s: LearningCard; agentes: string[]
   tagsDoProjeto: string[]
   onAbrir: () => void; onMudou: () => void
   onTag: (tag: string) => void
@@ -41,19 +79,20 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
   const [pondoTag, setPondoTag] = useState(false)
 
   const mexerTags = async (tags: string[]) => {
-    try { await api.editarSkill(s.chave, { tags }); onMudou() }
+    try { await api.editarLearning(s.chave, { tags }); onMudou() }
     catch (e) { alert((e as Error).message) }
   }
   // A cor vem da ESPÉCIE, não do tipo de recurso: bater o olho na página tem de
   // dizer o que é aprendizado apanhado e o que é competência.
-  const cor = s.estado === 'arquivada' ? '#52525b'
-    : descobrindo ? '#8b5cf6' : (s.cor || KIND_META.agent.color)
+  const cor = s.estado === 'arquivada' ? corDoEstado('arquivada')
+    : descobrindo ? doSistema('estado.descobrindo', 'GiSkills', '#8b5cf6').color
+    : (s.cor || KIND_META.agent.color)
   const IconeEspecie = getIcon('GiSkills')
   const vinculados = s.vinculados || []
   const exercitam = new Set(s.portadores.map(p => p.agente))
 
   const salvarDesc = async () => {
-    await api.editarSkill(s.chave, { descricao: desc })
+    await api.editarLearning(s.chave, { descricao: desc })
     setEditando(false); onMudou()
   }
 
@@ -74,7 +113,7 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
           </button>
           <div className="flex items-center gap-1.5 mt-1">
             <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-              style={{ color: COR_ESTADO[s.estado], background: COR_ESTADO[s.estado] + '1f' }}>
+              style={{ color: corDoEstado(s.estado), background: corDoEstado(s.estado) + '1f' }}>
               {s.estado}
             </span>
             {descobrindo && (
@@ -129,7 +168,7 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
       {editando ? (
         <div className="space-y-1.5">
           <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} autoFocus
-            placeholder="o que esta habilidade é, em uma frase"
+            placeholder="o que este Learning é, em uma frase"
             className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 resize-none" />
           <div className="flex gap-1.5">
             <button onClick={salvarDesc} className="text-[11px] bg-blue-600 hover:bg-blue-500 text-white px-2.5 py-1 rounded">Salvar</button>
@@ -144,7 +183,7 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
         </p>
       )}
 
-      {/* O corpo da habilidade: o que se aprendeu nela, por quem. Uma habilidade
+      {/* O corpo do Learning: o que se aprendeu nele, por quem. Um Learning
           sem isto é rótulo — e rótulo foi o que o repertório veio evitar. */}
       {s.marcos.length > 0 && (
         <div className="space-y-1.5">
@@ -198,34 +237,34 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
       {menu && (
         <div className="absolute top-10 right-2 z-50 w-56 bg-[#1f1f1f] border border-gray-700 rounded-lg shadow-2xl py-1 text-sm">
           <ItemMenu icone="renomear" onClick={async () => {
-            const n = window.prompt('Novo nome da habilidade:', s.rotulo)?.trim()
+            const n = window.prompt('Novo nome do Learning:', s.rotulo)?.trim()
             setMenu(false)
-            if (n && n !== s.rotulo) { await api.editarSkill(s.chave, { rotulo: n }); onMudou() }
+            if (n && n !== s.rotulo) { await api.editarLearning(s.chave, { rotulo: n }); onMudou() }
           }}>Renomear</ItemMenu>
           <ItemMenu icone={s.estado === 'firmada' ? 'decidido' : 'decisao'} onClick={async () => {
             setMenu(false)
-            await api.editarSkill(s.chave, { estado: s.estado === 'firmada' ? 'broto' : 'firmada' })
+            await api.editarLearning(s.chave, { estado: s.estado === 'firmada' ? 'broto' : 'firmada' })
             onMudou()
           }}>{s.estado === 'firmada' ? 'Voltar a broto' : 'Firmar agora'}</ItemMenu>
           {getProject() !== 'noctis' && (
             <ItemMenu icone="inserir" onClick={async () => {
               setMenu(false)
-              await api.promoverSkill(s.chave)
+              await api.promoverLearning(s.chave)
               alert(`"${s.rotulo}" subiu para a base. Todo projeto passa a encontrá-la ao consultar.`)
             }}>Promover à base</ItemMenu>
           )}
           <ItemMenu icone="desfazerLane" onClick={async () => {
             setMenu(false)
-            await api.editarSkill(s.chave, { estado: s.estado === 'arquivada' ? 'broto' : 'arquivada' })
+            await api.editarLearning(s.chave, { estado: s.estado === 'arquivada' ? 'broto' : 'arquivada' })
             onMudou()
           }}>{s.estado === 'arquivada' ? 'Desarquivar' : 'Arquivar'}</ItemMenu>
           {/* Destruir não é arquivar: some a entrada, o texto e os apelidos.
               Os eventos ficam no log, e o XP que eles deram ao agente também. */}
           <ItemMenu icone="excluir" tom="perigo" onClick={async () => {
             setMenu(false)
-            if (!window.confirm(`Destruir "${s.rotulo}"?\n\nSome a habilidade, o texto dela e os apelidos. `
+            if (!window.confirm(`Destruir "${s.rotulo}"?\n\nSome o Learning, o texto dele e os apelidos. `
               + 'Os eventos ficam no histórico e o XP dos agentes é mantido. Não há como desfazer.')) return
-            await api.destruirSkill(s.chave)
+            await api.destruirLearning(s.chave)
             onMudou()
           }}>Destruir</ItemMenu>
 
@@ -242,8 +281,8 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
                   <Switch ligado={vinculados.includes(a)} cor={cor}
                     titulo={exercitam.has(a)
                       ? 'Já exercita: o vínculo não muda o XP'
-                      : 'Declarar que este agente deve ter esta habilidade'}
-                    onMudar={async v => { await api.vincularSkill(s.chave, a, v); onMudou() }} />
+                      : 'Declarar que este agente deve ter este Learning'}
+                    onMudar={async v => { await api.vincularLearning(s.chave, a, v); onMudou() }} />
                 </div>
               ))}
             </div>
@@ -256,7 +295,7 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
 
 /** O vocabulário de tags: fundir, renomear e tirar — sem lista fixa. */
 function PainelTags({ dados, onMudou, onFechar, selecionadas, onToggle }: {
-  dados: SkillsView; onMudou: () => void; onFechar: () => void
+  dados: LearningsView; onMudou: () => void; onFechar: () => void
   selecionadas: string[]; onToggle: (tag: string) => void
 }) {
   const [editando, setEditando] = useState('')
@@ -301,15 +340,15 @@ function PainelTags({ dados, onMudou, onFechar, selecionadas, onToggle }: {
               </button>
             )}
             <span className={`text-[10px] tabular-nums ${tg.solta ? 'text-amber-500/70' : 'text-gray-600'}`}
-              title={tg.solta ? 'usada uma vez só — vale fundir com outra' : `${tg.usos} habilidades`}>
+              title={tg.solta ? 'usada uma vez só — vale fundir com outra' : `${tg.usos} learnings`}>
               {tg.usos}
             </span>
             <button onClick={() => { setEditando(tg.tag); setTexto(tg.tag) }}
               title="Renomear — nome que já existe funde as duas"
               className="opacity-0 group-hover/t:opacity-100 text-[10px] text-gray-500 hover:text-gray-200">✎</button>
             <button onClick={async () => {
-                if (!window.confirm(`Tirar "${tg.tag}" de ${tg.usos} habilidade(s)? As habilidades ficam.`)) return
-                await api.apagarTagSkill(tg.tag); onMudou()
+                if (!window.confirm(`Tirar "${tg.tag}" de ${tg.usos} learning(s)? Os learnings ficam.`)) return
+                await api.apagarTagLearning(tg.tag); onMudou()
               }}
               title="Tirar de todas" className="opacity-0 group-hover/t:opacity-100 text-[10px] text-gray-500 hover:text-red-400">×</button>
           </div>
@@ -322,11 +361,11 @@ function PainelTags({ dados, onMudou, onFechar, selecionadas, onToggle }: {
   )
 }
 
-/** O card da habilidade que ainda não existe — e é só o nome.
+/** O card do Learning que ainda não existe — e é só o nome.
  *
  * Tinha natureza, descrição e tags aqui. Ele cortou: "eu só quero digitar uma
- * habilidade para eles aprenderem e eles mesmos irem descobrindo o que é essa
- * habilidade, com perguntas". Então nasce com nome e mais nada, e o Noctis
+ * Learning para eles aprenderem e eles mesmos irem descobrindo o que é essa
+ * Learning, com perguntas". Então nasce com nome e mais nada, e o Noctis
  * abre na Inbox a fila de perguntas que descobre o resto — a primeira delas
  * decide o rumo sem nunca mostrar a palavra "natureza".
  */
@@ -342,7 +381,7 @@ function CardNovo({ onCriada, onCancelar }: {
     if (!rotulo.trim()) return
     setSalvando(true); setErro('')
     try {
-      const r = await api.criarSkill(rotulo.trim())
+      const r = await api.criarLearning(rotulo.trim())
       onCriada(r.skill.chave, rotulo.trim())
     } catch (e) { setErro((e as Error).message); setSalvando(false) }
   }
@@ -374,8 +413,109 @@ function CardNovo({ onCriada, onCancelar }: {
   )
 }
 
-export default function HabilidadesPage() {
-  const [dados, setDados] = useState<SkillsView>()
+/**
+ * Um Learning que um agente acha que falta.
+ *
+ * Ela mora aqui, e não numa caixa de entrada à parte, porque a pergunta que ela
+ * faz é sobre ESTE repertório: "falta isto aqui?". Ver a proposta ao lado do
+ * que já existe é o que permite responder — inclusive percebendo que a coisa já
+ * tem nome, e o nome é outro.
+ *
+ * O seletor tem três saídas, e as três são decisão sua:
+ *
+ *     aceitar  →  o Learning nasce, com você como autor, e o que o agente
+ *                 escreveu entra no corpo dela assinado por ele
+ *     recusar  →  fica no histórico com o motivo; saber o que não vira conta
+ *     ajustar  →  volta para ele reescrever, citando esta
+ *
+ * O nome e a frase são editáveis antes de aceitar: aceitar não é assinar
+ * embaixo do texto dele, é dizer que a coisa existe e merece nome.
+ */
+function CardProposta({ p, onDecidiu }: { p: PropostaLearning; onDecidiu: () => void }) {
+  const [rotulo, setRotulo] = useState(p.rotulo)
+  const [descricao, setDescricao] = useState(p.o_que_e)
+  const [motivo, setMotivo] = useState('')
+  const [indo, setIndo] = useState('')
+
+  const responder = async (veredito: 'aceita' | 'recusa' | 'ajusta') => {
+    if (veredito !== 'aceita' && !motivo.trim()) {
+      alert(veredito === 'recusa'
+        ? 'Diga por que não: é o que faz a recusa ensinar alguma coisa.'
+        : 'Diga o que ajustar — ele reescreve a partir disso.')
+      return
+    }
+    setIndo(veredito)
+    try {
+      const r = await api.responderProposta(p.id, { veredito, rotulo, descricao, motivo })
+      if (veredito === 'aceita' && r.criada) abrirSkillNaDoca(r.criada, rotulo, onDecidiu)
+      onDecidiu()
+    } catch (e) { alert((e as Error).message) } finally { setIndo('') }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3.5 space-y-2.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[9.5px] uppercase tracking-wide text-amber-300/80 border border-amber-500/30 rounded-full px-1.5 py-0.5">
+          proposta
+        </span>
+        <span className="text-[11px] text-gray-500 truncate">{p.agente}</span>
+        <span className="flex-1" />
+        <span className="text-[10.5px] text-gray-600">{(p.quando || '').slice(0, 10)}</span>
+      </div>
+
+      <input value={rotulo} onChange={e => setRotulo(e.target.value)}
+        className="w-full bg-transparent border-b border-white/[0.08] pb-1 text-[13px] text-gray-100
+                   focus:outline-none focus:border-amber-400/60" />
+      <textarea value={descricao} onChange={e => setDescricao(e.target.value)} rows={3}
+        className="w-full bg-[#141414] border border-white/[0.07] rounded-lg px-2.5 py-1.5
+                   text-[11.5px] text-gray-300 leading-snug resize-none
+                   focus:outline-none focus:border-amber-400/50" />
+
+      {/* De onde ela saiu. É o que separa proposta de palpite, então aparece
+          sem ter que abrir nada. */}
+      {(p.porque || p.despacho) && (
+        <p className="text-[11px] text-gray-500 leading-snug">
+          {p.porque}{p.porque && p.despacho ? ' · ' : ''}
+          {p.despacho && <span className="text-gray-600">despacho: {p.despacho}</span>}
+        </p>
+      )}
+      {p.parecida_com && (
+        <p className="text-[11px] text-amber-300/70 leading-snug">
+          Já existe algo chamado “{p.parecida_com}” — pode ser a mesma coisa com outro nome.
+        </p>
+      )}
+
+      <input value={motivo} onChange={e => setMotivo(e.target.value)}
+        placeholder="por que não, ou o que ajustar"
+        className="w-full bg-[#141414] border border-white/[0.07] rounded-lg px-2.5 py-1.5
+                   text-[11px] text-gray-300 focus:outline-none focus:border-white/20
+                   placeholder:text-gray-600" />
+
+      <div className="flex items-center gap-1.5">
+        <button onClick={() => responder('aceita')} disabled={!!indo}
+          title="Cria o Learning, com você como autor"
+          className="text-[11.5px] bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white px-3 py-1 rounded-lg">
+          {indo === 'aceita' ? 'criando…' : 'aceitar'}
+        </button>
+        <button onClick={() => responder('ajusta')} disabled={!!indo}
+          title="Volta para o agente reescrever"
+          className="text-[11.5px] text-gray-300 hover:text-white hover:bg-white/[0.07] px-2.5 py-1 rounded-lg">
+          pedir ajuste
+        </button>
+        <span className="flex-1" />
+        <button onClick={() => responder('recusa')} disabled={!!indo}
+          className="text-[11.5px] text-gray-500 hover:text-red-400 px-2 py-1 rounded-lg">
+          recusar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function LearningsPage() {
+  const iconeSecao = doSistema('secao.learning', 'GiSkills', '#10b981')
+  const IconeSecaoVazia = getIcon(iconeSecao.icon)
+  const [dados, setDados] = useState<LearningsView>()
   const [agentes, setAgentes] = useState<string[]>([])
   const [busca, setBusca] = useState('')
   const [verArquivadas, setVerArquivadas] = useState(false)
@@ -387,31 +527,36 @@ export default function HabilidadesPage() {
   const alternarTag = (tg: string) =>
     setTags(ts => ts.includes(tg) ? ts.filter(x => x !== tg) : [...ts, tg])
 
+  const [propostas, setPropostas] = useState<PropostaLearning[]>([])
+
   const recarregar = useCallback(() => {
-    api.skills().then(setDados)
+    api.learnings().then(setDados)
+    api.propostas().then(r => setPropostas(r.propostas.filter(p => p.pendente))).catch(() => {})
     api.getResources().then(r => setAgentes((r.agent || []).map(a => a.name)))
   }, [])
   useEffect(() => { recarregar() }, [recarregar])
 
   // Tag selecionada soma: escolher duas mostra o que tem AS DUAS. É o ganho
-  // sobre categoria — a habilidade cabe em vários agrupamentos ao mesmo tempo.
-  const lista = Object.values(dados?.skills || {}).filter(s =>
+  // sobre categoria — o Learning cabe em vários agrupamentos ao mesmo tempo.
+  const ordem = useOrdem('learnings', 'nome')
+  const listaCrua = Object.values(dados?.skills || {}).filter(s =>
     (verArquivadas || s.estado !== 'arquivada')
     && tags.every(tg => (s.tags || []).includes(tg))
     && (!busca.trim() || (s.rotulo + ' ' + s.aliases.join(' ') + ' ' + s.descricao
         + ' ' + (s.tags || []).join(' '))
         .toLowerCase().includes(busca.trim().toLowerCase())))
 
+  const lista = aplicar(listaCrua, ORDENS_SKILL, RECORTES_SKILL, ordem)
   const firmadas = lista.filter(s => s.estado === 'firmada').length
   const tagsDoProjeto = (dados?.tags || []).map(t => t.tag)
 
-  // Agrupado por tag, a mesma habilidade aparece em cada tag que tem — de
+  // Agrupado por tag, a mesmo Learning aparece em cada tag que tem — de
   // propósito. O que não tem tag nenhuma cai em "sem tag", que é a fila de
   // arrumação.
-  const grupos: { tag: string; itens: SkillCard[] }[] = []
+  const grupos: { tag: string; itens: LearningCard[] }[] = []
   if (agrupar) {
     // "Sem tag" vem PRIMEIRO: é a fila de arrumação, e é onde caem as recém
-    // criadas. Enterrada no fim da página, a habilidade nova parecia não ter
+    // criadas. Enterrada no fim da página, o Learning nova parecia não ter
     // sido criada.
     const soltas = lista.filter(s => !(s.tags || []).length)
     if (soltas.length) grupos.push({ tag: 'sem tag', itens: soltas })
@@ -445,22 +590,22 @@ export default function HabilidadesPage() {
               // um filtro parece que não foi criado.
               setCriando(true); setBusca(''); setTags([])
             }}
-            title="Escrever uma habilidade: um procedimento seu, ou um domínio a aprender"
+            title="Escrever um Learning: um procedimento seu, ou um domínio a aprender"
             className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg shrink-0">
-            + Habilidade
+            + Learning
           </button>
           <input value={busca} onChange={e => setBusca(e.target.value)}
-            placeholder="buscar habilidade"
+            placeholder="buscar Learning"
             className="w-56 bg-[#1a1a1a] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 placeholder:text-gray-600" />
         </div>
       </div>
 
       {/* Duas linhas de filtro, e elas respondem perguntas diferentes:
-          a natureza diz COMO a habilidade funciona, a tag diz DE QUE ela é. */}
+          a natureza diz COMO o Learning funciona, a tag diz DE QUE ela é. */}
       <div className="px-5 py-2 border-b border-gray-800 bg-[#0f0f0f] flex items-center gap-1.5 shrink-0 overflow-x-auto">
         {(dados?.tags || []).slice(0, 14).map(tg => (
           <button key={tg.tag} onClick={() => alternarTag(tg.tag)}
-            title={`${tg.usos} habilidade(s)${tg.solta ? ' — tag solta' : ''}`}
+            title={`${tg.usos} learning(s)${tg.solta ? ' — tag solta' : ''}`}
             className={`flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border whitespace-nowrap ${
               tags.includes(tg.tag)
                 ? 'border-violet-500/60 bg-violet-500/15 text-violet-200'
@@ -480,10 +625,13 @@ export default function HabilidadesPage() {
         </label>
       </div>
 
+      <BarraOrdem campos={ORDENS_SKILL} recortes={RECORTES_SKILL} estado={ordem}
+        contagem={lista.length} total={Object.keys(dados?.skills || {}).length} />
+
       <div className="flex-1 min-h-0 flex">
       <div className="flex-1 overflow-y-auto p-5">
         {/* O card em branco vive acima de tudo, inclusive do vazio: dá para
-            criar a primeira habilidade sem sair da tela vazia. */}
+            criar a primeiro Learning sem sair da tela vazia. */}
         {criando && dados && (
           <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(19rem,1fr))] items-start mb-5">
             <CardNovo onCancelar={() => setCriando(false)}
@@ -495,12 +643,27 @@ export default function HabilidadesPage() {
               }} />
           </div>
         )}
-        {!dados ? <p className="text-gray-600 text-sm">carregando…</p>
+        {/* As propostas primeiro: elas são o que espera por VOCÊ. O resto da
+            tela é consulta; isto é decisão parada. */}
+        {propostas.length > 0 && (
+          <section className="mb-6">
+            <div className="flex items-center gap-2 mb-2.5">
+              <p className="text-[12.5px] text-amber-300/90">
+                {propostas.length} Learning{propostas.length !== 1 ? 's' : ''} proposto{propostas.length !== 1 ? 's' : ''} por agentes
+              </p>
+              <span className="text-[11px] text-gray-600">esperando você aceitar ou não</span>
+            </div>
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(19rem,1fr))] items-start">
+              {propostas.map(p => <CardProposta key={p.id} p={p} onDecidiu={recarregar} />)}
+            </div>
+          </section>
+        )}
+        {!dados ? <CarregandoNoctis />
           : lista.length === 0 && !criando ? (
             <div className="h-full grid place-items-center text-center">
               <div>
-                <GiSkills size={32} className="text-gray-700 mx-auto mb-2" />
-                <p className="text-gray-500 text-sm">Nenhuma habilidade ainda.</p>
+                <IconeSecaoVazia size={32} className="text-gray-700 mx-auto mb-2" style={{ color: iconeSecao.color + '99' }} />
+                <p className="text-gray-500 text-sm">Nenhum Learning ainda.</p>
                 <p className="text-gray-600 text-xs mt-1 max-w-sm">
                   Elas nascem sozinhas quando um agente registra trabalho e diz o que exercitou.
                 </p>

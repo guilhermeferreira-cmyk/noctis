@@ -1,5 +1,135 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, type Decision, type MemoryVocab, type ResourceItem, type ResourceKind } from '../api'
+import { Bloco, CarregandoNoctis } from './Esqueleto'
+import { FiltroProjetos, catalogoLocal, ehVisaoGlobal, useFiltroProjetos, useProjetos } from './FiltroProjetos'
+import type { TemplateItem } from '../api'
+import { BarraOrdem, aplicar, useOrdem, type CampoOrdem, type Recorte } from './Ordenar'
+
+/** Por que ordenar por coisas diferentes em cada tipo.
+ *
+ * Nome e datas valem para tudo: são do arquivo. O resto é do que o recurso É —
+ * agente tem nível e Learnings, memória tem tamanho e quem a usa, fluxo tem
+ * passos. Uma lista genérica de ordens ofereceria "por nível" numa grade de
+ * memórias, e escolher isso não faria nada.
+ */
+const ORDENS: Record<string, CampoOrdem<ResourceItem>[]> = {
+  comum: [
+    { id: 'nome', rotulo: 'nome (A→Z)', valor: i => i.displayName || i.name },
+    { id: 'mudado', rotulo: 'mudado por último', valor: i => i.mudado || '', desc: true },
+    { id: 'criado', rotulo: 'criado por último', valor: i => i.criado || '', desc: true },
+    { id: 'antigo', rotulo: 'mais antigo', valor: i => i.criado || '' },
+  ],
+  agent: [
+    { id: 'nivel', rotulo: 'nível', valor: i => i.ficha?.nivel ?? 0, desc: true },
+    { id: 'xp', rotulo: 'XP', valor: i => i.ficha?.xp ?? 0, desc: true },
+    { id: 'eventos', rotulo: 'trabalho registrado', valor: i => i.ficha?.eventos ?? 0, desc: true },
+    { id: 'skills', rotulo: 'nº de learnings', valor: i => (i.ficha?.skills || []).length, desc: true },
+  ],
+  memory: [
+    { id: 'tamanho', rotulo: 'tamanho', valor: i => i.lines ?? 0, desc: true },
+    { id: 'usos', rotulo: 'usada por mais agentes', valor: i => (i.usedBy || []).length, desc: true },
+  ],
+  flow: [{ id: 'passos', rotulo: 'nº de passos', valor: i => i.lines ?? 0, desc: true }],
+  persona: [],
+}
+
+function ordensDe(kind: string): CampoOrdem<ResourceItem>[] {
+  return [...ORDENS.comum, ...(ORDENS[kind] || [])]
+}
+
+function recortesDe(kind: string, global: boolean): Recorte<ResourceItem>[] {
+  const r: Recorte<ResourceItem>[] = [
+    { id: 'ativos', rotulo: 'só ativos', dica: 'Esconde o que está marcado como inativo',
+      passa: i => i.active !== false },
+    { id: 'semana', rotulo: 'mexidos na semana', dica: 'Mudados nos últimos 7 dias',
+      passa: i => !!i.mudado && Date.now() - Date.parse(i.mudado) < 7 * 86400000 },
+    { id: 'semtag', rotulo: 'sem tag', dica: 'O que ainda não foi classificado',
+      passa: i => (i.tags || []).length === 0 },
+  ]
+  if (kind === 'agent') {
+    r.push({ id: 'trabalharam', rotulo: 'com trabalho', dica: 'Agentes que já registraram algo',
+             passa: i => (i.ficha?.eventos ?? 0) > 0 })
+    r.push({ id: 'parados', rotulo: 'nunca trabalharam', dica: 'Nasceram e não registraram nada',
+             passa: i => (i.ficha?.eventos ?? 0) === 0 })
+  }
+  if (kind === 'memory') {
+    r.push({ id: 'orfas', rotulo: 'que ninguém usa', dica: 'Memória que nenhum agente carrega',
+             passa: i => (i.usedBy || []).length === 0 })
+  }
+  if (global) {
+    r.push({ id: 'semdesc', rotulo: 'sem descrição', dica: 'O que entrou sem dizer o que é',
+             passa: i => !(i.excerpt || '').trim() })
+  }
+  return r
+}
+
+/** As três camadas do Warden. Cada uma responde a uma pergunta diferente:
+ *
+ *     própria    o que é DELE — a governança tem conteúdo próprio
+ *     catálogo   o que existe em todos os projetos, lido ao vivo
+ *     templates  os moldes que descem para qualquer projeto
+ *
+ * Só aparecem no projeto base. De dentro de um projeto, "todos os projetos" não
+ * é uma vista possível, e molde não é coisa que se guarde ali.
+ */
+type Camada = 'propria' | 'catalogo' | 'templates'
+const CAMADAS: { id: Camada; rotulo: string; dica: string }[] = [
+  { id: 'propria', rotulo: 'própria', dica: 'O que é do Warden — a camada dele, como a de qualquer projeto' },
+  { id: 'catalogo', rotulo: 'catálogo', dica: 'Tudo que existe em todos os projetos, lido ao vivo' },
+  { id: 'templates', rotulo: 'templates', dica: 'Os moldes guardados para instanciar em qualquer projeto' },
+]
+
+/** O card de um molde: sem identidade nem tags — molde não é recurso vivo. */
+function CardTemplate({ t, projetos, onMudou }: {
+  t: TemplateItem
+  projetos: { slug: string; nome: string }[]
+  onMudou: () => void
+}) {
+  const [indo, setIndo] = useState(false)
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-[#151515] p-3.5 space-y-2 flex flex-col">
+      <div className="flex items-start gap-2">
+        <span className="text-[9.5px] uppercase tracking-wide text-sky-300/70 border border-sky-500/30
+                         rounded-full px-1.5 py-0.5 shrink-0">molde</span>
+        <p className="text-[13px] text-gray-100 leading-tight flex-1 min-w-0">{t.nome}</p>
+      </div>
+      {t.descricao && <p className="text-[11.5px] text-gray-500 leading-snug line-clamp-3">{t.descricao}</p>}
+      <p className="text-[10.5px] text-gray-600">
+        {t.deProjeto ? `destilado de ${t.de} · ${t.deProjeto}` : 'escrito aqui'}
+        {t.usos > 0 && ` · usado ${t.usos}×`}
+      </p>
+      <div className="flex-1" />
+      <div className="flex items-center gap-1.5">
+        {/* Instanciar pede o projeto de destino: um molde sem destino não é
+            um gesto, é uma intenção. */}
+        <select value="" disabled={indo}
+          onChange={async e => {
+            const para = e.target.value
+            if (!para) return
+            setIndo(true)
+            try {
+              const r = await api.instanciarTemplate(t.kind, t.slug, para)
+              alert(r.renomeado
+                ? `Chegou como "${r.nome}" — já havia um com o nome do molde.`
+                : `"${t.nome}" foi criado em ${projetos.find(p => p.slug === para)?.nome || para}.`)
+              onMudou()
+            } catch (err) { alert((err as Error).message) } finally { setIndo(false) }
+          }}
+          className="nodrag flex-1 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[11px]
+                     text-gray-300 focus:outline-none focus:border-sky-500">
+          <option value="">— instanciar em… —</option>
+          {projetos.map(p => <option key={p.slug} value={p.slug}>{p.nome}</option>)}
+        </select>
+        <button onClick={async () => {
+            if (!window.confirm(`Apagar o molde "${t.nome}"? Quem já nasceu dele não é afetado.`)) return
+            try { await api.apagarTemplate(t.kind, t.slug); onMudou() }
+            catch (e) { alert((e as Error).message) }
+          }}
+          className="text-[11px] text-gray-600 hover:text-red-400 px-1.5">apagar</button>
+      </div>
+    </div>
+  )
+}
+import { api, getProject, type Decision, type MemoryVocab, type ResourceItem, type ResourceKind } from '../api'
 import { KIND_META } from '../lib/kinds'
 import { ResourceCard, type CardActions } from './ResourceCard'
 import { abrirRecursoNaDoca } from '../lib/doca'
@@ -30,15 +160,38 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
   const [soPendentes, setSoPendentes] = useState(false)
   const [editandoDecisao, setEditandoDecisao] = useState<ResourceItem | null>(null)
   const meta = KIND_META[kind]
+  // No projeto base a grade é a de TODOS os projetos. O recorte por projeto
+  // vem com a vista: uma lista que atravessa clientes é ilegível sem ele.
+  const global = ehVisaoGlobal()
+  const filtro = useFiltroProjetos(kind)
+  const [camada, setCamada] = useState<Camada>('propria')
+  const ordem = useOrdem(kind, 'nome')
+  const [moldes, setMoldes] = useState<TemplateItem[]>([])
+  const projetos = useProjetos()
 
   // O vocabulário é do sistema, não do projeto: carrega uma vez.
   useEffect(() => { api.memoryTypes().then(setVocab).catch(() => {}) }, [])
 
   const recarregar = useCallback(async () => {
     setCarregando(true)
-    try { setItems((await api.getResources())[kind] || []) }
-    finally { setCarregando(false) }
-  }, [kind])
+    try {
+      if (global && camada === 'templates') {
+        setMoldes((await api.templates(kind)).templates)
+        setItems([])
+      } else if (global && camada === 'catalogo') {
+        // Montado do que já está no cache do navegador (ver `catalogoLocal`):
+        // não repete, no servidor, o trabalho que o preload da abertura já fez.
+        filtro.setProjetos(projetos)
+        const alvo = filtro.ativos.length ? projetos.filter(p => filtro.ativos.includes(p.slug)) : projetos
+        const r = await catalogoLocal(alvo)
+        setItems(r[kind] || [])
+      } else {
+        setItems((await api.getResources())[kind] || [])
+      }
+    } finally { setCarregando(false) }
+    // filtro.setProjetos é estável; incluí-lo aqui reexecutaria a cada render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, global, camada, filtro.ativos.join(','), projetos])
   useEffect(() => { recarregar() }, [recarregar, reloadKey])
 
   const filtrados = useMemo(() => {
@@ -52,6 +205,16 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
       (i.excerpt || '').toLowerCase().includes(q) ||
       (i.tags || []).some(t => t.toLowerCase().includes(q)))
   }, [items, busca, tipoFiltro, soPendentes])
+
+  // A ordem e os recortes entram DEPOIS da busca: quem digitou um nome quer
+  // aquele nome, e não o mais recente que combina com ele.
+  const campos = useMemo(() => ordensDe(kind), [kind])
+  const recortes = useMemo(() => recortesDe(kind, global), [kind, global])
+  const visiveis = useMemo(
+    () => aplicar(filtrados, campos, recortes, ordem),
+    // `ordem` muda de identidade a cada render; o que importa é o conteúdo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filtrados, campos, recortes, ordem.campo, ordem.desc, ordem.recortes.join(',')])
 
   const pendentes = useMemo(
     () => items.filter(i => i.decision && !i.decision.options.some(o => o.checked)).length,
@@ -97,6 +260,16 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
       } catch { await recarregar() }
     },
     onEditDecision: it => setEditandoDecisao(it),
+    onTemplate: global ? async (it: ResourceItem) => {
+      const rotulo = window.prompt('Nome do molde:', it.displayName || it.name)?.trim()
+      if (!rotulo) return
+      try {
+        const r = await api.guardarTemplate({
+          kind, projeto: it.projeto || getProject(), nome: it.name, rotulo })
+        alert(r.template.novo ? `Molde "${r.template.nome}" guardado.`
+                              : `Molde "${r.template.nome}" atualizado.`)
+      } catch (e) { alert((e as Error).message) }
+    } : undefined,
     onIdentity: async (it, patch) => {
       patchLocal(it.name, patch)
       try { await api.saveIdentity(kind, it.name, patch) }
@@ -108,9 +281,14 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
     <div className="h-full flex flex-col">
       <div className="px-5 py-2 border-b border-white/[0.06] bg-transparent flex items-center justify-between shrink-0 gap-4">
         <div className="min-w-0">
-          <p className="text-xs text-gray-500">
-            {carregando ? 'carregando…' : `${filtrados.length}${filtrados.length !== items.length ? ` de ${items.length}` : ''} · ${subtitle}`}
-          </p>
+          {/* A contagem também é conteúdo que vai chegar: enquanto não chega,
+              ela ocupa o lugar dela em vez de escrever "carregando" ao lado de
+              uma grade que já está dizendo isso. */}
+          {carregando
+            ? <Bloco className="h-3 w-40" />
+            : <p className="text-xs text-gray-500">
+                {`${filtrados.length}${filtrados.length !== items.length ? ` de ${items.length}` : ''} · ${subtitle}`}
+              </p>}
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <input value={busca} onChange={e => setBusca(e.target.value)}
@@ -131,6 +309,29 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
           </button>
         </div>
       </div>
+
+      {global && (
+        <div className="px-5 py-1.5 border-b border-white/[0.06] flex items-center gap-1 shrink-0">
+          {CAMADAS.map(c => (
+            <button key={c.id} onClick={() => setCamada(c.id)} title={c.dica}
+              className={`text-[11.5px] px-2.5 py-1 rounded-lg ${
+                camada === c.id ? 'bg-white/[0.1] text-gray-100' : 'text-gray-500 hover:text-gray-200'}`}>
+              {c.rotulo}
+            </button>
+          ))}
+          <span className="flex-1" />
+          {camada === 'templates' && (
+            <span className="text-[11px] text-gray-600">
+              {moldes.length} molde{moldes.length !== 1 ? 's' : ''} · instanciar cria uma cópia independente
+            </span>
+          )}
+        </div>
+      )}
+      {global && camada === 'catalogo' && (
+        <FiltroProjetos projetos={filtro.projetos} ativos={filtro.ativos}
+          contagem={undefined}
+          onAlternar={filtro.alternar} onLimpar={filtro.limpar} />
+      )}
 
       {kind === 'memory' && vocab && (
         <div className="px-5 py-2 border-b border-gray-800 bg-[#0f0f0f] flex items-center gap-1.5 shrink-0 overflow-x-auto">
@@ -153,8 +354,34 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
         </div>
       )}
 
+      {(!global || camada !== 'templates') && (
+        <BarraOrdem campos={campos} recortes={recortes} estado={ordem}
+          contagem={visiveis.length} total={items.length} />
+      )}
+
       <div className="flex-1 overflow-y-auto p-5">
-        {!carregando && filtrados.length === 0 ? (
+        {global && camada === 'templates' && !carregando ? (
+          moldes.length === 0 ? (
+            <div className="h-full grid place-items-center text-center">
+              <div>
+                <p className="text-gray-500 text-sm">Nenhum molde deste tipo ainda.</p>
+                <p className="text-gray-600 text-xs mt-1 max-w-sm">
+                  No catálogo, abra o menu de um card e escolha “guardar como template”.
+                  Molde bom é destilado de trabalho que já serviu, não inventado antes dele.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(17rem,1fr))] items-start">
+              {moldes.map(m => (
+                <CardTemplate key={`${m.kind}:${m.slug}`} t={m} projetos={projetos}
+                  onMudou={recarregar} />
+              ))}
+            </div>
+          )
+        ) : carregando ? (
+          <CarregandoNoctis />
+        ) : visiveis.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center gap-2">
             <p className="text-gray-500 text-sm">
               {items.length === 0
@@ -167,8 +394,11 @@ export function ResourceGrid({ kind, subtitle, onEdit, onNew, reloadKey }: {
           </div>
         ) : (
           <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(17rem,1fr))]">
-            {filtrados.map(it => (
-              <ResourceCard key={it.name} item={it} kind={kind} actions={actions} vocab={vocab} />
+            {visiveis.map(it => (
+              // A chave leva o projeto: `qa` existe no Sciensa e no Tessera, e
+              // são agentes diferentes. Só o nome fundia os dois numa linha só.
+              <ResourceCard key={it.projeto ? `${it.projeto}/${it.name}` : it.name}
+                item={it} kind={kind} actions={actions} vocab={vocab} />
             ))}
           </div>
         )}

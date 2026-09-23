@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type PerguntaTese } from '../api'
+import { EsqueletoPainel } from './Esqueleto'
 
 /**
- * O editor das perguntas que descobrem o que uma habilidade é.
+ * O editor das perguntas que descobrem o que um Learning é.
  *
  * Isto era código fixo até agora: as cinco perguntas e as teses de cada uma
  * viviam em `enquadramento.py`, fora do alcance dele. E são justamente elas que
- * definem o que o Noctis entende por habilidade — a coisa que ele mais precisa
+ * definem o que o Noctis entende por Learning — a coisa que ele mais precisa
  * controlar.
  *
  * Duas escolhas de desenho:
  *
- * · **A contagem de uso ao lado de cada tese.** Tese que nenhuma habilidade
+ * · **A contagem de uso ao lado de cada tese.** Tese que nenhum Learning
  *   marcou não descreve trabalho real: está mal escrita ou não existe. Sem o
  *   número, a lista só cresce e ninguém sabe o que podar.
  * · **Salvar é explícito, e a lista inteira vai junto.** São perguntas que os
@@ -21,13 +22,13 @@ import { api, type PerguntaTese } from '../api'
 
 const TIPOS: { id: PerguntaTese['tipo']; label: string; dica: string }[] = [
   { id: 'bool', label: 'sim/não', dica: 'a tese vale ou não vale aqui' },
-  { id: 'radio', label: 'uma só', dica: 'qual das teses descreve esta habilidade' },
+  { id: 'radio', label: 'uma só', dica: 'qual das teses descreve este Learning' },
   { id: 'multi', label: 'várias', dica: 'quais teses valem' },
 ]
 
 export function PainelTeses() {
   const [perguntas, setPerguntas] = useState<PerguntaTese[]>()
-  const [habilidades, setHabilidades] = useState(0)
+  const [learnings, setLearnings] = useState(0)
   const [rascunho, setRascunho] = useState<PerguntaTese[]>([])
   const [salvando, setSalvando] = useState(false)
   const [aviso, setAviso] = useState('')
@@ -35,12 +36,12 @@ export function PainelTeses() {
   const recarregar = useCallback(() => {
     api.teses().then(r => {
       setPerguntas(r.perguntas); setRascunho(r.perguntas.map(p => ({ ...p, opcoes: [...p.opcoes] })))
-      setHabilidades(r.habilidades)
+      setLearnings(r.habilidades)
     })
   }, [])
   useEffect(() => { recarregar() }, [recarregar])
 
-  if (!perguntas) return <p className="text-xs text-gray-600">carregando…</p>
+  if (!perguntas) return <EsqueletoPainel itens={2} />
 
   const sujo = JSON.stringify(rascunho.map(({ usos, respondidaPor, dispensadaPor, ...p }) => p))
     !== JSON.stringify(perguntas.map(({ usos, respondidaPor, dispensadaPor, ...p }) => p))
@@ -51,7 +52,7 @@ export function PainelTeses() {
   const salvar = async () => {
     setSalvando(true); setAviso('')
     try {
-      await api.definirRegra('perguntas.habilidade',
+      await api.definirRegra('perguntas.learning',
         rascunho.map(p => ({ campo: p.campo, titulo: p.titulo, tipo: p.tipo,
                              texto: p.texto, opcoes: p.opcoes, frase: p.frase })))
       setAviso('salvo — a próxima pergunta da fila já usa isto')
@@ -62,10 +63,10 @@ export function PainelTeses() {
   return (
     <div className="space-y-4">
       <p className="text-[11.5px] text-gray-500 leading-relaxed">
-        A fila que aparece em <b className="text-gray-300">Aprender</b> e na doca da habilidade.
+        A fila que aparece em <b className="text-gray-300">Aprender</b> e na doca do Learning.
         Cada pergunta é uma tese, ou um conjunto de teses, respondida por escolha — nunca por
-        texto livre, para a resposta poder ser comparada entre habilidades. O número ao lado de
-        cada tese é quantas das {habilidades} habilidades a marcaram.
+        texto livre, para a resposta poder ser comparada entre Learnings. O número ao lado de
+        cada tese é quantos dos {learnings} Learnings a marcaram.
       </p>
 
       {rascunho.map((p, i) => (
@@ -117,7 +118,7 @@ export function PainelTeses() {
             {p.opcoes.map((o, k) => (
               <div key={k} className="flex items-center gap-2">
                 <span className="text-[10px] text-gray-600 w-6 text-right tabular-nums"
-                  title={`${p.usos?.[o] ?? 0} habilidade(s) marcaram esta tese`}>
+                  title={`${p.usos?.[o] ?? 0} learning(s) marcaram esta tese`}>
                   {p.usos?.[o] ?? 0}
                 </span>
                 <input value={o}
@@ -166,7 +167,7 @@ export function PainelTeses() {
         )}
         <button onClick={async () => {
             if (!window.confirm('Voltar às perguntas de fábrica? As respostas já dadas ficam guardadas.')) return
-            await api.restaurarRegra('perguntas.habilidade'); recarregar()
+            await api.restaurarRegra('perguntas.learning'); recarregar()
           }}
           className="text-[11px] text-gray-500 hover:text-gray-200 px-1">voltar ao padrão</button>
         <div className="flex-1" />

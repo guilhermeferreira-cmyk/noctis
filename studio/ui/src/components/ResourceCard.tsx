@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, assetUrl, type MemoryVocab, type ResourceItem, type ResourceKind } from '../api'
 import { getIcon } from '../memoryIcons'
-import { COLORS, KIND_META, ICON_SIZES } from '../lib/kinds'
+import { COLORS, KIND_META, ICON_SIZES, doSistema } from '../lib/kinds'
 import { SeletorIcone } from './SeletorIcone'
-import { BarraDoCard, DiscosDoAgente, useFicha } from './Progresso'
+import { BarraDoCard, DiscosDoAgente } from './Progresso'
 import { Switch } from './Switch'
 import { copiar, textoDaReferencia } from '../lib/referencia'
 import { OrigemIcone } from './OrigemIcone'
 import { BlocoDecisao } from './BlocoDecisao'
 import { ItemMenu } from '../lib/menuIcons'
+import { SeloProjeto } from './FiltroProjetos'
 
 /**
  * O card de recurso fora do mapa.
@@ -29,6 +30,9 @@ export interface CardActions {
   onToggleChoice: (item: ResourceItem, optionId: string) => void
   /** Abre o editor de escolhas do card. */
   onEditDecision: (item: ResourceItem) => void
+  /** Guarda o recurso como molde na camada de templates do Warden. Só existe
+   *  no andar de cima: de dentro de um projeto, molde não faz sentido. */
+  onTemplate?: (item: ResourceItem) => void
 }
 
 export function ResourceCard({ item, kind, actions, vocab }: {
@@ -54,6 +58,11 @@ export function ResourceCard({ item, kind, actions, vocab }: {
 
   const meta = KIND_META[kind]
   const color = item.color || meta.color
+  // Decisão em aberto não ganha mais um anel âmbar em volta do card: âmbar não
+  // é o vocabulário desta interface, e um anel cercando o card inteiro briga
+  // com o filete da esquerda, que já é quem diz o tipo. Virou um filete
+  // interno na cor configurada em Configurações › Ícones e cores › Sinais.
+  const sinal = doSistema('sinal.pendente', 'GiStamper', '#8b5cf6')
   const icon = item.icon || meta.icon
   const active = item.active !== false
   const tags = item.tags || []
@@ -61,16 +70,17 @@ export function ResourceCard({ item, kind, actions, vocab }: {
   const usedBy = item.usedBy || []
   const heading = item.title || item.displayName || item.name.replace(/_/g, ' ')
   const [copiado, setCopiado] = useState(false)
-  // O identificador é o par kind:nome, o mesmo que o backend usa como chave.
+  // O identificador leva o caminho inteiro — projeto, pasta e arquivo — mais
+  // o rótulo legível. No agente, o rótulo é o nickname: é por ele que se
+  // chama, e colar só o caminho perderia essa metade.
   const copiarRef = async () => {
-    const ok = await copiar(textoDaReferencia({ tipo: 'recurso', kind, nome: item.name }))
+    const rotulo = item.nickname ? `${heading} (${item.nickname})` : heading
+    const ok = await copiar(textoDaReferencia({ tipo: 'recurso', kind, nome: item.name, rotulo }))
     setCopiado(ok)
     setTimeout(() => setCopiado(false), 1400)
   }
 
   const Icon = getIcon(icon)
-  // Só agente tem ficha: fluxo e persona não trabalham, memória não aprende.
-  const ficha = useFicha(kind === 'agent' ? item.name : undefined)
   const tipo = kind === 'memory' && item.type ? vocab?.types?.[item.type] : undefined
   const pendente = !!item.decision && !item.decision.options.some(o => o.checked)
 
@@ -85,24 +95,33 @@ export function ResourceCard({ item, kind, actions, vocab }: {
     <div
       className={`acende relative flex flex-col rounded-xl border bg-[#161616] shadow-lg transition-all hover:border-gray-600 cursor-pointer ${
         item.decision ? 'min-h-[15.5rem]' : 'h-[15.5rem]'
-      } ${active ? 'border-gray-700' : 'border-gray-800 opacity-60'} ${
-        pendente ? 'ring-1 ring-amber-500/30' : ''}`}
-      style={{ borderLeft: `4px solid ${color}`, ['--cor-card' as string]: color }}
+      } ${active ? 'border-gray-700' : 'border-gray-800 opacity-60'}`}
+      style={{ borderLeft: `4px solid ${color}`, ['--cor-card' as string]: color,
+               ...(pendente ? { boxShadow: `inset 0 0 0 1px ${sinal.color}3d` } : {}) }}
       onClick={e => { if (!(e.target as HTMLElement).closest('button,a,input,textarea,select,label,[contenteditable],[role=menu]')) actions.onOpen(item) }}
     >
       <div className="flex items-start gap-2.5 px-3 pt-3 pb-1.5 shrink-0">
         {/* Os discos ocupam a coluna da antiga caixa de seleção: nível com o anel
-            de XP e a contagem de habilidades. Só o agente os tem. */}
-        {kind === 'agent' && <DiscosDoAgente ficha={ficha} cor={color} />}
+            de XP e a contagem de Learnings. Só o agente os tem. */}
+        {kind === 'agent' && <DiscosDoAgente agente={item.name} resumo={item.ficha} cor={color} />}
         {/* a moldura acompanha o ícone: sem isso, um ícone grande vaza da caixa */}
         <span className="relative shrink-0 flex items-center justify-center rounded-lg"
           style={{ background: color + '22', color,
                    width: Math.max(44, ICON_SIZES.card + 14), height: Math.max(44, ICON_SIZES.card + 14) }}>
           <Icon size={ICON_SIZES.card} />
         </span>
-        <button onClick={() => actions.onOpen(item)}
-          className="text-sm text-gray-100 font-semibold flex-1 capitalize leading-tight line-clamp-2 text-left hover:text-white"
-          title={heading}>{heading}</button>
+        {/* O nickname fica logo abaixo do título, e só o agente tem um: é por
+            ele que se chama este agente aplicado em conversa. Quem endereça é
+            o par projeto:nome, que mora no menu de copiar identificador. */}
+        <div className="flex-1 min-w-0">
+          <button onClick={() => actions.onOpen(item)}
+            className="text-sm text-gray-100 font-semibold w-full capitalize leading-tight line-clamp-2 text-left hover:text-white"
+            title={heading}>{heading}</button>
+          {item.nickname && (
+            <div className="text-[11.5px] text-gray-500 truncate leading-tight mt-0.5"
+              title={`nickname de ${item.name} neste projeto`}>{item.nickname}</div>
+          )}
+        </div>
         {!active && <span title="Inativa" className="text-xs shrink-0">🔒</span>}
         <button ref={btnRef} onClick={() => setMenu(m => !m)}
           className="text-gray-500 hover:text-gray-200 px-1 shrink-0 text-base leading-none self-start">⋯</button>
@@ -118,13 +137,23 @@ export function ResourceCard({ item, kind, actions, vocab }: {
         )}
         {item.decision && (
           <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
-            pendente ? 'text-amber-300 bg-amber-500/20' : 'text-gray-400 bg-gray-700/60'}`}
+            pendente ? '' : 'text-gray-400 bg-gray-700/60'}`}
+          style={pendente ? { color: sinal.color, background: sinal.color + '26' } : undefined}
             title={pendente ? 'Tem escolha em aberto neste card' : 'A escolha deste card já foi feita'}>
             {pendente ? 'a decidir' : 'decidido'}</span>
         )}
         <OrigemIcone origem={item.origin} />
         <span className="text-[11px] font-mono text-gray-600 truncate">{item.name}{meta.ext}</span>
       </div>
+
+      {/* De qual projeto este card veio. Só aparece na visão de todos, e é a
+          informação que impede o erro caro dali: agir sobre a memória certa,
+          do projeto errado. */}
+      {item.projetoNome && (
+        <div className="px-3 pb-1.5 shrink-0">
+          <SeloProjeto nome={item.projetoNome} />
+        </div>
+      )}
 
       {tags.length > 0 && (
         <div className="px-3 pb-1.5 flex flex-wrap gap-1 shrink-0">
@@ -170,7 +199,7 @@ export function ResourceCard({ item, kind, actions, vocab }: {
         )}
       </div>
 
-      {kind === 'agent' && <BarraDoCard ficha={ficha} cor={color} />}
+      {kind === 'agent' && <BarraDoCard resumo={item.ficha} cor={color} />}
 
       <div className={`flex items-center gap-3 px-3 pt-1.5 border-t border-gray-800 text-[11px] text-gray-500 shrink-0 ${kind === 'agent' ? 'pb-2.5' : 'pb-1.5'}`}>
         {kind === 'memory' ? (
@@ -280,6 +309,15 @@ export function ResourceCard({ item, kind, actions, vocab }: {
             <SeletorIcone compacto atual={icon} cor={color}
               onEscolher={nm => actions.onIdentity(item, { icon: nm })} />
           </div>
+
+          {actions.onTemplate && (
+            <div className="border-t border-gray-700 mt-1">
+              <ItemMenu icone="inserir"
+                onClick={() => { setMenu(false); actions.onTemplate!(item) }}>
+                Guardar como template
+              </ItemMenu>
+            </div>
+          )}
 
           <div className="border-t border-gray-700 mt-1">
             <ItemMenu icone="excluir" tom="perigo"

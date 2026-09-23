@@ -1,4 +1,4 @@
-"""XP, níveis e habilidades emergentes dos agentes.
+"""XP, níveis e Learnings emergentes dos agentes.
 
 Duas regras governam este arquivo, e o resto é consequência delas.
 
@@ -41,11 +41,11 @@ BASE_POR_TIPO = {
 }
 DIFICULDADE = {"baixa": 1.0, "media": 1.3, "alta": 1.7}
 MULT_CONFIRMADO = 1.25
-MULT_DESCOBERTA = 1.35     # primeira vez que o agente exercita aquela habilidade
+MULT_DESCOBERTA = 1.35     # primeira vez que o agente exercita aquele Learning
 # O teto é rede de segurança contra um evento absurdo, não parte do balanceamento:
 # com 1,35 na descoberta, a primeira entrega difícil passa raspando por baixo dele.
 TETO_POR_EVENTO = 180
-# A partir do 4º evento da mesma habilidade no mesmo dia, ela rende metade:
+# A partir do 4º evento da mesmo Learning no mesmo dia, ela rende metade:
 # repetir a mesma coisa dez vezes num dia não é aprender dez vezes.
 SATURACAO_DIARIA = 3
 # O fator do trabalho repetido mora nas regras (xp.fator_saturado).
@@ -55,10 +55,10 @@ SATURACAO_DIARIA = 3
 NIVEL_AGENTE = (100.0, 1.7)
 NIVEL_SKILL = (40.0, 1.6)
 
-# Promoção de broto a habilidade. Um termo dito uma vez e nunca mais não pode
+# Promoção de broto o Learning. Um termo dito uma vez e nunca mais não pode
 # sujar a ficha para sempre.
 EVENTOS_PARA_PROMOVER = 3
-# Acima disso, dois nomes são considerados a mesma habilidade.
+# Acima disso, dois nomes são considerados a mesmo Learning.
 LIMIAR_SEMELHANCA = 0.82
 
 TIPOS = tuple(BASE_POR_TIPO)
@@ -68,7 +68,7 @@ def agora() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-# ── Nomes de habilidade ───────────────────────────────────────────────────────
+# ── Nomes de Learning ───────────────────────────────────────────────────────
 
 def slug(texto: str) -> str:
     t = unicodedata.normalize("NFKD", (texto or "").strip().lower())
@@ -82,11 +82,11 @@ def _semelhanca(a: str, b: str) -> float:
 
 
 def casar_habilidade(rotulo: str, conhecidas: dict) -> str | None:
-    """Em qual habilidade já existente este nome cai — ou None se for nova.
+    """Em qual Learning já existente este nome cai — ou None se for novo.
 
     A cascata é: slug exato → apelido conhecido → semelhança alta. É ela que
     impede "diagramação SVG", "SVG diagrams" e "diagramar em svg" de virarem
-    três habilidades que nunca sobem de nível.
+    três Learnings que nunca sobem de nível.
     """
     s = slug(rotulo)
     if not s:
@@ -102,7 +102,7 @@ def casar_habilidade(rotulo: str, conhecidas: dict) -> str | None:
             r = _semelhanca(s, candidato)
             if r > nota:
                 melhor, nota = chave, r
-    return melhor if nota >= regras.valor("habilidades.limiar_fusao") else None
+    return melhor if nota >= regras.valor("learning.limiar_fusao") else None
 
 
 # ── Níveis ────────────────────────────────────────────────────────────────────
@@ -130,10 +130,30 @@ def caminho_log(base: Path) -> Path:
     return _dir(base) / "eventos.jsonl"
 
 
+# O log é append-only, então a única coisa que muda nele é o fim. Isso permite
+# guardar o resultado do parse e só refazê-lo quando o arquivo mudou de tamanho
+# ou de data — a assinatura. Sem isso, cada tela que pergunta "o que aconteceu"
+# reparseava o JSON inteiro de todos os projetos, e a conta só piora com o
+# tempo, justamente porque o histórico é para ser guardado para sempre.
+#
+# A lista devolvida é COMPARTILHADA: quem chama lê e filtra, nunca altera
+# no lugar. Ordenar ou remover daqui corromperia o cache de todo mundo.
+_CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
+
+
 def ler_log(base: Path) -> list[dict]:
     p = caminho_log(base)
     if not p.exists():
         return []
+    try:
+        st = p.stat()
+        assinatura = (st.st_size, st.st_mtime_ns)
+    except OSError:
+        assinatura = (-1, -1)
+    chave = str(p)
+    guardado = _CACHE.get(chave)
+    if guardado and guardado[0] == assinatura:
+        return guardado[1]
     out = []
     for linha in p.read_text(encoding="utf-8").splitlines():
         linha = linha.strip()
@@ -143,6 +163,8 @@ def ler_log(base: Path) -> list[dict]:
             out.append(json.loads(linha))
         except json.JSONDecodeError:
             continue          # uma linha corrompida não derruba a ficha inteira
+    if assinatura != (-1, -1):
+        _CACHE[chave] = (assinatura, out)
     return out
 
 
@@ -175,6 +197,11 @@ def registrar_evento(base: Path, dados: dict) -> dict:
         # medida honesta de que o loop serve para algo: conhecimento validado
         # que nunca é reusado não passou de anotação bonita.
         "aprendizados": [str(x).strip()[:40] for x in (dados.get("aprendizados") or []) if str(x).strip()][:8],
+        # Os SKILL.md do Claude usados neste turno. Não é repertório: não rende
+        # XP, não vira nível, não pede tese. É só o registro de USO, e é dele
+        # que o Runtime vive. Fica no mesmo evento porque um Skill se consome
+        # dentro de um turno de trabalho — não há "comecei" e "terminei".
+        "skills": [str(x).strip()[:80] for x in (dados.get("skills") or []) if str(x).strip()][:8],
         "dificuldade": dados["dificuldade"] if dados.get("dificuldade") in regras.valor("xp.dificuldade") else "media",
         "evidencia": {
             "arquivos": [str(a)[:300] for a in (ev.get("arquivos") or [])][:40],
@@ -213,9 +240,9 @@ def confirmar_evento(base: Path, evento_id: str, por: str) -> dict:
 
 def registrar_marco(base: Path, agente: str, habilidade: str, texto: str,
                     nivel: int = 0) -> dict:
-    """O que o agente aprendeu ao subir de nível numa habilidade.
+    """O que o agente aprendeu ao subir de nível num Learning.
 
-    Não substitui a descrição: a descrição diz o que a habilidade é, e é a mesma
+    Não substitui a descrição: a descrição diz o que o Learning é, e é a mesma
     para todo mundo; o marco diz o que MUDOU para aquele agente, e é dele. Um
     sobre "diagramação SVG" pode ser "aprendi que fundo transparente exige
     contraste próprio" — inútil como definição, precioso como história.
@@ -227,12 +254,12 @@ def registrar_marco(base: Path, agente: str, habilidade: str, texto: str,
 
 
 def destruir_habilidade(base: Path, chave: str, por: str = "usuario") -> dict:
-    """Registra que a habilidade foi destruída — e por isso não volta.
+    """Registra que o Learning foi destruído — e por isso não volta.
 
     Sem isto ela ressuscitaria: o repertório é reconstruído a partir do log, e os
     eventos antigos continuam citando o nome. A lápide diz ao recálculo para
     ignorá-lo. Os eventos ficam: o trabalho aconteceu, e o XP do agente continua
-    sendo dele. Some só a habilidade.
+    sendo dele. Some só o Learning.
     """
     return _anexar(base, {"id": "dst_" + uuid.uuid4().hex[:12], "quando": agora(),
                           "registro": "destruicao", "habilidade": slug(chave), "por": por[:120]})
@@ -243,10 +270,10 @@ def destruidas(base: Path) -> set[str]:
 
 
 def fundir_habilidades(base: Path, de: list[str], para: str, rotulo: str = "") -> dict:
-    """Funde habilidades — resultado de uma consolidação aprovada.
+    """Funde Learnings — resultado de uma consolidação aprovada.
 
     Também é um registro no log, e por isso a fusão vale retroativamente: o
-    recálculo passa a somar tudo na habilidade de destino.
+    recálculo passa a somar tudo no Learning de destino.
     """
     return _anexar(base, {"id": "fus_" + uuid.uuid4().hex[:12], "quando": agora(),
                           "registro": "fusao",
@@ -290,15 +317,15 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
     """Recalcula a ficha de todos os agentes a partir do log.
 
     `indice` é o mapa apelido → id canônico do repertório. Com ele, dois agentes
-    que escreveram o mesmo nome de formas diferentes caem na MESMA habilidade —
+    que escreveram o mesmo nome de formas diferentes caem no MESMO Learning —
     sem ele, o casamento acontece só dentro de cada agente, e a mesma competência
     vira duas coisas que nunca se encontram.
     """
     indice = indice or {}
     mortas = destruidas(base)
-    # Quem decide se um nome já é habilidade é o PROJETO, no repertório: três
+    # Quem decide se um nome já é Learning é o PROJETO, no repertório: três
     # eventos, por quem for. Sem isto, a mesma palavra teria duas contas — uma
-    # no card do agente e outra na página de habilidades.
+    # no card do agente e outra na página de Learnings.
     firmadas = firmadas if firmadas is not None else None
     eventos = ler_log(base)
     confirmados = {r["evento"]: r.get("por") for r in eventos if r.get("registro") == "confirmacao"}
@@ -348,7 +375,7 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
         hab = a["habilidades"]
 
         # Casa cada nome declarado: primeiro pelo repertório do projeto, depois
-        # pelo que o próprio agente já tem, por último abre habilidade nova.
+        # pelo que o próprio agente já tem, por último abre Learning novo.
         alvos: list[tuple[str, str, bool]] = []   # (chave, rótulo, é descoberta)
         for rotulo in ev.get("habilidades", []):
             s_rot = slug(rotulo)
@@ -373,7 +400,7 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
         a["eventos"] += 1
         a["ultima"] = ev.get("quando")
 
-        # O XP do evento é repartido entre as habilidades exercitadas. A curva
+        # O XP do evento é repartido entre os Learnings exercitadas. A curva
         # delas é mais barata, então elas sobem antes do agente — e é isso que
         # faz a ficha contar em que ele é bom, não só o quanto trabalhou.
         if alvos:
@@ -400,22 +427,22 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
         n, ini, fim, frac = nivel_de(a["xp"], tuple(regras.valor("xp.curva_agente")))
         a.update(xp=round(a["xp"], 1), nivel=n, inicio_nivel=round(ini),
                  proximo_nivel=round(fim), progresso=round(frac, 3))
-        habilidades, brotos = {}, {}
+        learnings, brotos = {}, {}
         for chave, h in a["habilidades"].items():
             h["marcos"] = marcos.get((a["agente"], chave), [])
-            hn, hini, hfim, hfrac = nivel_de(h["xp"], tuple(regras.valor("xp.curva_skill")))
+            hn, hini, hfim, hfrac = nivel_de(h["xp"], tuple(regras.valor("xp.curva_learning")))
             h.update(xp=round(h["xp"], 1), nivel=hn, inicio_nivel=round(hini),
                      proximo_nivel=round(hfim), progresso=round(hfrac, 3),
                      rotulo=rotulos_fundidos.get(chave, h["rotulo"]))
             h["marcos"] = marcos.get((a["agente"], chave), [])
-            if not regras.valor("habilidades.usar_firmar"):
+            if not regras.valor("learning.usar_firmar"):
                 firme = True
             elif firmadas is not None:
                 firme = chave in firmadas
             else:
-                firme = h["eventos"] >= regras.valor("habilidades.eventos_para_firmar")
-            (habilidades if firme else brotos)[chave] = h
-        a["habilidades"] = dict(sorted(habilidades.items(),
+                firme = h["eventos"] >= regras.valor("learning.eventos_para_firmar")
+            (learnings if firme else brotos)[chave] = h
+        a["habilidades"] = dict(sorted(learnings.items(),
                                        key=lambda kv: (-kv[1]["xp"], kv[0])))
         a["brotos"] = dict(sorted(brotos.items(), key=lambda kv: (-kv[1]["xp"], kv[0])))
         a["historico"] = a["historico"][-40:][::-1]
@@ -428,7 +455,7 @@ def estado_do_projeto(base: Path, indice: dict | None = None,
 # ── Aptidão ───────────────────────────────────────────────────────────────────
 
 def _recencia(ultima: str | None) -> float:
-    """Habilidade não desaprende — mas a mais recente conta mais na escolha."""
+    """Learning não desaprende — mas a mais recente conta mais na escolha."""
     if not ultima:
         return 0.7
     try:
@@ -457,8 +484,8 @@ def aptidao(base: Path, desejadas: list[str]) -> list[dict]:
                 continue
             h = tudo[chave]
             # Brotos contam menos: poucos eventos ainda não são competência.
-            peso = 1.0 if (not regras.valor("habilidades.usar_firmar")
-                           or h["eventos"] >= regras.valor("habilidades.eventos_para_firmar")) else 0.45
+            peso = 1.0 if (not regras.valor("learning.usar_firmar")
+                           or h["eventos"] >= regras.valor("learning.eventos_para_firmar")) else 0.45
             nota += (h["nivel"] + h["progresso"]) * peso * _recencia(h.get("ultima"))
             casadas.append({"chave": chave, "rotulo": h["rotulo"], "nivel": h["nivel"],
                             "broto": peso < 1.0})

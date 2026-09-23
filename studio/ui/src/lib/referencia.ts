@@ -1,19 +1,50 @@
+import { getProject } from '../api'
+
 /**
  * O identificador de um recurso, para colar numa conversa com o agente.
  *
- * O formato é o mesmo par que o backend usa como chave de identidade — `kind` e
- * nome —, então o que se cola aqui é exatamente o que o agente precisa para
- * encontrar o arquivo, sem tradução no meio. Lanes e mapas não são arquivos:
- * levam o id do arranjo, com o nome junto para a pessoa saber o que copiou.
+ * Antes era só `kind:nome` — `memory:voz_da_marca`. Funcionava enquanto havia
+ * um projeto na cabeça de quem colava; com dez projetos e o mesmo nome de
+ * arquivo em mais de um, virava ambiguidade: o agente recebia um endereço que
+ * não dizia de onde.
+ *
+ * Agora leva o rastro inteiro, e no formato que o Noctis já usa para tudo — o
+ * CAMINHO. Isto aqui é um sistema de arquivos, então o endereço mais honesto
+ * de um recurso é onde ele está. Quem cola ganha algo que o agente de IDE
+ * abre direto, sem tradução no meio:
+ *
+ *     projects/tessera_web_site/agents/pen_dev.yaml · Pen Dev (Aladfar)
+ *
+ * O nome legível vem depois do ponto médio para a pessoa saber o que copiou;
+ * o caminho vem primeiro porque é a parte acionável.
+ *
+ * Nada parseia esta string — nem o servidor, nem o `xp.py`. Ela é lida por
+ * gente e por agente, e foi por isso que o formato pôde mudar sem migração.
  */
+
+/** Onde cada tipo mora dentro do projeto. */
+const PASTA: Record<string, string> = {
+  memory: 'memory', agent: 'agents', flow: 'flows', persona: 'personas',
+}
+const EXT: Record<string, string> = {
+  memory: '.md', agent: '.yaml', flow: '.yaml', persona: '.yaml',
+}
+
 export type Referencia =
-  | { tipo: 'recurso'; kind: string; nome: string }
+  | { tipo: 'recurso'; kind: string; nome: string; rotulo?: string }
   | { tipo: 'lane'; id: string; nome: string }
   | { tipo: 'mapa'; id: string; nome: string }
 
-export function textoDaReferencia(r: Referencia): string {
-  if (r.tipo === 'recurso') return `${r.kind}:${r.nome}`
-  return `${r.tipo}:${r.id} · ${r.nome}`
+export function textoDaReferencia(r: Referencia, projeto = getProject()): string {
+  if (r.tipo === 'recurso') {
+    const pasta = PASTA[r.kind] || r.kind
+    const caminho = `projects/${projeto}/${pasta}/${r.nome}${EXT[r.kind] ?? ''}`
+    return r.rotulo ? `${caminho} · ${r.rotulo}` : caminho
+  }
+  // Mapa é arquivo também; lane é um arranjo dentro de um, e por isso fica
+  // com o id — não há caminho para apontar.
+  if (r.tipo === 'mapa') return `projects/${projeto}/canvases/${r.id}.json · ${r.nome}`
+  return `${projeto} · lane:${r.id} · ${r.nome}`
 }
 
 /**

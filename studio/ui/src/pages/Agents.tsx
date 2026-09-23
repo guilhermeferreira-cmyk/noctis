@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { api, AgentMeta, AgentConfig } from '../api'
+import { FichaDoAgenteAcoplado, FichaDoArquetipo } from '../components/FichaAgente'
 import { ResourceGrid } from '../components/ResourceGrid'
 
 const EMPTY: AgentConfig = {
@@ -42,6 +43,7 @@ export default function AgentsPage() {
     if (renaming) return
     setIsNew(false)
     setSelected(name)
+    setEditando(false); setVerArquetipo(null)
     setSaveState('idle')
     setError('')
     setConfig(await api.getAgent(name))
@@ -118,7 +120,14 @@ export default function AgentsPage() {
     const t = [...(config.tools ?? [])]; t.splice(i, 1); patch({ tools: t })
   }
 
-  const showEditor = selected !== null || isNew
+  // Ao escolher um agente, a primeira coisa que se vê é a FICHA — quem ele é,
+  // o que faz aqui, o que carrega, quanto trabalhou. O formulário continua
+  // existindo, mas atrás de um clique: editar é uma intenção, abrir não é.
+  const [editando, setEditando] = useState(false)
+  // O modo cru (o arquetipo, sem projeto) mora na mesma tela: duas telas
+  // separadas virariam duas verdades sobre o mesmo agente.
+  const [verArquetipo, setVerArquetipo] = useState<string | null>(null)
+  const showEditor = (selected !== null && editando) || isNew
 
   const saveBtnLabel = saveState === 'saving' ? 'Salvando…'
                       : saveState === 'saved'  ? '✓ Aplicado'
@@ -311,11 +320,25 @@ export default function AgentsPage() {
             </Field>
           </div>
         </div>
+      ) : selected ? (
+        <div className="flex-1 min-h-0 bg-[#0a0a0a]">
+          {verArquetipo
+            ? <div className="h-full flex flex-col">
+                <button onClick={() => setVerArquetipo(null)}
+                  className="shrink-0 text-left px-5 pt-4 text-[11.5px] text-gray-500 hover:text-gray-200">
+                  ← voltar para {selected} neste projeto
+                </button>
+                <div className="flex-1 min-h-0"><FichaDoArquetipo slug={verArquetipo} /></div>
+              </div>
+            : <FichaDoAgenteAcoplado nome={selected}
+                onEditar={() => setEditando(true)}
+                onVerArquetipo={setVerArquetipo} />}
+        </div>
       ) : (
         <div className="flex-1 flex items-center justify-center bg-[#0a0a0a] text-gray-700">
           <div className="text-center">
             <div className="text-5xl mb-3 opacity-40">🤖</div>
-            <p className="text-sm">Selecione um agente para editar</p>
+            <p className="text-sm">Selecione um agente</p>
           </div>
         </div>
       )}

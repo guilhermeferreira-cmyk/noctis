@@ -14,10 +14,10 @@ assinatura de email/
 _templates/
 {agents,flows,memory,tools,outputs}/
 
-# Configuração local: as regras alteradas são do seu Noctis, não do projeto.
-config/regras.json
-config/nocturn/
-config/aparencia.json
+# Configuração local: o que está valendo NO SEU Noctis, não no projeto. A lista
+# era por arquivo, e por isso todo config novo (nicknames, projetos ocultos)
+# nascia rastreado sem ninguém pedir. A pasta inteira é dado local.
+config/
 
 # O mapa das pastas de cliente na máquina: é dado seu, não código da ferramenta.
 PROJETOS.md

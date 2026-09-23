@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { GiPadlock } from 'react-icons/gi'
-import { api, type Regra, type RegrasView } from '../api'
+import { api, type Regra, type RegrasView, type MudancaRegra } from '../api'
 import { Switch } from './Switch'
+import { EsqueletoPainel } from './Esqueleto'
 
 /**
  * Todas as regras do Noctis, num lugar só, com o valor que está valendo agora.
@@ -128,8 +129,40 @@ function Controle({ r, onSalvar }: { r: Regra; onSalvar: (v: unknown) => void })
   return null
 }
 
+/** O rastro inteiro: append-only, e é o que responde "mudou quando?". */
+function Historico() {
+  const [mudancas, setMudancas] = useState<MudancaRegra[]>()
+  const [aberto, setAberto] = useState(false)
+  useEffect(() => { api.historicoRegras().then(r => setMudancas(r.mudancas)).catch(() => {}) }, [])
+  if (!mudancas?.length) return null
+  return (
+    <section>
+      <button onClick={() => setAberto(v => !v)}
+        className="text-[11px] text-gray-500 hover:text-gray-200">
+        {aberto ? 'esconder' : `ver as ${mudancas.length} mudanças de regra`}
+      </button>
+      {aberto && (
+        <div className="mt-2 rounded-xl border border-gray-800 divide-y divide-gray-800">
+          {mudancas.slice(0, 40).map((m, i) => (
+            <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-[11px]">
+              <span className="text-gray-600 tabular-nums shrink-0">
+                {(m.quando || '').slice(0, 16).replace('T', ' ')}
+              </span>
+              <span className="text-gray-300 truncate flex-1">{m.regra}</span>
+              <span className="text-gray-500 shrink-0">
+                {mostrar(m.de)} → {mostrar(m.para)}
+              </span>
+              <span className="text-gray-600 shrink-0">{m.por}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function PainelRegras({ area, mostrarProtocolo = true }: {
-  /** Mostra só uma área (Protocolo, Habilidades…). Sem ela, todas. */
+  /** Mostra só uma área (Protocolo, Learnings…). Sem ela, todas. */
   area?: string
   /** O texto que os agentes recebem — faz sentido junto do Protocolo. */
   mostrarProtocolo?: boolean
@@ -158,7 +191,7 @@ export function PainelRegras({ area, mostrarProtocolo = true }: {
     recarregar()
   }
 
-  if (!dados) return <p className="text-xs text-gray-600">carregando regras…</p>
+  if (!dados) return <EsqueletoPainel itens={5} />
 
   const alteradas = dados.regras.filter(r => r.alterada).length
 
@@ -189,6 +222,8 @@ export function PainelRegras({ area, mostrarProtocolo = true }: {
         </p>
       </section>}
 
+      {!area && <Historico />}
+
       {dados.areas.filter(a => !area || a.id === area).map(area => {
         const lista = dados.regras.filter(r => r.area === area.id)
         if (!lista.length) return null
@@ -211,6 +246,15 @@ export function PainelRegras({ area, mostrarProtocolo = true }: {
                           <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded text-amber-300 bg-amber-500/15"
                             title={`padrão: ${mostrar(r.padrao)}`}>
                             alterada
+                          </span>
+                        )}
+                        {/* Quando mudou, e de quanto para quanto. Sem isto, "isto
+                            está estranho desde ontem" não tinha resposta. */}
+                        {r.ultimaMudanca && (
+                          <span className="text-[9.5px] text-gray-600"
+                            title={`${mostrar(r.ultimaMudanca.de)} → ${mostrar(r.ultimaMudanca.para)}, por ${r.ultimaMudanca.por}`}>
+                            {r.ultimaMudanca.acao} em {(r.ultimaMudanca.quando || '').slice(0, 10).split('-').reverse().slice(0, 2).join('/')}
+                            {r.alterada ? `, era ${mostrar(r.padrao)}` : ''}
                           </span>
                         )}
                         {r.onde.map(o => (

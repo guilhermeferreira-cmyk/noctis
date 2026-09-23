@@ -6,14 +6,16 @@ import MemoryPage   from './pages/Memory'
 import PersonasPage from './pages/Personas'
 import SetupPage    from './pages/Setup'
 import MemoryCanvasPage from './pages/MemoryCanvas'
-import HabilidadesPage from './pages/Habilidades'
+import LearningsPage from './pages/Learnings'
+import SkillsPage from './pages/Skills'
+import RuntimePage from './pages/Runtime'
 import ControlePage from './pages/Controle'
 import CosmosPage from './pages/Cosmos'
 import ProjectsModal from './ProjectsModal'
 import { api, getProject, setProject, type ProjectMeta } from './api'
-import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree } from 'react-icons/gi'
+import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse } from 'react-icons/gi'
 import type { IconType } from 'react-icons'
-import { KIND_META, KIND_ORDER, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
+import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
          aplicarLogo, aplicarCeu, aplicarVidro, ICON_SIZES, CEU, VIDRO, LOGO } from './lib/kinds'
 import { FundoEstrelado } from './components/FundoEstrelado'
 import { getIcon } from './memoryIcons'
@@ -22,12 +24,13 @@ import { usePreferencias, preferencias } from './lib/preferencias'
 import { useDoca } from './lib/doca'
 import { LogoNoctis } from './components/LogoNoctis'
 import { Drawer } from './components/Drawer'
-import { DrawerSkill } from './components/DrawerSkill'
+import { DrawerLearning } from './components/DrawerLearning'
 import { Explorador, type AbrirItem } from './components/shell/Explorador'
 import { PainelDireito, type Contexto } from './components/shell/PainelDireito'
 import { BarraStatus } from './components/shell/BarraStatus'
 import { TPainelEsq, TPainelDir, TVoltar, TAvancar, TFechar } from './components/shell/Tracos'
 import type { MemoryVocab, ResourceKind } from './api'
+import HomeWarden from './pages/Home'
 
 /**
  * A casca do Noctis, no desenho do Obsidian.
@@ -40,7 +43,7 @@ import type { MemoryVocab, ResourceKind } from './api'
  * que se trabalha junto fica aberto junto.
  */
 
-type Pagina = 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'skills' | 'cosmos' | 'canvas' | 'controle' | 'setup'
+type Pagina = 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
 
 type Aba =
   | { id: string; tipo: 'pagina'; pagina: Pagina }
@@ -56,7 +59,9 @@ const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType
   { id: 'memory',   label: 'Memória',  kind: 'memory' },
   { id: 'flows',    label: 'Fluxos',   kind: 'flow' },
   { id: 'personas', label: 'Personas', kind: 'persona' },
-  { id: 'skills',   label: 'Habilidades', icon: GiSkills, color: '#10b981' },
+  { id: 'learning', label: 'Learning', icon: GiSkills, color: '#10b981' },
+  { id: 'skillsclaude', label: 'Skills', icon: GiBookCover, color: '#0ea5e9' },
+  { id: 'runtime',  label: 'Runtime', icon: GiPulse, color: '#f472b6' },
   { id: 'canvas',   label: 'Mapa de Memória', icon: GiTreasureMap, color: '#06b6d4' },
   { id: 'cosmos',   label: 'Cosmos', icon: GiGalaxy, color: '#a78bfa' },
   { id: 'controle', label: 'Controle', icon: GiControlTower, color: '#38bdf8' },
@@ -66,23 +71,124 @@ const rotuloPagina = (p: Pagina) => PAGINAS.find(x => x.id === p)?.label || p
 
 const tituloDaAba = (a: Aba) => a.tipo === 'pagina' ? rotuloPagina(a.pagina) : a.titulo
 
+// A aba usa o MESMO ícone e a MESMA cor da seção — os dois vêm de Aparência ›
+// Ícones e cores. Pintar a aba de uma cor e a faixa de outra era o tipo de
+// detalhe que faz a tela parecer de dois sistemas.
 function iconeDaAba(a: Aba): { I: React.ComponentType<{ size?: number; className?: string }>; cor: string } {
   if (a.tipo === 'recurso') return { I: getIcon(KIND_META[a.kind].icon), cor: KIND_META[a.kind].color }
-  if (a.tipo === 'skill') return { I: GiSkills, cor: '#10b981' }
-  if (a.tipo === 'mapa') return { I: GiTreasureMap, cor: '#06b6d4' }
-  const p = PAGINAS.find(x => x.id === a.pagina)!
-  return p.kind ? { I: getIcon(KIND_META[p.kind].icon), cor: KIND_META[p.kind].color }
-                : { I: p.icon!, cor: p.color || '#8b5cf6' }
+  if (a.tipo === 'skill') {
+    const s = doSistema('secao.learning', 'GiSkills', '#10b981')
+    return { I: getIcon(s.icon), cor: s.color }
+  }
+  if (a.tipo === 'mapa') {
+    const s = doSistema('secao.canvas', 'GiTreasureMap', '#06b6d4')
+    return { I: getIcon(s.icon), cor: s.color }
+  }
+  // A peneira de `lerAbas` já deveria ter tirado página desconhecida daqui.
+  // O fallback existe porque o custo de errar é a tela inteira preta, e o de
+  // acertar é um ícone genérico por um instante.
+  const p = PAGINAS.find(x => x.id === a.pagina)
+  const s = doSistema(`secao.${a.pagina}`,
+    p?.kind ? KIND_META[p.kind].icon : '', p?.kind ? KIND_META[p.kind].color : (p?.color || '#8b5cf6'))
+  if (s.icon) return { I: getIcon(s.icon), cor: s.color }
+  return { I: p?.icon ?? GiSkills, cor: s.color }
+}
+
+/**
+ * As abas de projeto — a tira de cima do casco.
+ *
+ * Aqui se ABRE um projeto, e abrir é só olhar. Existia também um "ligar" — um
+ * play que elegia um projeto como o da vez — para evitar o erro caro de
+ * ESCREVER no projeto errado. Ele saiu: era estado da SESSÃO tentando
+ * responder uma pergunta do AGENTE, e avisava depois de o trabalho já estar
+ * gravado. Quem responde agora é o identificador `<projeto>:<agente>`, que o
+ * agente carrega no próprio protocolo e o `xp.py` confere antes de escrever.
+ *
+ * Nada se mistura entre projetos. O que atravessa é o arquétipo de um agente,
+ * enviado de propósito, sem papel, sem squad e sem histórico.
+ */
+function AbasDeProjeto({ projetos, atual, casa, onCasa, onAbrir, onNovo }: {
+  projetos: ProjectMeta[]
+  atual: string
+  /** A home do Warden está aberta: nenhum projeto está em foco. */
+  casa: boolean
+  onCasa: () => void
+  onAbrir: (slug: string) => void
+  onNovo: () => void
+}) {
+  return (
+    <div className="relative z-10 h-8 shrink-0 flex items-center gap-1 px-2 overflow-x-auto
+                    border-b border-white/[0.05]">
+      {/* A casa fica antes de tudo, como na home do Figma: é para onde se volta
+          quando a pergunta é sobre o conjunto, e não sobre um projeto. */}
+      <button onClick={onCasa} title="A tela do Warden — todos os projetos"
+        className={`h-6 w-6 shrink-0 grid place-items-center rounded-md border transition-colors ${
+          casa ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
+               : 'text-gray-500 hover:text-amber-300/80 border-transparent hover:bg-white/[0.06]'}`}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 10.5 12 3l9 7.5" /><path d="M5.5 9.5V21h13V9.5" />
+        </svg>
+      </button>
+      <span className="w-px h-4 bg-white/[0.08] mx-1 shrink-0" />
+      {projetos.map(p => {
+        const aberto = p.slug === atual
+        return (
+          <div key={p.slug} onClick={() => onAbrir(p.slug)} title="Abrir este projeto"
+            className={`group/pj h-6 shrink-0 flex items-center gap-1.5 px-2 rounded-md cursor-pointer
+                        text-[11.5px] transition-colors border
+                        ${aberto && !casa ? 'text-gray-100 bg-white/[0.07] border-white/[0.10]'
+                                          : 'text-gray-500 hover:text-gray-200 border-transparent'}`}>
+            <span className="truncate max-w-[12rem]">{p.displayName}</span>
+          </div>
+        )
+      })}
+      <button onClick={onNovo} title="Novo projeto"
+        className="w-6 h-6 shrink-0 grid place-items-center rounded-md text-gray-600 hover:text-gray-200 hover:bg-white/[0.06]">
+        +
+      </button>
+    </div>
+  )
 }
 
 // ── Estado das abas, lembrado por projeto ────────────────────────────────────
 const chaveAbas = (proj: string) => `noctis.abas.${proj}`
+const PADRAO_ABAS = {
+  abas: [{ id: 'pagina:agents', tipo: 'pagina', pagina: 'agents' }] as Aba[],
+  ativa: 'pagina:agents',
+}
+
+/**
+ * As abas de um projeto, como ficaram na última vez — peneiradas.
+ *
+ * O que está no `localStorage` foi escrito por uma versão ANTERIOR do app, e
+ * uma página pode ter sido renomeada desde então (foi o que aconteceu quando
+ * `skills` virou `learning`). Uma aba apontando para um id que não existe mais
+ * derrubava a árvore inteira do React — tela preta, sem mensagem, e sem como
+ * sair porque o estado ruim era relido a cada carga.
+ *
+ * Por isso a leitura é defensiva: aba de página só passa se o id ainda existir
+ * no catálogo, aba de qualquer outro tipo precisa ter os campos que o desenho
+ * dela usa. O que não passa é descartado em silêncio — perder uma aba aberta é
+ * barato; não conseguir abrir o app, não.
+ */
 function lerAbas(proj: string): { abas: Aba[]; ativa: string } {
   try {
     const d = JSON.parse(localStorage.getItem(chaveAbas(proj)) || 'null')
-    if (d && Array.isArray(d.abas) && d.abas.length) return d
+    if (!d || !Array.isArray(d.abas)) return PADRAO_ABAS
+    const validas: Aba[] = d.abas.filter((a: Aba | null) => {
+      if (!a || typeof a !== 'object' || !a.id) return false
+      if (a.tipo === 'pagina') return PAGINAS.some(x => x.id === a.pagina)
+      if (a.tipo === 'recurso') return !!a.kind && !!KIND_META[a.kind] && !!a.nome
+      if (a.tipo === 'skill') return !!a.chave
+      if (a.tipo === 'mapa') return !!a.mapa
+      return false
+    })
+    if (!validas.length) return PADRAO_ABAS
+    const ativa = validas.some(a => a.id === d.ativa) ? d.ativa : validas[0].id
+    return { abas: validas, ativa }
   } catch { /* sem storage */ }
-  return { abas: [{ id: 'pagina:agents', tipo: 'pagina', pagina: 'agents' }], ativa: 'pagina:agents' }
+  return PADRAO_ABAS
 }
 
 export default function App() {
@@ -115,6 +221,13 @@ export default function App() {
   const [abas, setAbas] = useState<Aba[]>(() => lerAbas(getProject()).abas)
   const [ativa, setAtiva] = useState<string>(() => lerAbas(getProject()).ativa)
   const [historico, setHistorico] = useState<{ pilha: string[]; pos: number }>({ pilha: [], pos: -1 })
+  // A home é a tela inicial do sistema. Ela não é um projeto: é o andar de
+  // cima, e por isso vive fora do escopo de projeto — abrir um projeto sai
+  // dela, e o botão de casa volta sem fechar nada do que estava aberto.
+  const [casa, setCasa] = useState(() => localStorage.getItem('noctis.casa') !== '0')
+  useEffect(() => {
+    try { localStorage.setItem('noctis.casa', casa ? '1' : '0') } catch { /* sem storage */ }
+  }, [casa])
   const [esq, setEsq] = useState(() => localStorage.getItem('noctis.esq') !== '0')
   const [larguraEsq, setLarguraEsq] = useState(() => Number(localStorage.getItem('noctis.larguraEsq')) || 250)
   const [larguraDir, setLarguraDir] = useState(() => Number(localStorage.getItem('noctis.larguraDir')) || 300)
@@ -125,7 +238,7 @@ export default function App() {
   // corrigir daria um piscar de cor em toda a interface.
   useEffect(() => {
     api.memoryTypes()
-      .then(v => { aplicarVocabulario(v.kinds); aplicarTipos(v.types); aplicarTamanhos(v.iconSizes); aplicarAura(v.aura); aplicarLogo(v.logo); aplicarCeu(v.ceu); aplicarVidro(v.vidro); setVocab(v) })
+      .then(v => { aplicarVocabulario(v.kinds); aplicarTipos(v.types); aplicarSistema(v.sistema); aplicarPontilhado(v.pontilhado); aplicarTamanhos(v.iconSizes); aplicarAura(v.aura); aplicarLogo(v.logo); aplicarCeu(v.ceu); aplicarVidro(v.vidro); setVocab(v) })
       .catch(() => setVocab({ kinds: {}, types: {}, origins: {}, defaultType: 'nota', defaultOrigin: 'inserido' } as MemoryVocab))
   }, [])
 
@@ -143,11 +256,32 @@ export default function App() {
     setProjects(list)
     const wanted = select || getProject()
     const chosen = list.some(p => p.slug === wanted) ? wanted : (list[0]?.slug ?? 'noctis')
-    trocarDeProjeto(chosen)
+    trocarDeProjeto(chosen, false)
   }
   useEffect(() => { loadProjects() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  function trocarDeProjeto(slug: string) {
+  // Os projetos das abas chegam PRÉ-CARREGADOS: assim que a lista existe, cada
+  // um é lido em segundo plano e fica no cache do navegador. Trocar de aba
+  // deixa de ser uma espera e vira o que a aba promete ser — já estar lá.
+  // É de propósito que isto rode uma vez e em série: vinte requisições juntas
+  // no arranque competiriam com o que você está olhando agora.
+  useEffect(() => {
+    if (!projects.length) return
+    let vivo = true
+    ;(async () => {
+      for (const p of projects) {
+        if (!vivo) return
+        try { await api.recursosDoProjeto(p.slug) } catch { /* projeto ilegível não trava os outros */ }
+      }
+    })()
+    return () => { vivo = false }
+  }, [projects])
+
+  // `sair` diz se este gesto tira você da home. A carga inicial escolhe um
+  // projeto para o escopo existir, e isso NÃO é um pedido para sair da tela do
+  // Warden — era assim que a home sumia sozinha no arranque.
+  function trocarDeProjeto(slug: string, sair = true) {
+    if (sair) setCasa(false)
     setProject(slug)
     setCurrent(slug)
     const salvo = preferencias().restaurarAbas ? lerAbas(slug) : { abas: [], ativa: '' }
@@ -259,7 +393,7 @@ export default function App() {
         onClose={() => fechar(a.id)} onChanged={() => setVersao(v => v + 1)} />
     }
     if (a.tipo === 'skill') {
-      return <DrawerSkill embutido key={`${scope}-${a.id}`} chave={a.chave}
+      return <DrawerLearning embutido key={`${scope}-${a.id}`} chave={a.chave}
         onFechar={() => fechar(a.id)} onMudou={() => setVersao(v => v + 1)} />
     }
     if (a.tipo === 'mapa') {
@@ -271,7 +405,9 @@ export default function App() {
       case 'flows':    return <FlowsPage key={scope} />
       case 'personas': return <PersonasPage key={scope} />
       case 'memory':   return <MemoryPage key={scope} />
-      case 'skills':   return <HabilidadesPage key={scope} />
+      case 'learning': return <LearningsPage key={scope} />
+      case 'skillsclaude': return <SkillsPage key={scope} />
+      case 'runtime':  return <RuntimePage key={scope} />
       case 'canvas':   return <MemoryCanvasPage key={scope} />
       case 'cosmos':   return <CosmosPage key={scope} onAbrirMapa={abrirMapa} />
       case 'controle': return <ControlePage key={scope} onAbrirProjeto={slug => { trocarDeProjeto(slug) }} />
@@ -321,6 +457,22 @@ export default function App() {
       {/* O céu atrás de tudo: a casca é do Obsidian, a noite é do Noctis. */}
       {CEU.ativo && <FundoEstrelado cores={KIND_ORDER.map(k => KIND_META[k].color)} />}
 
+      <AbasDeProjeto projetos={projects} atual={current}
+        casa={casa} onCasa={() => setCasa(true)}
+        onAbrir={trocarDeProjeto} onNovo={createProject} />
+
+      {casa && (
+        <div className="relative z-10 flex-1 min-h-0">
+          <HomeWarden projetos={projects}
+            onAbrirProjeto={trocarDeProjeto}
+            onAbrirLearnings={slug => { trocarDeProjeto(slug); abrirPagina('learning') }}
+            onRecarregarProjetos={() => loadProjects(current)}
+            onConfigurar={() => setConfigAberta('tipos')}
+            onRenomearProjeto={renameProject} onExcluirProjeto={deleteProject} />
+        </div>
+      )}
+      {!casa && (<>
+
       {/* ── Barra de cima: painéis e abas ──────────────────────────────────── */}
       <div className="relative z-10 h-10 shrink-0 flex items-center gap-1 px-2">
         <button onClick={() => setEsq(v => !v)} title="Mostrar/esconder a árvore" className={botao}>
@@ -365,8 +517,12 @@ export default function App() {
         {prefs.mostrarFaixa && <nav className="shrink-0 flex flex-col items-center gap-1 py-1 mr-1.5" style={{ width: larguraFaixa }}>
           {!esq && <div className="mb-2" title="Noctis"><LogoNoctis size={Math.min(28, tamIcone + 6)} /></div>}
           {PAGINAS.filter(p => !prefs.secoesOcultas.includes(p.id)).map(p => {
-            const cor = p.kind ? KIND_META[p.kind].color : (p.color || '#8b5cf6')
-            const Icone = p.kind ? getIcon(KIND_META[p.kind].icon) : p.icon!
+            // O ícone e a cor de cada seção são escolha sua (Aparência › Ícones
+            // do sistema); o padrão do código é só a reserva.
+            const s = doSistema(`secao.${p.id}`,
+              p.kind ? KIND_META[p.kind].icon : '', p.kind ? KIND_META[p.kind].color : (p.color || '#8b5cf6'))
+            const cor = s.color
+            const Icone = s.icon ? getIcon(s.icon) : (p.icon || getIcon('GiSkills'))
             const on = abaAtiva?.tipo === 'pagina' && abaAtiva.pagina === p.id
             return (
               <button key={p.id} onClick={() => abrirPagina(p.id)} title={p.label}
@@ -381,15 +537,22 @@ export default function App() {
             )
           })}
           <div className="flex-1" />
-          <button onClick={() => setConfigAberta('interface')} title="Configurações (Ctrl+,)"
-            className="grid place-items-center rounded-lg text-gray-500 hover:text-gray-100 hover:bg-white/[0.07] mb-1"
-            style={{ width: tamIcone + 14, height: tamIcone + 14 }}>
-            <svg width={tamIcone - 2} height={tamIcone - 2} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
+          {(() => {
+            // A engrenagem também é uma seção configurável: tinha o desenho e o
+            // cinza cravados, e por isso era o único ícone da faixa que não
+            // obedecia a Configurações › Ícones e cores.
+            const s = doSistema('secao.config', 'GiGears', '#71717a')
+            const Icone = getIcon(s.icon)
+            return (
+              <button onClick={() => setConfigAberta('interface')} title="Configurações (Ctrl+,)"
+                className="grid place-items-center rounded-lg transition-colors mb-1"
+                style={{ width: tamIcone + 14, height: tamIcone + 14, color: '#6b7280' }}
+                onMouseEnter={e => { e.currentTarget.style.background = s.color + '1f'; e.currentTarget.style.color = s.color }}
+                onMouseLeave={e => { e.currentTarget.style.background = ''; e.currentTarget.style.color = '#6b7280' }}>
+                <Icone size={tamIcone} />
+              </button>
+            )
+          })()}
         </nav>}
 
         {esq && (
@@ -453,6 +616,8 @@ export default function App() {
         )}
       </div>
 
+      </>)}
+
       {prefs.mostrarBarraStatus && <div className="relative z-10">
         <BarraStatus projetoNome={nomeProjeto}
           onAbrirControle={() => abrirPagina('controle')}
@@ -462,7 +627,7 @@ export default function App() {
       {configAberta && vocab && (
         <Configuracoes vocab={vocab} secaoInicial={configAberta} projetoAtual={current}
           onFechar={() => { setConfigAberta(null); if (vocabMudou) { setScope(x => x + 1); setVocabMudou(false) } }}
-          onVocab={v => { aplicarVocabulario(v.kinds); aplicarTipos(v.types); aplicarTamanhos(v.iconSizes); aplicarAura(v.aura); aplicarLogo(v.logo); aplicarCeu(v.ceu); aplicarVidro(v.vidro); setVocab(v); setVocabMudou(true) }}
+          onVocab={v => { aplicarVocabulario(v.kinds); aplicarTipos(v.types); aplicarSistema(v.sistema); aplicarPontilhado(v.pontilhado); aplicarTamanhos(v.iconSizes); aplicarAura(v.aura); aplicarLogo(v.logo); aplicarCeu(v.ceu); aplicarVidro(v.vidro); setVocab(v); setVocabMudou(true) }}
           onAbrirProjeto={slug => { trocarDeProjeto(slug); setConfigAberta(null) }}
           onProjetosMudaram={() => api.listProjects().then(l => l.some(p => p.slug === current) ? setProjects(l) : loadProjects())}
           onRedefinirLarguras={() => { setLarguraEsq(250); setLarguraDir(300) }} />

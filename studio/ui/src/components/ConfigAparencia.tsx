@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api, type MemoryVocab } from '../api'
 import { getIcon } from '../memoryIcons'
 import { SeletorIcone } from './SeletorIcone'
-import { COLORS, ICON_SIZES, AURA, LOGO, CEU, VIDRO, aplicarLogo } from '../lib/kinds'
+import { COLORS, ICON_SIZES, AURA, LOGO, CEU, VIDRO, PONTILHADO, aplicarLogo, aplicarPontilhado } from '../lib/kinds'
 import { FundoEstrelado } from './FundoEstrelado'
 import { LogoNoctis } from './LogoNoctis'
 
@@ -32,11 +32,19 @@ export function ConfigAparencia({ vocab, onFechar, onSalvo, embutido = false, se
     Object.fromEntries(Object.entries(vocab.kinds).map(([k, v]) => [k, { color: v.color, icon: v.icon }])))
   const [tipos, setTipos] = useState<Record<string, Ajuste>>(
     Object.fromEntries(Object.entries(vocab.types).map(([k, v]) => [k, { color: v.color, icon: v.icon }])))
+  // Os lugares do sistema — seções, doca, papéis, estados — ajustados com a
+  // mesma linha e a mesma paleta dos tipos. Duas telas para a mesma decisão era
+  // o que estava duplicado.
+  const [sistema, setSistema] = useState<Record<string, Ajuste>>(
+    Object.fromEntries(Object.entries(vocab.sistema || {}).map(([k, v]) => [k, { color: v.color, icon: v.icon }])))
+  const rotulosSistema = vocab.sistema || {}
   const [abrindoIcone, setAbrindoIcone] = useState<string | null>(null)
   const [tamanhos, setTamanhos] = useState({ ...ICON_SIZES, ...(vocab.iconSizes || {}) })
   const [aura, setAura] = useState({ ...AURA, ...(vocab.aura || {}) })
   const [logo, setLogo] = useState({ ...LOGO, ...(vocab.logo || {}) })
   const [ceu, setCeu] = useState({ ...CEU, ...(vocab.ceu || {}) })
+  const [pontilhado, setPontilhado] = useState({ ...PONTILHADO, ...(vocab.pontilhado || {}) })
+  aplicarPontilhado(pontilhado)          // a prévia é o próprio canvas atrás
   const [vidro, setVidro] = useState(vocab.vidro ?? VIDRO.ativo)
   // A prévia do logo lê o objeto global, então ele acompanha cada ajuste; ao
   // cancelar, o que veio do servidor é reposto.
@@ -55,16 +63,20 @@ export function ConfigAparencia({ vocab, onFechar, onSalvo, embutido = false, se
     setSalvo('salvando')
     const t = setTimeout(async () => {
       try {
-        onSalvo(await api.saveMemoryTypes({ kinds, types: tipos, iconSizes: tamanhos, aura, logo, ceu, vidro }))
+        onSalvo(await api.saveMemoryTypes({ kinds, types: tipos, sistema, iconSizes: tamanhos, aura, logo, ceu, pontilhado, vidro }))
         setSalvo('salvo')
       } catch { setSalvo('') }
     }, 450)
     return () => clearTimeout(t)
-  }, [kinds, tipos, tamanhos, aura, logo, ceu, vidro])   // eslint-disable-line react-hooks/exhaustive-deps
+  // A lista precisa conter TODA fatia que entra no payload acima. `sistema` e
+  // `pontilhado` ficaram de fora e por isso não gravavam: mudar a cor de uma
+  // seção, do Warden ou de um papel não acordava o efeito, e o ajuste morria
+  // ao fechar o painel.
+  }, [kinds, tipos, sistema, tamanhos, aura, logo, ceu, pontilhado, vidro])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const salvar = async () => {
     setSalvando(true)
-    try { onSalvo(await api.saveMemoryTypes({ kinds, types: tipos, iconSizes: tamanhos, aura, logo, ceu, vidro })); onFechar() }
+    try { onSalvo(await api.saveMemoryTypes({ kinds, types: tipos, sistema, iconSizes: tamanhos, aura, logo, ceu, pontilhado, vidro })); onFechar() }
     finally { setSalvando(false) }
   }
 
@@ -79,10 +91,10 @@ export function ConfigAparencia({ vocab, onFechar, onSalvo, embutido = false, se
   )
 
   const Linha = ({ grupo, id, rotulo, desc }: {
-    grupo: 'kind' | 'tipo'; id: string; rotulo: string; desc?: string
+    grupo: 'kind' | 'tipo' | 'sistema'; id: string; rotulo: string; desc?: string
   }) => {
-    const mapa = grupo === 'kind' ? kinds : tipos
-    const setMapa = grupo === 'kind' ? setKinds : setTipos
+    const mapa = grupo === 'kind' ? kinds : grupo === 'tipo' ? tipos : sistema
+    const setMapa = grupo === 'kind' ? setKinds : grupo === 'tipo' ? setTipos : setSistema
     const v = mapa[id]
     if (!v) return null
     const I = getIcon(v.icon)
@@ -151,14 +163,33 @@ export function ConfigAparencia({ vocab, onFechar, onSalvo, embutido = false, se
           {Object.entries(vocab.types).map(([id, t]) => (
             <Linha key={id} grupo="tipo" id={id} rotulo={t.label} desc={t.desc} />
           ))}
+
+          {/* O resto do sistema, na mesma linha: seções da faixa (que pintam
+              também a aba aberta), botões da doca, papéis e estados. */}
+          {[...new Set(Object.values(rotulosSistema).filter(i => !i.marca).map(i => i.grupo))].map(g => (
+            <div key={g}>
+              <div className="text-[10px] uppercase tracking-wider text-gray-600 mt-5 mb-1">{g}</div>
+              {Object.entries(rotulosSistema).filter(([, i]) => i.grupo === g && !i.marca).map(([id, i]) => (
+                <Linha key={id} grupo="sistema" id={id} rotulo={i.label} desc={id} />
+              ))}
+            </div>
+          ))}
           </>}
           {mostra('icones') && <>
           <div className="text-[10px] uppercase tracking-wider text-gray-600 mt-5 mb-1">Tamanho dos ícones</div>
+          {/* Um ajuste por LUGAR onde o ícone é desenhado. A lista cresceu com o
+              sistema: árvore, doca, organização, squad e Learning nasceram
+              depois, e ficavam num tamanho fixo que ninguém controlava. */}
           {([
-            ['card', 'Nos cards', 'o desenho grande, no grid e no mapa'],
+            ['card', 'Nos cards', 'o desenho grande, na grade e no mapa'],
             ['menu', 'Nos menus', 'itens de menu e botões de ação'],
-            ['nav', 'Na barra lateral', 'a navegação da esquerda'],
-            ['disco', 'Discos do agente', 'nível e habilidades, na borda do card'],
+            ['nav', 'Na faixa de seções', 'a coluna estreita da esquerda'],
+            ['arvore', 'Na árvore', 'os itens da árvore de recursos'],
+            ['disco', 'Discos do agente', 'nível e learnings, na borda do card'],
+            ['doca', 'Na doca', 'os botões do painel da direita: contexto, NOCTURN, detalhe'],
+            ['organizacao', 'Organização', 'o card do agente no organograma'],
+            ['squad', 'Squads', 'o ícone de cada squad'],
+            ['habilidade', 'Learning', 'os selos no card do Learning'],
           ] as const).map(([id, rotulo, desc]) => {
             const [lo, hi] = vocab.iconSizeLimits?.[id] || [10, 64]
             return (
@@ -301,6 +332,51 @@ export function ConfigAparencia({ vocab, onFechar, onSalvo, embutido = false, se
           </div>
           </>}
           {mostra('ceu') && <>
+          {/* O pontilhado vem antes do céu porque é o que se vê primeiro atrás
+              dos cards — e é o que ele pediu para poder apagar sem tirar o céu. */}
+          <div className="flex items-center gap-3 mt-2 mb-1">
+            <div className="text-[10px] uppercase tracking-wider text-gray-600 flex-1">
+              Pontilhado <span className="normal-case tracking-normal">— mapa, cosmos e organização</span>
+            </div>
+            <Chave ligado={pontilhado.ativo} onMudar={v => setPontilhado(p => ({ ...p, ativo: v }))}
+              rotulo="pontilhado" />
+          </div>
+          {pontilhado.ativo && (
+            <div className="pb-3 border-b border-gray-800 space-y-2.5">
+              {([
+                ['opacidade', 'Opacidade', '%', vocab.pontilhadoLimits?.opacidade || [0, 100]],
+                ['espaco', 'Espaço entre os pontos', 'px', vocab.pontilhadoLimits?.espaco || [8, 80]],
+                ['tamanho', 'Tamanho do ponto', 'px', vocab.pontilhadoLimits?.tamanho || [1, 4]],
+              ] as const).map(([id, rotulo, un, [lo, hi]]) => (
+                <div key={id} className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1 text-sm text-gray-100">{rotulo}</div>
+                  <input type="range" min={lo} max={hi} value={pontilhado[id]}
+                    onChange={e => setPontilhado(p => ({ ...p, [id]: Number(e.target.value) }))}
+                    className="w-44 accent-blue-500" />
+                  <span className="w-12 text-right text-[11px] text-gray-400 tabular-nums">
+                    {pontilhado[id]}{un}
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1 text-sm text-gray-100">Cor dos pontos</div>
+                <div className="flex items-center gap-1.5">
+                  {COLORS.map(c => (
+                    <button key={c} onClick={() => setPontilhado(p => ({ ...p, cor: c }))} title={c}
+                      className="w-4 h-4 rounded-full border border-black/40"
+                      style={{ background: c, outline: c === pontilhado.cor ? '2px solid #fff' : 'none' }} />
+                  ))}
+                  <label className="w-6 h-6 rounded-md border border-gray-600 grid place-items-center cursor-pointer overflow-hidden"
+                    style={{ background: pontilhado.cor }}>
+                    <input type="color" value={pontilhado.cor}
+                      onChange={e => setPontilhado(p => ({ ...p, cor: e.target.value }))}
+                      className="opacity-0 w-6 h-6 cursor-pointer" />
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center gap-3 mt-5 mb-1">
             <div className="text-[10px] uppercase tracking-wider text-gray-600 flex-1">
               Céu do canvas <span className="normal-case tracking-normal">— mapa e cosmos</span>

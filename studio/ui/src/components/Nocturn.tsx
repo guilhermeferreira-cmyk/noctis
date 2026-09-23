@@ -11,7 +11,7 @@ import { Aprender } from './Aprender'
  * é um time, o que o Noctis tem é ele. Por isso mora no canto e não numa página
  * — supervisão que exige navegar até ela não supervisiona coisa alguma.
  *
- * A varredura é regra pura, feita no servidor: habilidade sem descrição, entrega
+ * A varredura é regra pura, feita no servidor: Learning sem descrição, entrega
  * sem confirmação, agente parado. Regra não precisa de modelo, e o que é
  * determinístico deve continuar determinístico mesmo quando houver um modelo do
  * outro lado.
@@ -34,6 +34,7 @@ const ROTULO_TIPO: Record<string, string> = {
   memoria_sem_uso: 'ninguém lê',
   skill_sem_leitura: 'nunca consultada',
   skill_sem_corpo: 'sem texto',
+  proposta_sem_veredito: 'espera veredito',
 }
 
 /** Um achado da ronda. Quando dá para resolver, resolve-se aqui mesmo. */
@@ -76,7 +77,7 @@ function Achado({ a, onResolvido }: { a: NocturnAchado; onResolvido: () => void 
                 agir(() => api.nocturnDescrever(a.projeto, a.chave!, texto.trim()))
               }
             }}
-            placeholder="o que esta habilidade é, em uma frase"
+            placeholder="o que este Learning é, em uma frase"
             className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-[11px] text-gray-200 focus:outline-none focus:border-violet-500 placeholder:text-gray-600" />
           {botao('ok', () => api.nocturnDescrever(a.projeto, a.chave!, texto.trim()), !texto.trim())}
         </div>
@@ -85,8 +86,8 @@ function Achado({ a, onResolvido }: { a: NocturnAchado; onResolvido: () => void 
       {/* Fundir é escolha de direção: quem absorve quem. Por isso dois botões. */}
       {a.tipo === 'skill_parecida' && (
         <div className="flex flex-wrap gap-1.5">
-          {botao('manter "' + a.rotulo + '"', () => api.fundirSkillsEm(a.projeto, [a.outra!], a.chave!))}
-          {botao('manter "' + a.outroRotulo + '"', () => api.fundirSkillsEm(a.projeto, [a.chave!], a.outra!))}
+          {botao('manter "' + a.rotulo + '"', () => api.fundirLearningsEm(a.projeto, [a.outra!], a.chave!))}
+          {botao('manter "' + a.outroRotulo + '"', () => api.fundirLearningsEm(a.projeto, [a.chave!], a.outra!))}
         </div>
       )}
 

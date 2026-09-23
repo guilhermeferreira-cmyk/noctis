@@ -87,3 +87,42 @@ textarea, input, select {
 /* No vidro, o corpo também clareia um tom — é o que faz o card parecer aceso, e
    não apenas contornado. */
 .vidro .acende:hover > .camada-vidro { background: rgba(38, 38, 38, .62); }
+
+/* ── Esqueletos ──────────────────────────────────────────────────────────────
+   A forma do que está vindo. O brilho é lento e de baixo contraste de
+   propósito: ele existe para dizer "ainda estou buscando", não para chamar
+   atenção — numa tela com meia dúzia de painéis carregando ao mesmo tempo, um
+   shimmer vistoso vira nervosismo. */
+.esqueleto {
+  background-color: rgba(255, 255, 255, .045);
+  background-image: linear-gradient(100deg,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, .055) 50%,
+    rgba(255, 255, 255, 0) 62%);
+  background-size: 260% 100%;
+  background-repeat: no-repeat;
+  animation: esqueleto-brilho 1.9s ease-in-out infinite;
+}
+
+@keyframes esqueleto-brilho {
+  from { background-position: 160% 0; }
+  to   { background-position: -60% 0; }
+}
+
+/* Quem pediu menos movimento no sistema fica só com o retângulo parado: a
+   informação ("está vindo") continua inteira sem nada se mexer. */
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto { animation: none; background-image: none; }
+}
+
+/* O sol de espera: um pulso muito lento, quase parado — ele já é grande e
+   sozinho no centro, então qualquer movimento mais vivo vira o contrário do
+   que ele deveria ser (discreto). */
+.esqueleto-sol { animation: sol-pulso 2.6s ease-in-out infinite; }
+@keyframes sol-pulso {
+  0%, 100% { opacity: .55; }
+  50%      { opacity: .95; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto-sol { animation: none; opacity: .75; }
+}
