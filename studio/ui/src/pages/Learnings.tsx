@@ -528,10 +528,17 @@ export default function LearningsPage() {
     setTags(ts => ts.includes(tg) ? ts.filter(x => x !== tg) : [...ts, tg])
 
   const [propostas, setPropostas] = useState<PropostaLearning[]>([])
+  // Nomes que os agentes citaram e que nunca viraram Learning, e teses que
+  // voltaram do despacho. O servidor sabia dos dois desde sempre; nenhuma tela
+  // mostrava, então eram 12 decisões suas esperando no escuro.
+  const [orfas, setOrfas] = useState<{ chave: string; rotulo: string; citacoes: number }[]>([])
+  const [tesesPendentes, setTesesPendentes] = useState<{ texto?: string; learning?: string }[]>([])
 
   const recarregar = useCallback(() => {
     api.learnings().then(setDados)
     api.propostas().then(r => setPropostas(r.propostas.filter(p => p.pendente))).catch(() => {})
+    api.learningsOrfaos().then(r => setOrfas(r.orfas || [])).catch(() => {})
+    api.tesesInbox().then(r => setTesesPendentes(r.teses || [])).catch(() => {})
     api.getResources().then(r => setAgentes((r.agent || []).map(a => a.name)))
   }, [])
   useEffect(() => { recarregar() }, [recarregar])
@@ -599,6 +606,35 @@ export default function LearningsPage() {
             className="w-56 bg-[#1a1a1a] border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 placeholder:text-gray-600" />
         </div>
       </div>
+
+      {/* O que espera por VOCÊ. Fica acima dos filtros porque não é conteúdo a
+          navegar: é decisão parada. Some quando não há nada — faixa que vive
+          vazia vira moldura, e moldura ninguém lê. */}
+      {(orfas.length > 0 || tesesPendentes.length > 0) && (
+        <div className="px-5 py-2 border-b border-white/[0.06] flex items-start gap-4 shrink-0 text-[11.5px]">
+          {tesesPendentes.length > 0 && (
+            <div className="min-w-0">
+              <span className="text-gray-300">{tesesPendentes.length} tese{tesesPendentes.length !== 1 ? 's' : ''} esperando resposta</span>
+              <span className="text-gray-600"> — voltaram do despacho</span>
+            </div>
+          )}
+          {orfas.length > 0 && (
+            <div className="min-w-0 flex-1">
+              <span className="text-gray-300">{orfas.length} nome{orfas.length !== 1 ? 's' : ''} citado{orfas.length !== 1 ? 's' : ''} sem Learning</span>
+              <span className="text-gray-600"> — criar, virar apelido de um que existe, ou ignorar:</span>
+              <span className="ml-1.5 flex flex-wrap gap-1 mt-1">
+                {orfas.slice(0, 8).map(o => (
+                  <code key={o.chave} title={`${o.citacoes} citação(ões)`}
+                    className="text-[10.5px] px-1.5 py-0.5 rounded bg-white/[0.05] text-gray-400">
+                    {o.rotulo}<span className="text-gray-600 tabular-nums"> {o.citacoes}</span>
+                  </code>
+                ))}
+                {orfas.length > 8 && <span className="text-[10.5px] text-gray-600">+{orfas.length - 8}</span>}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Duas linhas de filtro, e elas respondem perguntas diferentes:
           a natureza diz COMO o Learning funciona, a tag diz DE QUE ela é. */}

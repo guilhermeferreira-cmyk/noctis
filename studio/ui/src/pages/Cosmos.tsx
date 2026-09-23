@@ -7,7 +7,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { api, type Cosmos as CosmosData, type PreviewShape } from '../api'
 import { abrirMapaNaDoca } from '../lib/doca'
-import { GiTreasureMap } from 'react-icons/gi'
+import { GiTreasureMap } from '../iconesEssenciais'
 import { MenuIcon } from '../lib/menuIcons'
 import { copiar, textoDaReferencia } from '../lib/referencia'
 import { Aura, auraPorNo } from '../components/Aura'

@@ -1211,6 +1211,13 @@ export const api = {
                                        rotulo?: string; descricao?: string; motivo?: string }) =>
     req<{ ok: boolean; criada: string }>('POST', `${px()}/propostas/${encodeURIComponent(id)}/responder`, d),
   /** As propostas de Learning pendentes de TODOS os projetos — o destaque da Home. */
+  /** Nomes que agentes citaram e que nunca viraram Learning. Matéria-prima
+   *  para você decidir: criar, virar alias de um que existe, ou ignorar. */
+  learningsOrfaos: () => req<{ orfas: { chave: string; rotulo: string; citacoes: number }[] }>(
+    'GET', `${px()}/learnings-orfaos`),
+  /** Teses que voltaram do despacho e esperam a sua resposta. */
+  tesesInbox: () => req<{ teses: { id?: string; learning?: string; texto?: string; agente?: string }[] }>(
+    'GET', `${px()}/teses-inbox`),
   todasPropostas: () => req<{ propostas: (PropostaLearning & { projeto: string; projetoNome: string })[]
                               pendentes: number }>('GET', '/api/todos/propostas'),
   /** O Runtime: quem trabalhou, quando, em quê.

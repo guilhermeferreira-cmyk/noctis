@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, type CanvasMeta } from '../api'
-import { GiTreasureMap, GiFiles } from 'react-icons/gi'
+import { GiTreasureMap, GiFiles } from '../iconesEssenciais'
 import { MenuIcon } from '../lib/menuIcons'
 import { copiar, textoDaReferencia } from '../lib/referencia'
 

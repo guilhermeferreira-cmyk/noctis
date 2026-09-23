@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { GiSkills } from 'react-icons/gi'
+import { GiSkills } from '../iconesEssenciais'
 import { api, type FichaAgente, type Learning } from '../api'
 import { ICON_SIZES } from '../lib/kinds'
 import { EsqueletoLinhas, EsqueletoPainel } from './Esqueleto'

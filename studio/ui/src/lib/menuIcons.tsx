@@ -1,8 +1,4 @@
-import {
-  GiEyeball, GiDirectionSigns, GiQuillInk, GiStabbedNote, GiChoice, GiCheckMark,
-  GiReturnArrow, GiTrashCan, GiOrganigram, GiArchiveResearch, GiWeightScale,
-  GiMagicSwirl, GiBreakingChain, GiEmptyChessboard, GiThreeLeaves, GiStack, GiIdCard, GiBookmarklet,
-} from 'react-icons/gi'
+import { GiEyeball, GiDirectionSigns, GiQuillInk, GiStabbedNote, GiChoice, GiCheckMark, GiReturnArrow, GiTrashCan, GiOrganigram, GiArchiveResearch, GiWeightScale, GiMagicSwirl, GiBreakingChain, GiEmptyChessboard, GiThreeLeaves, GiStack, GiIdCard, GiBookmarklet } from '../iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { ICON_SIZES } from './kinds'
 

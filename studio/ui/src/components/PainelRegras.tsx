@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { GiPadlock } from 'react-icons/gi'
+import { GiPadlock } from '../iconesEssenciais'
 import { api, type Regra, type RegrasView, type MudancaRegra } from '../api'
 import { Switch } from './Switch'
 import { EsqueletoPainel } from './Esqueleto'

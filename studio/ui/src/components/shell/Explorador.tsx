@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { GiOpenFolder, GiMagnifyingGlass, GiSkills, GiTreasureMap, GiCycle,
-         GiContract } from 'react-icons/gi'
+import { GiOpenFolder, GiMagnifyingGlass, GiSkills, GiTreasureMap, GiCycle, GiContract } from '../../iconesEssenciais'
 import { api, type CanvasMeta, type ResourceItem, type ResourceKind } from '../../api'
 import { KIND_META, ICON_SIZES } from '../../lib/kinds'
 import { copiar, textoDaReferencia } from '../../lib/referencia'

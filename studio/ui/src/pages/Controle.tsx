@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { GiControlTower } from 'react-icons/gi'
+import { GiControlTower } from '../iconesEssenciais'
 import { api, type ControleView } from '../api'
 import { PainelRegras } from '../components/PainelRegras'
 

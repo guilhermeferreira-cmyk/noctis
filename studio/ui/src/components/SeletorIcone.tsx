@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { buscarIcones, getIcon, nomeLegivel, ICON_NAMES } from '../memoryIcons'
+import { useEffect, useMemo, useState } from 'react'
+import { buscarIcones, getIcon, nomeLegivel, iconNames,
+         carregarIcones, aoCarregarIcones } from '../memoryIcons'
 
 /**
  * Seletor de ícone sobre o set inteiro do game-icons.net.
@@ -20,7 +21,15 @@ export function SeletorIcone({ atual, cor = '#cbd5e1', onEscolher, compacto = fa
   compacto?: boolean
 }) {
   const [termo, setTermo] = useState('')
-  const achados = useMemo(() => buscarIcones(termo), [termo])
+  // Abrir o seletor é a intenção mais clara de "quero ver todos": é aqui que o
+  // set completo é pedido. E é preciso ouvir a chegada dele, senão a busca
+  // ficaria presa às sugestões até a pessoa digitar de novo sem saber por quê.
+  const [versao, setVersao] = useState(0)
+  useEffect(() => {
+    carregarIcones()
+    return aoCarregarIcones(() => setVersao(v => v + 1))
+  }, [])
+  const achados = useMemo(() => buscarIcones(termo), [termo, versao])
 
   return (
     <div>
@@ -31,7 +40,7 @@ export function SeletorIcone({ atual, cor = '#cbd5e1', onEscolher, compacto = fa
           spellCheck={false}
           className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-blue-500 placeholder:text-gray-600" />
         <span className="text-[10px] text-gray-600 shrink-0 tabular-nums">
-          {termo ? `${achados.length}${achados.length >= 240 ? '+' : ''}` : `${ICON_NAMES.length}`}
+          {termo ? `${achados.length}${achados.length >= 240 ? '+' : ''}` : `${iconNames().length}`}
         </span>
       </div>
 
@@ -57,7 +66,7 @@ export function SeletorIcone({ atual, cor = '#cbd5e1', onEscolher, compacto = fa
 
       {!termo && (
         <p className="text-[10px] text-gray-600 mt-1">
-          sugestões — digite para procurar em todos os {ICON_NAMES.length}
+          sugestões — digite para procurar em todos os {iconNames().length}
         </p>
       )}
     </div>

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { GiPaintBucket, GiSkills, GiPadlock, GiLevelEndFlag, GiInfo, GiOpenFolder, GiFamilyTree,
-         GiSettingsKnobs, GiStarsStack, GiSunrise, GiCrystalGrowth, GiScrollUnfurled } from 'react-icons/gi'
+import { GiPaintBucket, GiSkills, GiPadlock, GiLevelEndFlag, GiInfo, GiOpenFolder, GiFamilyTree, GiSettingsKnobs, GiStarsStack, GiSunrise, GiCrystalGrowth, GiScrollUnfurled } from '../iconesEssenciais'
 import { api, enderecoDaApi, enderecoPadrao, definirEnderecoDaApi, saude,
          type Saude, type MemoryVocab, type ProjectMeta } from '../api'
 import { ConfigAparencia, type SecaoAparencia } from './ConfigAparencia'

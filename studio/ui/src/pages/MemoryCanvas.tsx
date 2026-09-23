@@ -14,7 +14,7 @@ import {
   type Decision,
   type LaneDigest, type Attachment,
 } from '../api'
-import { getIcon, ICON_NAMES } from '../memoryIcons'
+import { getIcon, iconNames } from '../memoryIcons'
 import { abrirRecursoNaDoca, recursoRenomeado } from '../lib/doca'
 import { CanvasPicker } from '../components/CanvasPicker'
 import { OrigemIcone } from '../components/OrigemIcone'
@@ -30,7 +30,7 @@ import { BlocoDecisao, AUTOR_LOCAL } from '../components/BlocoDecisao'
 import { EditorDecisao } from '../components/EditorDecisao'
 import { CarregandoNoctis, EsqueletoLinhas, EsqueletoPainel } from '../components/Esqueleto'
 import { ItemMenu, MenuIcon } from '../lib/menuIcons'
-import { GiTreasureMap } from 'react-icons/gi'
+import { GiTreasureMap } from '../iconesEssenciais'
 import { EdgeGradiente } from '../components/EdgeGradiente'
 import { COLORS, KIND_META, KIND_ORDER, type DrawerTarget, ICON_SIZES, VIDRO, CEU, AURA, TIPO_META, PONTILHADO } from '../lib/kinds'
 

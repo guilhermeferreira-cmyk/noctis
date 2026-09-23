@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { GiLockedChest } from 'react-icons/gi'
+import { GiLockedChest } from '../iconesEssenciais'
 import { api, getProject, type LearningCard, type SkillClaudeCard } from '../api'
 import { doSistema } from '../lib/kinds'
 import { getIcon } from '../memoryIcons'

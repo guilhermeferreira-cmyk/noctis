@@ -1,23 +1,27 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import AgentsPage   from './pages/Agents'
-import OrganizacaoPage from './pages/Organizacao'
-import FlowsPage    from './pages/Flows'
-import MemoryPage   from './pages/Memory'
-import PersonasPage from './pages/Personas'
-import SetupPage    from './pages/Setup'
-import MemoryCanvasPage from './pages/MemoryCanvas'
-import LearningsPage from './pages/Learnings'
-import SkillsPage from './pages/Skills'
-import RuntimePage from './pages/Runtime'
-import ControlePage from './pages/Controle'
-import CosmosPage from './pages/Cosmos'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+// As páginas viram pedaços próprios. Abrir o Noctis não precisa baixar o
+// Cosmos, o Runtime e o gerador de setup junto — e quem nunca abre uma seção
+// nunca paga por ela. `lazy` exige `Suspense` em volta de quem as desenha.
+const AgentsPage       = lazy(() => import('./pages/Agents'))
+const OrganizacaoPage  = lazy(() => import('./pages/Organizacao'))
+const FlowsPage        = lazy(() => import('./pages/Flows'))
+const MemoryPage       = lazy(() => import('./pages/Memory'))
+const PersonasPage     = lazy(() => import('./pages/Personas'))
+const SetupPage        = lazy(() => import('./pages/Setup'))
+const MemoryCanvasPage = lazy(() => import('./pages/MemoryCanvas'))
+const LearningsPage    = lazy(() => import('./pages/Learnings'))
+const SkillsPage       = lazy(() => import('./pages/Skills'))
+const RuntimePage      = lazy(() => import('./pages/Runtime'))
+const ControlePage     = lazy(() => import('./pages/Controle'))
+const CosmosPage       = lazy(() => import('./pages/Cosmos'))
 import ProjectsModal from './ProjectsModal'
 import { api, getProject, setProject, type ProjectMeta } from './api'
-import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse } from 'react-icons/gi'
+import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse } from './iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
          aplicarLogo, aplicarCeu, aplicarVidro, ICON_SIZES, CEU, VIDRO, LOGO } from './lib/kinds'
 import { FundoEstrelado } from './components/FundoEstrelado'
+import { CarregandoNoctis } from './components/Esqueleto'
 import { getIcon } from './memoryIcons'
 import { Configuracoes } from './components/Configuracoes'
 import { usePreferencias, preferencias } from './lib/preferencias'
@@ -593,7 +597,12 @@ export default function App() {
                 não perde rolagem, filtro nem o que estava sendo editado. */}
             {abas.map(a => (
               <div key={a.id} hidden={a.id !== ativa} className="absolute inset-0">
-                {conteudo(a)}
+                {/* O sol do Noctis enquanto o pedaço da página chega. É a
+                    mesma espera que já existia na troca de projeto, agora
+                    também na primeira visita a uma seção. */}
+                <Suspense fallback={<CarregandoNoctis />}>
+                  {conteudo(a)}
+                </Suspense>
               </div>
             ))}
             {!abaAtiva && (
