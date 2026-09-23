@@ -235,9 +235,23 @@ export interface ProjectMeta {
   oculto?: boolean
   permanente?: boolean
   repositorio?: boolean
+  /** A superfície a que este projeto pertence. Ausente = `noctis`, o de origem. */
+  hub?: Hub
   /** O projeto LIGADO: só existe um, e é nele que o trabalho acontece. */
   ligado?: boolean
 }
+
+/**
+ * Os hubs da suíte. O motor é o mesmo; o que muda é o objetivo — `noctis`
+ * governa conhecimento, `diem` produz — e por isso as REGRAS podem divergir
+ * (ver `regras.valor(rid, escopo)` no servidor).
+ *
+ * Hub é propriedade do PROJETO, não um segundo eixo de navegação: abrir um
+ * projeto do outro hub já troca a superfície inteira, e `trocarDeProjeto` já
+ * remonta tudo. Projeto sem declaração é do hub de origem.
+ */
+export type Hub = 'noctis' | 'diem'
+export const HUB_PADRAO: Hub = 'noctis' 
 
 export interface SetupBrief {
   name: string

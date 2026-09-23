@@ -17,7 +17,7 @@ const CosmosPage       = lazy(() => import('./pages/Cosmos'))
 const ZenPage          = lazy(() => import('./pages/Zen'))
 const VisaoPage        = lazy(() => import('./pages/Home'))
 import ProjectsModal from './ProjectsModal'
-import { api, getProject, setProject, type ProjectMeta } from './api'
+import { api, getProject, setProject, HUB_PADRAO, type Hub, type ProjectMeta } from './api'
 import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse, GiSpikedShield } from './iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
@@ -64,10 +64,16 @@ type Aba =
 // já tem chave própria no painel. Sem isto haveria duas chaves disputando o
 // mesmo nome — e mudar a errada não pintaria nada, que é o pior defeito de um
 // painel de configuração.
-const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType; color?: string; chave?: string }[] = [
-  // A entrada do Warden. Só aparece no projeto base — ver o filtro da faixa.
+// `hubs` é o que diferencia uma superfície da outra — e é só isto. A CASCA é a
+// mesma nos dois hubs: mesma faixa, mesma árvore, mesmas abas, mesma doca.
+// Inventar uma segunda casca seria manter dois desenhos que divergem no dia em
+// que alguém ajusta um. O que muda é QUE SEÇÕES existem, a marca, e as regras
+// (essas no servidor, por escopo). Seção sem `hubs` aparece em todos.
+const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType;
+                 color?: string; chave?: string; hubs?: readonly Hub[] }[] = [
+  // A entrada do Warden. Só no hub que ela governa, e só no projeto base.
   { id: 'visao',    label: 'Visão geral', icon: GiSpikedShield, color: '#f59e0b',
-    chave: 'warden.identidade' },
+    chave: 'warden.identidade', hubs: ['noctis'] },
   { id: 'agents',   label: 'Agentes',  kind: 'agent' },
   { id: 'organizacao', label: 'Organização', icon: GiFamilyTree, color: '#a78bfa' },
   { id: 'memory',   label: 'Memória',  kind: 'memory' },
@@ -77,10 +83,16 @@ const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType
   { id: 'skillsclaude', label: 'Skills', icon: GiBookCover, color: '#0ea5e9' },
   { id: 'runtime',  label: 'Runtime', icon: GiPulse, color: '#f472b6' },
   { id: 'canvas',   label: 'Mapa de Memória', icon: GiTreasureMap, color: '#06b6d4' },
-  { id: 'cosmos',   label: 'Cosmos', icon: GiGalaxy, color: '#a78bfa' },
+  { id: 'cosmos',   label: 'Cosmos', icon: GiGalaxy, color: '#a78bfa', hubs: ['noctis'] },
   { id: 'controle', label: 'Controle', icon: GiControlTower, color: '#38bdf8' },
-  { id: 'setup',    label: 'Gerar Setup', icon: GiMagicSwirl, color: '#a855f7' },
+  { id: 'setup',    label: 'Gerar Setup', icon: GiMagicSwirl, color: '#a855f7', hubs: ['noctis'] },
 ]
+/** A seção existe neste hub? Um só lugar responde, e os três pontos que
+ *  precisam saber — a faixa, a aba padrão e a peneira — perguntam aqui. */
+const noHub = (p: { hubs?: readonly Hub[] }, hub: Hub) => !p.hubs || p.hubs.includes(hub)
+
+const paginasDoHub = (hub: Hub) => PAGINAS.filter(p => noHub(p, hub))
+
 const rotuloPagina = (p: Pagina) => PAGINAS.find(x => x.id === p)?.label || p
 
 const tituloDaAba = (a: Aba) => a.tipo === 'pagina' ? rotuloPagina(a.pagina) : a.titulo
@@ -161,12 +173,18 @@ function AbasDeProjeto({ projetos, atual, naVisao, onVisao, onAbrir, onNovo, onZ
       <span className="w-px h-4 bg-white/[0.08] mx-1 shrink-0" />
       {projetos.map(p => {
         const aberto = p.slug === atual
+        // Um projeto de outro hub se anuncia ANTES de ser aberto: sem isto, a
+        // única forma de saber em que superfície você vai cair seria clicar.
+        const h = p.hub || HUB_PADRAO
+        const m = h === HUB_PADRAO ? null : doSistema(`hub.${h}`, 'GiSunrise', '#f59e0b')
         return (
-          <div key={p.slug} onClick={() => onAbrir(p.slug)} title="Abrir este projeto"
+          <div key={p.slug} onClick={() => onAbrir(p.slug)}
+            title={m ? `Abrir este projeto — hub ${m.label}` : 'Abrir este projeto'}
             className={`group/pj h-6 shrink-0 flex items-center gap-1.5 px-2 rounded-md cursor-pointer
                         text-[11.5px] transition-colors border
                         ${aberto && !naVisao ? 'text-gray-100 bg-white/[0.07] border-white/[0.10]'
-                                          : 'text-gray-500 hover:text-gray-200 border-transparent'}`}>
+                                          : 'text-gray-500 hover:text-gray-200 border-transparent'}`}
+            style={m ? { boxShadow: `inset 2px 0 0 ${m.color}` } : undefined}>
             <span className="truncate max-w-[12rem]">{p.displayName}</span>
           </div>
         )
@@ -209,9 +227,10 @@ const chaveAbas = (proj: string) => `noctis.abas.${proj}`
  * agentes ao abrir o Noctis seria começar pelo detalhe. Projeto de trabalho
  * abre em Agentes, que é por onde o trabalho começa.
  */
-const padraoAbas = (proj: string): { abas: Aba[]; ativa: string } => proj === 'noctis'
-  ? { abas: [{ id: 'pagina:visao', tipo: 'pagina', pagina: 'visao' }], ativa: 'pagina:visao' }
-  : { abas: [{ id: 'pagina:agents', tipo: 'pagina', pagina: 'agents' }], ativa: 'pagina:agents' }
+const padraoAbas = (proj: string, hub: Hub = HUB_PADRAO): { abas: Aba[]; ativa: string } => {
+  const id: Pagina = (proj === 'noctis' && hub === 'noctis') ? 'visao' : 'agents'
+  return { abas: [{ id: `pagina:${id}`, tipo: 'pagina', pagina: id }], ativa: `pagina:${id}` }
+}
 
 /**
  * As abas de um projeto, como ficaram na última vez — peneiradas.
@@ -227,27 +246,29 @@ const padraoAbas = (proj: string): { abas: Aba[]; ativa: string } => proj === 'n
  * dela usa. O que não passa é descartado em silêncio — perder uma aba aberta é
  * barato; não conseguir abrir o app, não.
  */
-function lerAbas(proj: string): { abas: Aba[]; ativa: string } {
+function lerAbas(proj: string, hub: Hub = HUB_PADRAO): { abas: Aba[]; ativa: string } {
   try {
     const d = JSON.parse(localStorage.getItem(chaveAbas(proj)) || 'null')
-    if (!d || !Array.isArray(d.abas)) return padraoAbas(proj)
+    if (!d || !Array.isArray(d.abas)) return padraoAbas(proj, hub)
     const validas: Aba[] = d.abas.filter((a: Aba | null) => {
       if (!a || typeof a !== 'object' || !a.id) return false
       // A Visão geral é do projeto base. Uma aba dela presa num projeto cliente
       // renderizaria a grade de TODOS os projetos lá dentro — dado de outro
       // contexto na tela, que é o pior defeito possível aqui.
-      if (a.tipo === 'pagina') return PAGINAS.some(x => x.id === a.pagina)
+      // Aba de uma seção que não existe neste hub é descartada: ela
+      // renderizaria conteúdo de outra superfície dentro desta.
+      if (a.tipo === 'pagina') return PAGINAS.some(x => x.id === a.pagina && noHub(x, hub))
         && (a.pagina !== 'visao' || proj === 'noctis')
       if (a.tipo === 'recurso') return !!a.kind && !!KIND_META[a.kind] && !!a.nome
       if (a.tipo === 'skill') return !!a.chave
       if (a.tipo === 'mapa') return !!a.mapa
       return false
     })
-    if (!validas.length) return padraoAbas(proj)
+    if (!validas.length) return padraoAbas(proj, hub)
     const ativa = validas.some(a => a.id === d.ativa) ? d.ativa : validas[0].id
     return { abas: validas, ativa }
   } catch { /* sem storage */ }
-  return padraoAbas(proj)
+  return padraoAbas(proj, hub)
 }
 
 export default function App() {
@@ -315,7 +336,7 @@ export default function App() {
     setProjects(list)
     const wanted = select || getProject()
     const chosen = list.some(p => p.slug === wanted) ? wanted : (list[0]?.slug ?? 'noctis')
-    trocarDeProjeto(chosen)
+    trocarDeProjeto(chosen, list)
     // Migração da tela do Warden, que era um ramo (`noctis.casa`) e virou a
     // página 'visao'. Sem isto, quem fechou o app na home reabriria numa grade
     // de agentes e acharia que a tela sumiu. Roda uma vez e apaga a chave.
@@ -347,13 +368,17 @@ export default function App() {
   // Trocar de projeto troca o escopo e as abas. Não existe mais "sair da home":
   // a tela do Warden é a página 'visao' do projeto base, e chega-se a ela como
   // a qualquer outra página — abrindo a aba.
-  function trocarDeProjeto(slug: string) {
+  function trocarDeProjeto(slug: string, lista: ProjectMeta[] = projects) {
     setProject(slug)
     setCurrent(slug)
+    // O hub sai do PROJETO. `lista` existe porque a primeira troca acontece
+    // dentro de `loadProjects`, antes de `projects` ter chegado ao estado — sem
+    // ela, abrir o app num projeto Diem restauraria as abas do hub errado.
+    const hub = lista.find(x => x.slug === slug)?.hub || HUB_PADRAO
     // Sem restaurar abas, ainda assim abre no padrão do projeto: devolver
     // `{abas:[]}` deixava o Noctis numa tela vazia em vez da Visão, e fazia o
     // mesmo com quem chega pelo Controle ou pelas Configurações.
-    const salvo = preferencias().restaurarAbas ? lerAbas(slug) : padraoAbas(slug)
+    const salvo = preferencias().restaurarAbas ? lerAbas(slug, hub) : padraoAbas(slug, hub)
     setAbas(salvo.abas)
     setAtiva(salvo.ativa)
     setHistorico({ pilha: [salvo.ativa], pos: 0 })
@@ -471,6 +496,10 @@ export default function App() {
   const abaAtiva = abas.find(a => a.id === ativa)
   const currentMeta = projects.find(p => p.slug === current)
   const nomeProjeto = currentMeta?.displayName ?? current
+  // A superfície em que você está. Sai do projeto aberto, e é o que decide
+  // quais seções a faixa oferece e que marca a tira de cima mostra.
+  const hub: Hub = currentMeta?.hub || HUB_PADRAO
+  const marcaDoHub = doSistema(`hub.${hub}`, 'GiHeraldicSun', '#a78bfa')
 
   const contexto: Contexto = useMemo(() => {
     if (!abaAtiva) return null
@@ -608,7 +637,7 @@ export default function App() {
         {/* Faixa de ícones: cada seção na própria cor, como a barra antiga */}
         {prefs.mostrarFaixa && <nav className="shrink-0 flex flex-col items-center gap-1 py-1 mr-1.5" style={{ width: larguraFaixa }}>
           {!esq && <div className="mb-2" title="Noctis"><LogoNoctis size={Math.min(28, tamIcone + 6)} /></div>}
-          {PAGINAS.filter(p => !prefs.secoesOcultas.includes(p.id)
+          {paginasDoHub(hub).filter(p => !prefs.secoesOcultas.includes(p.id)
                      // A Visão geral é a entrada do WARDEN: dentro de um projeto
                      // cliente ela mostraria a grade de todos, que é dado de outro
                      // contexto na tela. `current` (estado) e não getProject(),
@@ -659,7 +688,13 @@ export default function App() {
               <div className="px-3 pt-3 pb-2 flex items-center gap-2.5 shrink-0">
                 <LogoNoctis size={Math.min(LOGO.tamanho, 64)} className="shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-gray-100 font-bold text-[15px] leading-tight tracking-tight">Noctis</div>
+                  {/* O nome do HUB, não uma constante: é o rótulo que diz em que
+                      superfície da suíte você está, e ele vem de Aparência ›
+                      Hubs como tudo mais. */}
+                  <div className="font-bold text-[15px] leading-tight tracking-tight truncate"
+                    style={{ color: hub === HUB_PADRAO ? '#f3f4f6' : marcaDoHub.color }}>
+                    {marcaDoHub.label}
+                  </div>
                   <div className="text-[10.5px] text-gray-500 truncate">{nomeProjeto}</div>
                 </div>
               </div>

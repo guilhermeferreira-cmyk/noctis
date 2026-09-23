@@ -1808,6 +1808,11 @@ SISTEMA_PADRAO: dict[str, dict] = {
     "secao.setup":       {"grupo": "Seções", "label": "Gerar Setup", "icon": "GiMagicSwirl", "color": "#a855f7"},
     "secao.config":      {"grupo": "Seções", "label": "Configurações", "icon": "GiGears", "color": "#71717a"},
     "secao.zen":         {"grupo": "Seções", "label": "Modo zen", "icon": "GiMeditation", "color": "#a78bfa"},
+    # Os hubs da suíte. A casca é a mesma nos dois; o que os diferencia é o
+    # conjunto de seções, as regras (por escopo) e ESTA marca — o nome e a cor
+    # que dizem em que superfície você está.
+    "hub.noctis":        {"grupo": "Hubs", "label": "Noctis", "icon": "GiHeraldicSun", "color": "#a78bfa"},
+    "hub.diem":          {"grupo": "Hubs", "label": "Diem", "icon": "GiSunrise", "color": "#f59e0b"},
     # a casa: o Warden e as camadas dele
     # A ÚNICA chave do Warden. Ela pinta tudo que é Warden na tela: o ícone da
     # seção na faixa, a aba da Visão geral, o botão de casa e a crista do hub.
