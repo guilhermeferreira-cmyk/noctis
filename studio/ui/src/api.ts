@@ -1116,7 +1116,7 @@ export const api = {
   enviarAgente:   (nome: string, para: string)    =>
     req<{ ok: boolean; para: string; nome: string; renomeado: boolean }>(
       'POST', `${px()}/agents/${encodeURIComponent(nome)}/enviar`, { para }),
-  createProject:  (name: string, slug?: string)   => req<{ok: boolean; slug: string; displayName: string}>('POST', '/api/projects', { name, slug }),
+  createProject:  (name: string, slug?: string, hub?: Hub) => req<{ok: boolean; slug: string; displayName: string; hub: Hub}>('POST', '/api/projects', { name, slug, hub }),
   deleteProject:  (slug: string)                  => req<{ok: boolean}>('DELETE', `/api/projects/${slug}`),
   // Esconder tira da lista sem tocar no disco — o caminho para repositório de
   // código e projeto morto, que a lixeira recusa de propósito.

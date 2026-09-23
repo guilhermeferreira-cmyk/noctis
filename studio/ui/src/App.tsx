@@ -28,7 +28,7 @@ import { getIcon } from './memoryIcons'
 import { Configuracoes } from './components/Configuracoes'
 import { usePreferencias, preferencias } from './lib/preferencias'
 import { useDoca } from './lib/doca'
-import { confirmar, pedirTexto, aviso } from './lib/dialogos'
+import { confirmar, pedirTexto, escolher, aviso } from './lib/dialogos'
 import { Dialogos } from './components/dialogos/Dialogos'
 import { LogoNoctis } from './components/LogoNoctis'
 import { Drawer } from './components/Drawer'
@@ -89,6 +89,14 @@ const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType
 ]
 /** A seção existe neste hub? Um só lugar responde, e os três pontos que
  *  precisam saber — a faixa, a aba padrão e a peneira — perguntam aqui. */
+/** Os hubs que se pode escolher ao criar um projeto. A aparência de cada um
+ *  vem de `hub.<id>` (Aparência › Hubs); aqui fica só o que o painel não sabe:
+ *  para que serve cada superfície. */
+const HUBS: { id: Hub; icone: string; cor: string; dica: string }[] = [
+  { id: 'noctis', icone: 'GiHeraldicSun', cor: '#a78bfa', dica: 'conhecimento, agentes e governança' },
+  { id: 'diem',   icone: 'GiSunrise',     cor: '#f59e0b', dica: 'produção — tarefas, peças e ritmo' },
+]
+
 const noHub = (p: { hubs?: readonly Hub[] }, hub: Hub) => !p.hubs || p.hubs.includes(hub)
 
 const paginasDoHub = (hub: Hub) => PAGINAS.filter(p => noHub(p, hub))
@@ -386,13 +394,27 @@ export default function App() {
   }
 
   async function createProject() {
+    // O hub vem PRIMEIRO, e é a única escolha irreversível das duas: ele define
+    // a superfície que abre o projeto e as regras que valem lá dentro. Nome se
+    // renomeia depois; hub se escolhe sabendo o que se quer fazer ali.
+    const alvo = await escolher({
+      titulo: 'Onde este projeto nasce?',
+      corpo: 'O motor é o mesmo. O que muda são as seções que você vê e as regras que valem — um hub governa conhecimento, o outro produz.',
+      itens: HUBS.map(h => {
+        const m = doSistema(`hub.${h.id}`, h.icone, h.cor)
+        return { valor: h.id, rotulo: m.label, detalhe: h.dica, icone: m.icon, cor: m.color }
+      }),
+    })
+    if (!alvo) return
     const name = await pedirTexto({
       titulo: 'Novo projeto', rotulo: 'Nome',
       dica: 'como você chamaria numa conversa', confirmar: 'criar',
     })
     if (!name) return
-    try { const res = await api.createProject(name); await loadProjects(res.slug) }
-    catch (e) { aviso.erro(e) }
+    try {
+      const res = await api.createProject(name, undefined, alvo as Hub)
+      await loadProjects(res.slug)
+    } catch (e) { aviso.erro(e) }
   }
   async function deleteProject(slug: string) {
     const proj = projects.find(p => p.slug === slug)
