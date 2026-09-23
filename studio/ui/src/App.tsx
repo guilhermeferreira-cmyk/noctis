@@ -16,6 +16,7 @@ const ControlePage     = lazy(() => import('./pages/Controle'))
 const CosmosPage       = lazy(() => import('./pages/Cosmos'))
 const ZenPage          = lazy(() => import('./pages/Zen'))
 const ProducaoPage     = lazy(() => import('./pages/Producao'))
+const EstadoPage       = lazy(() => import('./pages/Estado'))
 const VisaoPage        = lazy(() => import('./pages/Home'))
 import ProjectsModal from './ProjectsModal'
 import { api, getProject, setProject, HUB_PADRAO, type Hub, type ProjectMeta } from './api'
@@ -51,7 +52,7 @@ import type { MemoryVocab, ResourceKind } from './api'
  * que se trabalha junto fica aberto junto.
  */
 
-type Pagina = 'visao' | 'tasks' | 'artifacts' | 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
+type Pagina = 'visao' | 'estado' | 'tasks' | 'artifacts' | 'agents' | 'organizacao' | 'flows' | 'personas' | 'memory' | 'learning' | 'skillsclaude' | 'runtime' | 'cosmos' | 'canvas' | 'controle' | 'setup'
 
 type Aba =
   | { id: string; tipo: 'pagina'; pagina: Pagina }
@@ -78,6 +79,9 @@ const PAGINAS: { id: Pagina; label: string; kind?: ResourceKind; icon?: IconType
   // Tarefa vale nos DOIS hubs: o trabalho em voo não é assunto de marketing —
   // o Maestro do Overhaul e o Braço Direito rastreiam despacho em tabela de
   // Markdown pela mesma falta. Peça é da produção, e fica no Diem.
+  // O estado declarado da frente. É do Diem porque é lá que o playbook tem
+  // fase e gate; no Noctis o estado de um projeto é o acervo dele.
+  { id: 'estado',   label: 'Estado', icon: GiSkills, color: '#22d3ee', hubs: ['diem'] },
   { id: 'tasks',    label: 'Tarefas', kind: 'task' },
   { id: 'artifacts', label: 'Peças',  kind: 'artifact', hubs: ['diem'] },
   { id: 'agents',   label: 'Agentes',  kind: 'agent' },
@@ -562,6 +566,7 @@ export default function App() {
       case 'organizacao': return <OrganizacaoPage key={scope} />
       case 'flows':    return <FlowsPage key={scope} />
       case 'personas': return <PersonasPage key={scope} />
+      case 'estado':   return <EstadoPage key={scope} />
       case 'tasks':    return <ProducaoPage key={scope} kind="task" />
       case 'artifacts': return <ProducaoPage key={scope} kind="artifact" />
       case 'memory':   return <MemoryPage key={scope} />

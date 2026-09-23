@@ -137,6 +137,7 @@ AREAS = [
     ("agentes",     "Agentes aplicados",     "arquétipos, nicknames e o que atravessa projeto"),
     ("runtime",     "Runtime",               "o que a tela do que está rodando mostra, e quanto de cada vez"),
     ("nocturn",     "Supervisão",            "o que o NOCTURN cobra, e a partir de quando"),
+    ("producao",    "Produção",              "o que o hub Diem cobra de uma peça antes de ela poder ser aprovada"),
     ("protecoes",   "Proteções",             "o que o Noctis nunca deixa acontecer"),
 ]
 
@@ -479,6 +480,35 @@ CATALOGO: list[dict] = [
      "porque": "O histórico é para durar e não tem corte por tempo. Trazer tudo de uma vez custaria a velocidade que a paginação existe para proteger.",
      "onde": ["servidor"]},
 
+    # ── Produção ──────────────────────────────────────────────────────────────
+    # O gate do playbook era uma PROMESSA: o prompt do maestro mandava escrever
+    # "GATE PASSED" ou "GATE FAILED", e nada no runtime impedia avançar. Já
+    # falhou em público — o gate 03 foi declarado FALHADO e a fase 05
+    # autorizada no mesmo ato. A diferença entre promessa e mecanismo é rodar
+    # na ESCRITA, e é o que estas regras governam.
+    {"id": "producao.gate_editorial", "area": "producao", "tipo": "bool", "padrao": True,
+     "titulo": "Verificar a peça antes de deixá-la ser aprovada",
+     "faz": "Uma peça só transita para `approved` se passar no verificador. Reprovada, o servidor recusa e diz o motivo.",
+     "porque": "Sem isto a aprovação é um clique e o gate volta a ser texto no prompt — que é onde ele já falhou.",
+     "onde": ["servidor"]},
+    {"id": "producao.vocabulario_banido", "area": "producao", "tipo": "palavras",
+     "padrao": ["revolução", "transformação", "jornada", "inovação", "empoderar", "desbloquear"],
+     "titulo": "Palavras que reprovam uma peça",
+     "faz": "O verificador recusa a peça que use qualquer um destes termos, e nomeia qual.",
+     "porque": "São palavras que soam a marketing e não dizem nada. A lista é sua: cravá-la no código faria dela uma regra que o painel mostra e o código ignora.",
+     "onde": ["servidor"]},
+    {"id": "producao.sem_travessao", "area": "producao", "tipo": "bool", "padrao": True,
+     "titulo": "Reprovar peça com travessão",
+     "faz": "O verificador recusa a peça que contenha travessão (—).",
+     "porque": "É a marca de texto gerado por máquina, e a regra editorial que mais se repete no seu material.",
+     "onde": ["servidor"]},
+    {"id": "producao.aprovacao_automatica", "area": "producao", "tipo": "bool", "padrao": False,
+     "titulo": "Deixar a peça se aprovar sozinha quando passa no verificador",
+     "faz": "Ligada, uma peça que passa no gate vai de `generated` direto a `approved`, sem esperar você.",
+     "porque": "Aprovar peça por peça é o gargalo que transforma máquina em esteira manual — e a decisão que carrega risco já foi tomada antes, na mensagem que alimenta a máquina. Nasce DESLIGADA: sem verificador, isto seria aprovação sem verificação.",
+     "onde": ["servidor"],
+     "depende": "producao.gate_editorial"},
+
     {"id": "protecoes.base_permanente", "area": "protecoes", "tipo": "bool", "padrao": True, "fixa": True,
      "titulo": "A base de conhecimento não se apaga nem se renomeia",
      "faz": "O projeto `noctis` recusa exclusão e renomeação.",
@@ -622,6 +652,20 @@ def _validar(r: dict, v):
             out.append({"campo": campo, "titulo": str(item.get("titulo") or campo)[:60],
                         "tipo": tipo, "texto": texto, "opcoes": opcoes,
                         "frase": str(item.get("frase") or "{escolhas}.")[:200]})
+        return out
+    if t == "palavras":
+        # Uma lista de termos. Existe porque o verificador editorial precisa de
+        # uma lista que VOCÊ edita — cravá-la no código faria dela uma regra que
+        # o painel mostra e o código ignora, que é o defeito que este registro
+        # existe para não ter.
+        if not isinstance(v, list):
+            raise ValueError("esperado uma lista de termos")
+        vistos, out = set(), []
+        for item in v[:200]:
+            termo = str(item).strip()[:60]
+            if termo and termo.lower() not in vistos:
+                vistos.add(termo.lower())
+                out.append(termo)
         return out
     if t == "curva":
         base, expo = float(v[0]), float(v[1])

@@ -250,6 +250,28 @@ export interface ProjectMeta {
  * projeto do outro hub já troca a superfície inteira, e `trocarDeProjeto` já
  * remonta tudo. Projeto sem declaração é do hub de origem.
  */
+export interface MudancaEstado {
+  quando: string
+  campo: string
+  de: unknown
+  para: unknown
+  ator: string
+  veredito: 'proposto' | 'aplicado' | 'recusado'
+  motivo?: string
+  origem?: string
+}
+
+export interface EstadoProjeto {
+  fase: string
+  gate: string
+  hipoteses: string[]
+  bloqueios: string[]
+  atualizado_em: string
+  prosa: string
+  existe: boolean
+  mudancas: MudancaEstado[]
+}
+
 export type Hub = 'noctis' | 'diem'
 export const HUB_PADRAO: Hub = 'noctis' 
 
@@ -1165,6 +1187,12 @@ export const api = {
   gravarRecurso:   (kind: ResourceKind, name: string, corpo: {content?: string; dados?: Record<string, unknown>}) => req<{ok: boolean}>('PUT', `${px()}/recursos/${kind}/${encodeURIComponent(name)}`, corpo),
   apagarRecurso:   (kind: ResourceKind, name: string) => req<{ok: boolean}>('DELETE', `${px()}/recursos/${kind}/${encodeURIComponent(name)}`),
   renomearRecurso: (kind: ResourceKind, name: string, newName: string) => req<{ok: boolean}>('POST', `${px()}/recursos/${kind}/${encodeURIComponent(name)}/rename`, { new_name: newName }),
+  verificarPeca:   (name: string) => req<{passa: boolean; motivos: string[]; estado?: string}>('POST', `${px()}/recursos/artifact/${encodeURIComponent(name)}/verificar`),
+
+  // ── O estado declarado do projeto ───────────────────────────────────────
+  lerEstado:       () => req<EstadoProjeto>('GET', `${px()}/estado`),
+  gravarEstado:    (estado: Partial<EstadoProjeto>, motivo = '') => req<EstadoProjeto>('PUT', `${px()}/estado`, { estado, motivo }),
+  responderMudanca:(indice: number, veredito: 'aplicado' | 'recusado') => req<{ok: boolean; mudancas: MudancaEstado[]}>('POST', `${px()}/estado/mudancas/${indice}/responder`, { veredito }),
 
   listAttachments: (name: string) =>
     req<Attachment[]>('GET', `${px()}/memory/${encodeURIComponent(name)}/anexos`),

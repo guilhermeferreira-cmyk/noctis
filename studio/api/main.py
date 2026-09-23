@@ -37,6 +37,7 @@ import skills_claude as skc
 import organizacao as org
 import nocturn as noc
 import regras
+import estado as est
 
 app = FastAPI(title="Noctis API")
 
@@ -1174,6 +1175,69 @@ def _kind_valido(kind: str) -> dict:
     return k
 
 
+def verificar_peca(texto: str, esc) -> list[str]:
+    """Os motivos pelos quais esta peça NÃO pode ser aprovada. Lista vazia = passa.
+
+    Nenhum julgamento de LLM aqui: são checagens que a máquina faz igual toda
+    vez. A lista de termos e o travessão saem do registro de regras, escopados —
+    o hub que produz pode ter uma lista que o hub que governa não tem.
+    """
+    motivos: list[str] = []
+    baixo = texto.lower()
+    for termo in regras.valor("producao.vocabulario_banido", esc):
+        if str(termo).lower() in baixo:
+            motivos.append(f"usa a palavra banida {termo!r}")
+    if regras.valor("producao.sem_travessao", esc) and "—" in texto:
+        motivos.append("contém travessão (—)")
+    return motivos
+
+
+# ── O estado declarado do projeto ─────────────────────────────────────────────
+
+@app.get("/api/projects/{project}/estado")
+def ler_estado(project: str):
+    base = project_base(project)
+    return {**est.ler(base), "mudancas": est.mudancas(base)}
+
+
+@app.put("/api/projects/{project}/estado")
+def gravar_estado(project: str, data: dict):
+    base = project_base(project)
+    try:
+        novo = est.gravar(base, data.get("estado") or {},
+                          ator=str(data.get("ator") or "usuario"),
+                          motivo=str(data.get("motivo") or ""),
+                          origem=str(data.get("origem") or ""))
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    return {"ok": True, **novo, "mudancas": est.mudancas(base)}
+
+
+@app.post("/api/projects/{project}/estado/mudancas/{indice}/responder")
+def responder_mudanca(project: str, indice: int, data: dict):
+    base = project_base(project)
+    try:
+        r = est.responder(base, indice, str(data.get("veredito") or ""),
+                          str(data.get("por") or "usuario"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except IndexError:
+        raise HTTPException(404, "mudança não encontrada")
+    return {**r, "mudancas": est.mudancas(base)}
+
+
+@app.post("/api/projects/{project}/recursos/artifact/{name}/verificar")
+def verificar_artifact(project: str, name: str):
+    """Roda o verificador sem gravar nada. É o que a tela chama para avisar antes."""
+    base = project_base(project)
+    path = caminho_de_recurso(base, "artifacts", name, ".md")
+    if not path.exists():
+        raise HTTPException(404)
+    meta, corpo = _frente_materia(path)
+    motivos = verificar_peca(corpo, regras.escopo_de_projeto(project))
+    return {"passa": not motivos, "motivos": motivos, "estado": meta.get("estado")}
+
+
 @app.get("/api/projects/{project}/recursos/{kind}")
 def listar_recursos_do_kind(project: str, kind: str):
     k = _kind_valido(kind)
@@ -1201,8 +1265,33 @@ def ler_recurso(project: str, kind: str, name: str):
 @app.put("/api/projects/{project}/recursos/{kind}/{name}")
 def gravar_recurso(project: str, kind: str, name: str, data: dict):
     k = _kind_valido(kind)
-    path = caminho_de_recurso(project_base(project), k["pasta"], name, k["ext"])
+    base = project_base(project)
+    path = caminho_de_recurso(base, k["pasta"], name, k["ext"])
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    if kind == "artifact":
+        esc = regras.escopo_de_projeto(project)
+        texto = data.get("content", "")
+        meta, corpo = _partir_texto(texto)
+        estado = str(meta.get("estado") or ESTADOS_ARTIFACT[0])
+        # O GATE, e ele roda aqui — na escrita — porque é isso que o separa de
+        # uma promessa no prompt. Recusar depois, na leitura, seria avisar que
+        # a peça já aprovada não devia estar aprovada.
+        if estado == "approved" and regras.valor("producao.gate_editorial", esc):
+            motivos = verificar_peca(corpo, esc)
+            if motivos:
+                raise HTTPException(422, "a peça não passa no verificador: " + "; ".join(motivos))
+        # A auto-aprovação nasce desligada e só existe com o verificador ligado:
+        # sem ele, seria aprovação sem verificação.
+        if (estado == "generated"
+                and regras.valor("producao.aprovacao_automatica", esc)
+                and regras.valor("producao.gate_editorial", esc)
+                and not verificar_peca(corpo, esc)):
+            meta["estado"] = "approved"
+            texto = _montar_texto(meta, corpo)
+        path.write_text(texto, encoding="utf-8")
+        return {"ok": True, "estado": str(_partir_texto(texto)[0].get("estado") or estado)}
+
     if k["ext"] == ".yaml" and isinstance(data.get("dados"), dict):
         save_yaml(path, data["dados"])
     else:
@@ -1888,6 +1977,7 @@ def _cor_valida(v, padrao: str) -> str:
 # do Learning. Grupo/chave é o que a tela usa para agrupar os controles.
 SISTEMA_PADRAO: dict[str, dict] = {
     # seções da faixa de ícones
+    "secao.estado":      {"grupo": "Seções", "label": "Estado", "icon": "GiCompass", "color": "#22d3ee"},
     "secao.tasks":       {"grupo": "Seções", "label": "Tarefas", "icon": "GiCheckedShield", "color": "#38bdf8"},
     "secao.artifacts":   {"grupo": "Seções", "label": "Peças", "icon": "GiStoneBlock", "color": "#a855f7"},
     "secao.agents":      {"grupo": "Seções", "label": "Agentes", "icon": "GiRobotGolem", "color": "#10b981"},
@@ -2435,17 +2525,13 @@ ESTADOS_TASK = ("backlog", "active", "review", "done", "blocked")
 ESTADOS_ARTIFACT = ("draft", "generated", "in_review", "approved", "rejected", "superseded")
 
 
-def _frente_materia(path: Path) -> tuple[dict, str]:
-    """O front-matter YAML de um `.md`, e o corpo depois dele.
+def _partir_texto(texto: str) -> tuple[dict, str]:
+    """O front-matter e o corpo, a partir do TEXTO — sem tocar no disco.
 
-    A peça é um arquivo de texto legível fora do Noctis — é o princípio que faz
-    um projeto ser uma pasta. Os metadados moram no topo, no formato que todo
-    editor de Markdown já entende, em vez de num índice paralelo que sairia de
-    sincronia com o arquivo no dia em que alguém editasse por fora.
+    A escrita precisa disto: o gate roda sobre o que está chegando, não sobre o
+    que já está gravado. Ler o arquivo para decidir se pode gravar seria decidir
+    sobre a versão errada.
     """
-    if not path.is_file():
-        return {}, ""
-    texto = path.read_text(encoding="utf-8")
     if not texto.startswith("---"):
         return {}, texto
     fim = texto.find("\n---", 3)
@@ -2456,6 +2542,26 @@ def _frente_materia(path: Path) -> tuple[dict, str]:
     except yaml.YAMLError:
         meta = {}
     return (meta if isinstance(meta, dict) else {}), texto[fim + 4:].lstrip("\n")
+
+
+def _montar_texto(meta: dict, corpo: str) -> str:
+    if not meta:
+        return corpo
+    frente = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip()
+    return f"---\n{frente}\n---\n\n{corpo}"
+
+
+def _frente_materia(path: Path) -> tuple[dict, str]:
+    """O front-matter YAML de um `.md`, e o corpo depois dele.
+
+    A peça é um arquivo de texto legível fora do Noctis — é o princípio que faz
+    um projeto ser uma pasta. Os metadados moram no topo, no formato que todo
+    editor de Markdown já entende, em vez de num índice paralelo que sairia de
+    sincronia com o arquivo no dia em que alguém editasse por fora.
+    """
+    if not path.is_file():
+        return {}, ""
+    return _partir_texto(path.read_text(encoding="utf-8"))
 
 
 def _node_summary(base: Path, kind: str, name: str, usage: dict) -> dict:
