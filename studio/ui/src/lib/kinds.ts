@@ -105,6 +105,17 @@ export function aplicarCeu(c?: Partial<typeof CEU>) {
 
 /** Efeito vidro nos cards. Mutável como os demais. */
 export const VIDRO = { ativo: true }
+
+/**
+ * A classe de um PAINEL do casco — árvore, conteúdo, doca, cartão do Warden.
+ *
+ * Estava escrita duas vezes, em App e em Home, e duas cópias de uma decisão
+ * visual divergem no dia em que alguém ajusta uma. O vidro é identidade do
+ * Noctis: o painel flutua SOBRE o céu, e o céu só aparece se ele deixar passar.
+ */
+export const classePainel = () => VIDRO.ativo
+  ? 'bg-[#141417]/70 backdrop-blur-xl border border-white/[0.07] rounded-xl overflow-hidden shadow-2xl shadow-black/40'
+  : 'bg-[#141417] border border-white/[0.07] rounded-xl overflow-hidden'
 export function aplicarVidro(v?: boolean) {
   if (typeof v === 'boolean') VIDRO.ativo = v
 }

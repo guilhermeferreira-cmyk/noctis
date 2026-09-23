@@ -19,7 +19,7 @@ import { api, getProject, setProject, type ProjectMeta } from './api'
 import { GiTreasureMap, GiMagicSwirl, GiGalaxy, GiSkills, GiControlTower, GiFamilyTree, GiBookCover, GiPulse } from './iconesEssenciais'
 import type { IconType } from 'react-icons'
 import { KIND_META, KIND_ORDER, doSistema, aplicarSistema, aplicarPontilhado, aplicarVocabulario, aplicarTipos, aplicarTamanhos, aplicarAura,
-         aplicarLogo, aplicarCeu, aplicarVidro, ICON_SIZES, CEU, VIDRO, LOGO } from './lib/kinds'
+         aplicarLogo, aplicarCeu, aplicarVidro, ICON_SIZES, CEU, VIDRO, LOGO, classePainel } from './lib/kinds'
 import { FundoEstrelado } from './components/FundoEstrelado'
 import { CarregandoNoctis } from './components/Esqueleto'
 import { getIcon } from './memoryIcons'
@@ -423,9 +423,7 @@ export default function App() {
 
   // Vidro é identidade do Noctis: os painéis flutuam SOBRE o céu, e o céu só
   // aparece se o painel deixar passar. Sem vidro, painel chapado.
-  const painel = VIDRO.ativo
-    ? 'bg-[#141417]/70 backdrop-blur-xl border border-white/[0.07] rounded-xl overflow-hidden shadow-2xl shadow-black/40'
-    : 'bg-[#141417] border border-white/[0.07] rounded-xl overflow-hidden'
+  const painel = classePainel()
 
   // A faixa acompanha o tamanho de ícone escolhido em Aparência.
   const tamIcone = ICON_SIZES.nav
@@ -457,7 +455,10 @@ export default function App() {
   )
 
   return (
-    <div className="relative h-screen flex flex-col bg-[#07070a] text-gray-300 overflow-hidden">
+    // A classe na RAIZ é o que faz o vidro chegar a qualquer container, e não
+    // só ao mapa. As regras do mapa continuam valendo: elas miram classes
+    // (`corpo-vidro`, `camada-vidro`) que só existem lá.
+    <div className={`relative h-screen flex flex-col bg-[#07070a] text-gray-300 overflow-hidden ${VIDRO.ativo ? 'vidro' : ''}`}>
       {/* O céu atrás de tudo: a casca é do Obsidian, a noite é do Noctis. */}
       {CEU.ativo && <FundoEstrelado cores={KIND_ORDER.map(k => KIND_META[k].color)} />}
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, getProject, type PerguntasSkillClaude, type ProjectMeta, type PropostaLearning, type ResourceItem, type SkillClaudeCard, type TemplateItem } from '../api'
-import { KIND_META, ICON_SIZES, VIDRO, doSistema } from '../lib/kinds'
+import { KIND_META, ICON_SIZES, VIDRO, doSistema, classePainel } from '../lib/kinds'
 import { getIcon } from '../memoryIcons'
 import { LogoNoctis } from '../components/LogoNoctis'
 import { CarregandoNoctis, EsqueletoLinhas } from '../components/Esqueleto'
@@ -75,7 +75,7 @@ function CardProjeto({ p, onAbrir, onRenomear, onExcluir }: {
 
   return (
     <div onClick={onAbrir}
-      className="acende group/card relative cursor-pointer rounded-xl border border-white/[0.07] bg-[#151515]
+      className="acende group/card relative cursor-pointer rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515]
                  p-4 flex flex-col gap-3 min-w-0"
       >
       <div className="flex items-center gap-2 min-w-0">
@@ -134,7 +134,7 @@ function CardProjeto({ p, onAbrir, onRenomear, onExcluir }: {
 function CardItem({ it, onAbrir }: { it: ResourceItem; onAbrir: () => void }) {
   return (
     <div onClick={onAbrir}
-      className="acende cursor-pointer rounded-xl border border-white/[0.07] bg-[#151515] p-3
+      className="acende cursor-pointer rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3
                  flex flex-col gap-1.5 min-w-0">
       <div className="flex items-center gap-2 min-w-0">
         <IconeDe kind={it.kind || 'memory'} />
@@ -305,9 +305,7 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
     } catch (e) { alert((e as Error).message) }
   }
 
-  const painel = VIDRO.ativo
-    ? 'bg-[#141417]/70 backdrop-blur-xl border border-white/[0.07] rounded-xl overflow-hidden shadow-2xl shadow-black/40'
-    : 'bg-[#141417] border border-white/[0.07] rounded-xl overflow-hidden'
+  const painel = classePainel()
 
   const ident = doSistema('warden.identidade', 'GiSpikedShield', '#f59e0b')
   const grade = 'grid gap-3.5 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))] items-start'
@@ -357,7 +355,8 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
 
         <div className="mt-auto px-3 py-2.5 border-t border-white/[0.06]">
           <p className="text-[10.5px] text-gray-600 leading-snug">
-            Abrir é olhar. O play diz em qual projeto o trabalho é escrito.
+            Abrir é olhar. Quem diz em qual projeto o trabalho é escrito é o
+            identificador do agente, e o comando recusa se não bater.
           </p>
         </div>
       </aside>
@@ -587,7 +586,7 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
                 <div className={grade}>
                   {moldes.map(m => (
                     <div key={`${m.kind}:${m.slug}`}
-                      className="acende rounded-xl border border-white/[0.07] bg-[#151515] p-3.5 flex flex-col gap-1.5">
+                      className="acende rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5 flex flex-col gap-1.5">
                       <div className="flex items-center gap-2">
                         <IconeDe kind={m.kind} />
                         <p className="text-[12.5px] text-gray-100 truncate flex-1">{m.nome}</p>
@@ -603,7 +602,7 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
                   ))}
                   {moldesSkill.map(m => (
                     <div key={`skill:${m.slug}`}
-                      className="acende rounded-xl border border-white/[0.07] bg-[#151515] p-3.5 flex flex-col gap-1.5">
+                      className="acende rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5 flex flex-col gap-1.5">
                       <div className="flex items-center gap-2">
                         <span style={{ color: doSistema('secao.skillsclaude', '', '#0ea5e9').color }}>●</span>
                         <p className="text-[12.5px] text-gray-100 truncate flex-1">{m.nome}</p>
@@ -648,7 +647,7 @@ export default function HomeWarden({ projetos, onAbrirProjeto, onAbrirLearnings,
               <div className={grade}>
                 {skillsCat.map(sk => (
                   <div key={`${sk.projeto}/${sk.slug}`}
-                    className="acende rounded-xl border border-white/[0.07] bg-[#151515] p-3 flex flex-col gap-1.5">
+                    className="acende rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3 flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <span className={`text-[9.5px] uppercase tracking-wide px-1.5 py-0.5 rounded-full border shrink-0 ${
                         sk.nativa ? 'text-gray-500 border-gray-700' : 'text-sky-300/80 border-sky-500/30'}`}>

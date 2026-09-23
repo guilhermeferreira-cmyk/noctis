@@ -97,7 +97,7 @@ function Memoria({ m }: { m: FichaDoAgente['contexto'][number] }) {
   }
 
   return (
-    <div className="rounded-lg border border-white/[0.07] bg-[#151515] overflow-hidden">
+    <div className="rounded-lg border border-white/[0.07] caixa-vidro bg-[#151515] overflow-hidden">
       <div className="flex items-center gap-2 px-2.5 py-1.5">
         <button onClick={alternar} disabled={!m.existe}
           className="flex items-center gap-2 min-w-0 flex-1 text-left disabled:cursor-default"
@@ -212,7 +212,7 @@ export function FichaDoArquetipo({ slug, onAbrirProjeto }: {
 
       <Secao titulo="Identidade"
         dica={d.contextos.length > 1 ? `editar aqui muda em ${d.contextos.length} projetos` : undefined}>
-        <div className="rounded-xl border border-white/[0.07] bg-[#151515] p-3.5 space-y-2.5">
+        <div className="rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5 space-y-2.5">
           {a.description && <p className="text-[12px] text-gray-400">{a.description}</p>}
           <div className="flex gap-4 text-[11px] text-gray-600">
             <span>temperatura <span className="text-gray-400">{String(a.temperature ?? '—')}</span></span>
@@ -311,7 +311,7 @@ export function FichaDoAgenteAcoplado({ nome, onEditar, onVerArquetipo }: {
               {abrirIdentidade ? 'recolher' : 'ver'}
             </button>
           }>
-          <div className="rounded-xl border border-white/[0.07] bg-[#151515] p-3.5">
+          <div className="rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5">
             <p className="text-[12px] text-gray-400">{herdado.description}</p>
             {nAfeta > 1 && (
               <p className="text-[11px] text-amber-500/70 mt-1.5">
@@ -328,7 +328,7 @@ export function FichaDoAgenteAcoplado({ nome, onEditar, onVerArquetipo }: {
 
       {/* ── O que ele faz AQUI ───────────────────────────────────────────── */}
       <Secao titulo="Aqui neste projeto" dica="papel, squad e quem ele reporta">
-        <div className="rounded-xl border border-white/[0.07] bg-[#151515] p-3.5 flex flex-wrap gap-x-6 gap-y-2 text-[12px]">
+        <div className="rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5 flex flex-wrap gap-x-6 gap-y-2 text-[12px]">
           {[['papel', daqui.papel], ['squad', daqui.squad], ['reporta a', daqui.reporta_a]].map(([r, v]) => (
             <span key={r} className="text-gray-600">
               {r} <span className="text-gray-200">{v || '—'}</span>
@@ -351,7 +351,7 @@ export function FichaDoAgenteAcoplado({ nome, onEditar, onVerArquetipo }: {
       </Secao>
 
       <Secao titulo="XP e nível" dica="deste projeto">
-        <div className="rounded-xl border border-white/[0.07] bg-[#151515] p-3.5">
+        <div className="rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5">
           <Disco p={f.progresso} cor={corp} />
         </div>
       </Secao>
@@ -365,7 +365,7 @@ export function FichaDoAgenteAcoplado({ nome, onEditar, onVerArquetipo }: {
                   l.estado === 'firmada' ? '#10b981' : '#a1a1aa').color
                 return (
                   <div key={l.chave}
-                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-[#151515]">
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-white/[0.07] caixa-vidro bg-[#151515]">
                     <span className="text-[12px] text-gray-200 truncate flex-1">{l.rotulo}</span>
                     {!l.descricao && (
                       <span className="text-[9px] uppercase tracking-wider text-amber-500/70">sem descrição</span>
@@ -496,7 +496,7 @@ export function ConteudoDaGuia({ guia, f, cor, onVerArquetipo }: {
                 l.estado === 'firmada' ? '#10b981' : '#a1a1aa').color
               return (
                 <div key={l.chave}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-white/[0.07] bg-[#151515]">
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-white/[0.07] caixa-vidro bg-[#151515]">
                   <span className="text-[12px] text-gray-200 truncate flex-1">{l.rotulo}</span>
                   <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0"
                     style={{ color: c, background: c + '1f' }}>{l.estado}</span>

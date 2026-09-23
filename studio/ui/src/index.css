@@ -51,6 +51,30 @@ textarea, input, select {
   -webkit-backdrop-filter: blur(6px) saturate(1.1);
 }
 
+/* ── Vidro nos containers fora do mapa ───────────────────────────────────────
+   O comentário acima dizia que o vidro só valia no mapa, "porque no grid de
+   memórias não há nada atrás que valha a pena ver". Isso deixou de ser verdade
+   quando o céu estrelado passou a ficar atrás de tudo: o card opaco virou um
+   retângulo tapando a única coisa que dá profundidade à tela.
+
+   Aqui o vidro vai no PRÓPRIO elemento, e não numa camada à parte como no
+   mapa. A camada existe lá por causa da aura, que é filha com z negativo e
+   seria trazida para dentro do contexto de empilhamento criado pelo
+   `backdrop-filter`. Fora do mapa não há aura, então não há o que proteger.
+
+   O desfoque é menor que o dos painéis de propósito: card quase sempre está
+   DENTRO de um painel que já borra, e dois desfoques somados deixam tudo
+   leitoso — foi o que já tinha acontecido com as lanes. */
+.vidro .caixa-vidro {
+  background: rgba(21, 21, 21, 0.62);
+  backdrop-filter: blur(7px) saturate(1.1);
+  -webkit-backdrop-filter: blur(7px) saturate(1.1);
+}
+
+/* Linha de tabela e cabeçalho: sem fundo próprio, para o vidro do container
+   em volta atravessar em vez de virar faixa chapada. */
+.vidro .caixa-vidro-suave { background: rgba(255, 255, 255, 0.025); }
+
 /* ── Hover: o card acende ────────────────────────────────────────────────────
    Duas coisas ao passar o mouse: um contorno claro e, se houver aura, ela cresce
    e ganha luz. O crescimento é `transform: scale`, e não uma mudança de tamanho

@@ -93,7 +93,7 @@ export function ResourceCard({ item, kind, actions, vocab }: {
 
   return (
     <div
-      className={`acende relative flex flex-col rounded-xl border bg-[#161616] shadow-lg transition-all hover:border-gray-600 cursor-pointer ${
+      className={`acende relative flex flex-col rounded-xl border caixa-vidro bg-[#161616] shadow-lg transition-all hover:border-gray-600 cursor-pointer ${
         item.decision ? 'min-h-[15.5rem]' : 'h-[15.5rem]'
       } ${active ? 'border-gray-700' : 'border-gray-800 opacity-60'}`}
       style={{ borderLeft: `4px solid ${color}`, ['--cor-card' as string]: color,

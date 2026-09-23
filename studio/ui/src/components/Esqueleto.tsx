@@ -38,7 +38,7 @@ export function EsqueletoLinhas({ linhas = 3, className = '' }: { linhas?: numbe
 /** Um card da grade: ícone, título, tags e três linhas de descrição. */
 export function EsqueletoCard() {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-[#151515] p-3.5 space-y-2.5">
+    <div className="rounded-xl border border-white/[0.06] caixa-vidro bg-[#151515] p-3.5 space-y-2.5">
       <div className="flex items-center gap-2.5">
         <Bloco className="w-11 h-11 rounded-lg shrink-0" />
         <Bloco className="h-3.5 flex-1" style={{ maxWidth: '60%' }} />

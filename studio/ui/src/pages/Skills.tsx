@@ -43,7 +43,7 @@ function CardSkill({ s, icone, learnings, onDuplicar, onEditar, onVincular, onPe
   const Icone = getIcon(icone.icon)
   const minha = !s.nativa
   return (
-    <div className="acende rounded-xl border border-white/[0.07] bg-[#151515] p-3.5 flex flex-col gap-2">
+    <div className="acende rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] p-3.5 flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <span className="shrink-0 rounded-md grid place-items-center w-8 h-8"
           style={minha ? { background: icone.color + '22', color: icone.color }

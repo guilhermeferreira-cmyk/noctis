@@ -29,7 +29,7 @@ const POR_PAGINA = 50
 
 function LinhaTrabalho({ u, cor }: { u: TrabalhoRegistrado; cor: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-[#151515] px-3.5 py-2.5 flex items-start gap-3">
+    <div className="rounded-xl border border-white/[0.07] caixa-vidro bg-[#151515] px-3.5 py-2.5 flex items-start gap-3">
       <span className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
         style={{ background: u.agora ? cor : '#3f3f46' }} />
       <div className="min-w-0 flex-1">
@@ -56,7 +56,7 @@ function LinhaTrabalho({ u, cor }: { u: TrabalhoRegistrado; cor: string }) {
 /** A ficha de um agente: é este bloco que "documenta quem trabalhou". */
 function CardAgente({ f, cor }: { f: AgenteNoRuntime; cor: string }) {
   return (
-    <div className="rounded-xl border px-3 py-2.5 bg-[#151515] min-w-0"
+    <div className="rounded-xl border px-3 py-2.5 caixa-vidro bg-[#151515] min-w-0"
       style={{ borderColor: f.agora ? cor + '55' : 'rgba(255,255,255,0.07)' }}>
       <div className="flex items-center gap-2">
         {f.agora && <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse"

@@ -66,7 +66,7 @@ function CardAgente({ data }: NodeProps) {
 
   const apagado = data.apagado as boolean | undefined
   return (
-    <div className={`group/o acende rounded-xl border bg-[#161616] p-2.5 shadow-lg transition-opacity
+    <div className={`group/o acende rounded-xl border caixa-vidro bg-[#161616] p-2.5 shadow-lg transition-opacity
                      ${a.ativo ? '' : 'opacity-50'} ${apagado ? 'opacity-20' : ''}`}
       style={{ width: LARGURA, borderColor: cor + '44', borderLeft: `3px solid ${meta?.cor || cor}`,
                ['--cor-card' as string]: cor }}>

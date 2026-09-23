@@ -97,7 +97,7 @@ function CardSkill({ s, agentes, tagsDoProjeto, onAbrir, onMudou, onTag }: {
   }
 
   return (
-    <div className={`acende relative flex flex-col rounded-xl border bg-[#161616] shadow-lg p-3 gap-2.5 cursor-pointer
+    <div className={`acende relative flex flex-col rounded-xl border caixa-vidro bg-[#161616] shadow-lg p-3 gap-2.5 cursor-pointer
                      ${s.estado === 'arquivada' ? 'border-gray-800 opacity-50' : 'border-gray-700'}`}
       style={{ borderLeft: `4px solid ${cor}`, ['--cor-card' as string]: cor }}
       onClick={e => { if (!(e.target as HTMLElement).closest('button,a,input,textarea,select,label,[contenteditable],[role=menu]')) onAbrir() }}>

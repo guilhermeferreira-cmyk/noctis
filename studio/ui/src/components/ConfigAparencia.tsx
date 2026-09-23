@@ -221,7 +221,7 @@ export function ConfigAparencia({ vocab, onFechar, onSalvo, embutido = false, se
           <div className={`flex items-center gap-4 py-3 ${aura.ativo ? '' : 'opacity-40'}`}>
             {/* prévia ao vivo: o quadrado é o card, o borrão é o que se regula */}
             <div className="shrink-0 w-40 h-24 grid place-items-center">
-              <div className="relative w-24 h-14 rounded-lg bg-[#161616] border border-gray-700">
+              <div className="relative w-24 h-14 rounded-lg caixa-vidro bg-[#161616] border border-gray-700">
                 <div aria-hidden="true" className="pointer-events-none absolute -z-10"
                   style={{
                     inset: -aura.tamanho, borderRadius: aura.tamanho + 12,

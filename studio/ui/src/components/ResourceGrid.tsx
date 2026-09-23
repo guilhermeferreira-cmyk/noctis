@@ -86,7 +86,7 @@ function CardTemplate({ t, projetos, onMudou }: {
 }) {
   const [indo, setIndo] = useState(false)
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#151515] p-3.5 space-y-2 flex flex-col">
+    <div className="rounded-xl border border-white/[0.08] caixa-vidro bg-[#151515] p-3.5 space-y-2 flex flex-col">
       <div className="flex items-start gap-2">
         <span className="text-[9.5px] uppercase tracking-wide text-sky-300/70 border border-sky-500/30
                          rounded-full px-1.5 py-0.5 shrink-0">molde</span>
