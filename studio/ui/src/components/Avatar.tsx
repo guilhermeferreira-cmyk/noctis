@@ -14,6 +14,10 @@ import { getIcon } from '../memoryIcons'
  * quadrado colorido atrás dela seria emoldurar uma esfera — a cor brigaria com
  * a da própria orb, e o recorte transparente que a faz parecer solta na tela
  * viraria um retângulo.
+ *
+ * No lugar da moldura, a orb ganha **halo e brilho interno**, os dois borrados
+ * e respirando devagar. O halo é uma cópia da própria imagem: um brilho de cor
+ * fixa não acompanharia a orb escolhida.
  */
 
 /** Um ícone cujo nome começa com `orb_` é uma orb, e não um desenho do set.
@@ -36,10 +40,17 @@ export function Avatar({ icon, color, tamanho, className = '' }: {
   const lado = tamanho ?? Math.max(44, ICON_SIZES.card + 14)
 
   if (ehOrb(icon)) {
+    const src = caminhoDaOrb(icon!)
     return (
-      <img src={caminhoDaOrb(icon!)} alt="" aria-hidden="true" draggable={false}
-        className={`shrink-0 select-none ${className}`}
-        style={{ width: lado, height: lado, objectFit: 'contain' }} />
+      // Três camadas: o halo borrado atrás, a orb nítida, e o brilho interno
+      // que passeia. O CSS está em `index.css` — a nota de por que a animação
+      // é de opacidade e transform, e nunca do raio do blur, mora lá.
+      <span className={`orb-caixa shrink-0 select-none ${className}`}
+        style={{ width: lado, height: lado }} aria-hidden="true">
+        <img className="orb-aura" src={src} alt="" draggable={false} />
+        <img className="orb-img" src={src} alt="" draggable={false} />
+        <span className="orb-vidro" />
+      </span>
     )
   }
 

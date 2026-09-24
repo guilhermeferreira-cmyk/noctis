@@ -175,3 +175,64 @@ textarea, input, select {
 @media (prefers-reduced-motion: reduce) {
   .zen-fundo { animation: none; }
 }
+
+/* ── A orb como vidro ────────────────────────────────────────────────────────
+ *
+ * Três camadas empilhadas, e cada uma faz uma coisa que as outras não fazem:
+ *
+ *   .orb-aura   uma cópia BORRADA da própria orb, atrás e um pouco maior. É o
+ *               halo — a luz que a esfera derrama no que está em volta. Usa a
+ *               mesma imagem de propósito: um brilho de cor fixa não
+ *               acompanharia a orb que você escolher.
+ *   .orb-img    a orb, nítida.
+ *   .orb-vidro  o brilho INTERNO: um realce claro, borrado, que passeia por
+ *               dentro da esfera. É o que faz parecer vidro e não adesivo.
+ *
+ * **O que anima é opacidade e transform, nunca o raio do blur.** Animar
+ * `filter: blur()` obriga o navegador a repintar a cada quadro, e estes
+ * avatares aparecem 26 de uma vez numa grade de agentes. Opacidade e transform
+ * rodam no compositor: o borrão é calculado uma vez e só se move.
+ */
+.orb-caixa { position: relative; display: inline-grid; place-items: center; isolation: isolate; }
+
+.orb-caixa > * { grid-area: 1 / 1; }
+
+.orb-aura {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  filter: blur(9px) saturate(1.3);
+  opacity: .5;
+  transform: scale(1.08);
+  z-index: -1;
+  animation: orb-respira 6.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.orb-img { width: 100%; height: 100%; object-fit: contain; }
+
+.orb-vidro {
+  width: 76%; height: 76%;
+  border-radius: 9999px;
+  /* O realce nasce fora do centro: luz que bate de cima à esquerda é o que o
+     olho lê como volume. Centrado, viraria um ponto morto. */
+  background: radial-gradient(60% 55% at 32% 26%, rgba(255,255,255,.55), transparent 70%);
+  filter: blur(5px);
+  opacity: .8;
+  animation: orb-luz 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes orb-respira {
+  0%, 100% { opacity: .42; transform: scale(1.05); }
+  50%      { opacity: .68; transform: scale(1.13); }
+}
+
+@keyframes orb-luz {
+  0%, 100% { opacity: .55; transform: translate(0, 0) scale(1); }
+  35%      { opacity: .95; transform: translate(6%, 4%) scale(1.06); }
+  70%      { opacity: .62; transform: translate(-4%, 6%) scale(.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-aura, .orb-vidro { animation: none; }
+}
