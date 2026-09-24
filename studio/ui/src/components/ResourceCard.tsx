@@ -40,6 +40,7 @@ export function ResourceCard({ item, kind, actions, vocab }: {
   item: ResourceItem; kind: ResourceKind; actions: CardActions; vocab?: MemoryVocab
 }) {
   const [menu, setMenu] = useState(false)
+  const [ident, setIdent] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -98,6 +99,12 @@ export function ResourceCard({ item, kind, actions, vocab }: {
         item.decision ? 'min-h-[15.5rem]' : 'h-[15.5rem]'
       } ${active ? 'border-gray-700' : 'border-gray-800 opacity-60'}`}
       style={{ borderLeft: `4px solid ${color}`, ['--cor-card' as string]: color,
+               // O menu era coberto pelos cards SEGUINTES, e o `z-50` dele não
+               // adiantava: `caixa-vidro` usa `backdrop-filter`, e isso cria um
+               // contexto de empilhamento — o z do menu só vale DENTRO do card.
+               // Quem tem de subir é o card inteiro, e só enquanto o menu está
+               // aberto; deixá-lo alto sempre reordenaria a grade toda.
+               ...(menu ? { zIndex: 40 } : null),
                ...(pendente ? { boxShadow: `inset 0 0 0 1px ${sinal.color}3d` } : {}) }}
       onClick={e => { if (!(e.target as HTMLElement).closest('button,a,input,textarea,select,label,[contenteditable],[role=menu]')) actions.onOpen(item) }}
     >
@@ -228,7 +235,24 @@ export function ResourceCard({ item, kind, actions, vocab }: {
             {item.decision ? 'Editar decisão' : 'Criar decisão'}
           </ItemMenu>
 
-          <div className="px-3 py-2 border-t border-gray-800 mt-1 flex items-center justify-between">
+          {/* **Identidade fica fechada por padrão.** O menu tinha treze blocos e
+              ficava com 570px de altura; os cinco que editam aparência — estado,
+              origem, tipo, tags, cor e ícone — são os que menos se usam e os que
+              mais ocupam. Os verbos, que é o que se vem buscar aqui, agora cabem
+              sem rolar. */}
+          <button onClick={() => setIdent(v => !v)}
+            className="w-full px-3 py-2 border-t border-gray-800 mt-1 flex items-center gap-2
+                       text-xs text-gray-400 hover:text-gray-100 hover:bg-white/[0.04]">
+            <span className={`text-[9px] transition-transform ${ident ? 'rotate-90' : ''}`}>▶</span>
+            Aparência e identidade
+            <span className="flex-1" />
+            {/* A cor e o ícone atuais ficam visíveis mesmo fechado: é o que se
+                quer saber sem abrir. */}
+            <span className="w-3 h-3 rounded-full border border-black/40 shrink-0"
+              style={{ background: color }} />
+          </button>
+          {ident && (<>
+          <div className="px-3 py-2 border-t border-gray-800 flex items-center justify-between">
             <span className="text-xs text-gray-500">Estado</span>
             <Switch ligado={active} cor={color}
               onMudar={v => actions.onIdentity(item, { active: v })}
@@ -299,17 +323,18 @@ export function ResourceCard({ item, kind, actions, vocab }: {
               ))}
             </div>
           </div>
+          <div className="px-3 py-1.5">
+            <div className="text-xs text-gray-500 mb-1">Ícone</div>
+            <SeletorIcone compacto atual={icon} cor={color}
+              onEscolher={nm => actions.onIdentity(item, { icon: nm })} />
+          </div>
+          </>)}
           <ItemMenu icone="pdf" onClick={() => { setMenu(false); window.open(api.pdfRecursoUrl(kind, item.name), '_blank') }}>
             Exportar PDF
           </ItemMenu>
           <ItemMenu icone="identificador" onClick={() => copiarRef()}>
             {copiado ? 'copiado!' : 'Copiar identificador'}
           </ItemMenu>
-          <div className="px-3 py-1.5">
-            <div className="text-xs text-gray-500 mb-1">Ícone</div>
-            <SeletorIcone compacto atual={icon} cor={color}
-              onEscolher={nm => actions.onIdentity(item, { icon: nm })} />
-          </div>
 
           {actions.onTemplate && (
             <div className="border-t border-gray-700 mt-1">
