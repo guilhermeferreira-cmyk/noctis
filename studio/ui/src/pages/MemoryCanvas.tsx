@@ -21,6 +21,7 @@ import { OrigemIcone } from '../components/OrigemIcone'
 import { Aura, auraPorNo } from '../components/Aura'
 import { moverPanorama } from '../components/FundoEstrelado'
 import { SeletorIcone } from '../components/SeletorIcone'
+import { Avatar } from '../components/Avatar'
 import { NovaMemoria } from '../components/NovaMemoria'
 import { GrafoMapa, type NoGrafo, type LigacaoGrafo } from '../components/GrafoMapa'
 import { BarraDoCard, DiscosDoAgente, useFicha } from '../components/Progresso'
@@ -281,11 +282,7 @@ function ResourceNode({ id, data, selected }: NodeProps) {
             barato — não é a mesma multidão que a grade de Agentes tem. */}
         {kind === 'agent' && <DiscosDoAgente agente={label} cor={color} eager />}
         {/* a moldura acompanha o ícone: sem isso, um ícone grande vaza da caixa */}
-        <span className="relative shrink-0 flex items-center justify-center rounded-lg"
-          style={{ background: color + '22', color,
-                   width: Math.max(44, ICON_SIZES.card + 14), height: Math.max(44, ICON_SIZES.card + 14) }}>
-          <Icon size={ICON_SIZES.card} />
-        </span>
+        <Avatar icon={icon} color={color} />
         <span className="text-sm text-gray-100 font-semibold flex-1 capitalize leading-tight line-clamp-2" title={heading}>{heading}</span>
         {!active && <span title="Inativa" className="text-xs shrink-0">🔒</span>}
         <button ref={menuBtnRef} onClick={() => a.toggleMenu(id)}

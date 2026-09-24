@@ -3,6 +3,7 @@ import { api, assetUrl, type MemoryVocab, type ResourceItem, type ResourceKind }
 import { getIcon } from '../memoryIcons'
 import { COLORS, KIND_META, ICON_SIZES, doSistema } from '../lib/kinds'
 import { SeletorIcone } from './SeletorIcone'
+import { Avatar } from './Avatar'
 import { BarraDoCard, DiscosDoAgente } from './Progresso'
 import { Switch } from './Switch'
 import { copiar, textoDaReferencia } from '../lib/referencia'
@@ -104,12 +105,7 @@ export function ResourceCard({ item, kind, actions, vocab }: {
         {/* Os discos ocupam a coluna da antiga caixa de seleção: nível com o anel
             de XP e a contagem de Learnings. Só o agente os tem. */}
         {kind === 'agent' && <DiscosDoAgente agente={item.name} resumo={item.ficha} cor={color} />}
-        {/* a moldura acompanha o ícone: sem isso, um ícone grande vaza da caixa */}
-        <span className="relative shrink-0 flex items-center justify-center rounded-lg"
-          style={{ background: color + '22', color,
-                   width: Math.max(44, ICON_SIZES.card + 14), height: Math.max(44, ICON_SIZES.card + 14) }}>
-          <Icon size={ICON_SIZES.card} />
-        </span>
+        <Avatar icon={icon} color={color} />
         {/* O nickname fica logo abaixo do título, e só o agente tem um: é por
             ele que se chama este agente aplicado em conversa. Quem endereça é
             o par projeto:nome, que mora no menu de copiar identificador. */}
@@ -215,7 +211,12 @@ export function ResourceCard({ item, kind, actions, vocab }: {
       </div>
 
       {menu && (
-        <div ref={menuRef} className="absolute top-9 right-1 z-50 w-52 bg-[#1f1f1f] border border-gray-700 rounded-lg shadow-2xl py-1 text-sm">
+        <div ref={menuRef}
+          // O menu já era longo e o seletor de orbs o fez estourar a tela: o fim
+          // dele ficava abaixo da dobra, inalcançável. Teto e rolagem próprios,
+          // em vez de encurtar o menu — cada item dele tem razão de estar lá.
+          className="absolute top-9 right-1 z-50 w-52 bg-[#1f1f1f] border border-gray-700
+                     rounded-lg shadow-2xl py-1 text-sm max-h-[60vh] overflow-y-auto overscroll-contain">
           <ItemMenu icone={kind === 'flow' ? 'verFluxo' : 'ver'}
             onClick={() => { setMenu(false); actions.onOpen(item) }}>
             {kind === 'flow' ? 'Visualizar fluxo' : 'Visualizar'}

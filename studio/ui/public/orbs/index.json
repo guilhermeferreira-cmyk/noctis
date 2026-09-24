@@ -1,0 +1,1832 @@
+[
+ {
+  "id": "orb_001",
+  "arquivo": "orb_001.webp",
+  "cor": "#4e792b",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_002",
+  "arquivo": "orb_002.webp",
+  "cor": "#863610",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_003",
+  "arquivo": "orb_003.webp",
+  "cor": "#2f81c4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_004",
+  "arquivo": "orb_004.webp",
+  "cor": "#422d26",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_005",
+  "arquivo": "orb_005.webp",
+  "cor": "#37231e",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_006",
+  "arquivo": "orb_006.webp",
+  "cor": "#845e2b",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_007",
+  "arquivo": "orb_007.webp",
+  "cor": "#959fb1",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_008",
+  "arquivo": "orb_008.webp",
+  "cor": "#5e47ae",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_009",
+  "arquivo": "orb_009.webp",
+  "cor": "#bcabb6",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_010",
+  "arquivo": "orb_010.webp",
+  "cor": "#4b5162",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_011",
+  "arquivo": "orb_011.webp",
+  "cor": "#246fc9",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_012",
+  "arquivo": "orb_012.webp",
+  "cor": "#6923c2",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_013",
+  "arquivo": "orb_013.webp",
+  "cor": "#486617",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_014",
+  "arquivo": "orb_014.webp",
+  "cor": "#920609",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_015",
+  "arquivo": "orb_015.webp",
+  "cor": "#5f8bb4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_016",
+  "arquivo": "orb_016.webp",
+  "cor": "#201915",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_017",
+  "arquivo": "orb_017.webp",
+  "cor": "#a395bd",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_018",
+  "arquivo": "orb_018.webp",
+  "cor": "#5078a0",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_019",
+  "arquivo": "orb_019.webp",
+  "cor": "#384871",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_020",
+  "arquivo": "orb_020.webp",
+  "cor": "#427a27",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_021",
+  "arquivo": "orb_021.webp",
+  "cor": "#a37f91",
+  "familia": "rosa"
+ },
+ {
+  "id": "orb_022",
+  "arquivo": "orb_022.webp",
+  "cor": "#14426f",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_023",
+  "arquivo": "orb_023.webp",
+  "cor": "#1c7290",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_024",
+  "arquivo": "orb_024.webp",
+  "cor": "#eba13f",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_025",
+  "arquivo": "orb_025.webp",
+  "cor": "#620710",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_026",
+  "arquivo": "orb_026.webp",
+  "cor": "#7d879a",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_027",
+  "arquivo": "orb_027.webp",
+  "cor": "#548dc5",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_028",
+  "arquivo": "orb_028.webp",
+  "cor": "#23242a",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_029",
+  "arquivo": "orb_029.webp",
+  "cor": "#39421b",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_030",
+  "arquivo": "orb_030.webp",
+  "cor": "#a67e9e",
+  "familia": "rosa"
+ },
+ {
+  "id": "orb_031",
+  "arquivo": "orb_031.webp",
+  "cor": "#0d596d",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_032",
+  "arquivo": "orb_032.webp",
+  "cor": "#bc3b0a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_033",
+  "arquivo": "orb_033.webp",
+  "cor": "#5893be",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_034",
+  "arquivo": "orb_034.webp",
+  "cor": "#a56e39",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_035",
+  "arquivo": "orb_035.webp",
+  "cor": "#6d3ca7",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_036",
+  "arquivo": "orb_036.webp",
+  "cor": "#15213b",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_037",
+  "arquivo": "orb_037.webp",
+  "cor": "#b85614",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_038",
+  "arquivo": "orb_038.webp",
+  "cor": "#b01c70",
+  "familia": "rosa"
+ },
+ {
+  "id": "orb_039",
+  "arquivo": "orb_039.webp",
+  "cor": "#354d35",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_040",
+  "arquivo": "orb_040.webp",
+  "cor": "#b3a7c9",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_041",
+  "arquivo": "orb_041.webp",
+  "cor": "#0f3f6d",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_042",
+  "arquivo": "orb_042.webp",
+  "cor": "#385d1d",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_043",
+  "arquivo": "orb_043.webp",
+  "cor": "#778096",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_044",
+  "arquivo": "orb_044.webp",
+  "cor": "#13204d",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_045",
+  "arquivo": "orb_045.webp",
+  "cor": "#35202b",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_046",
+  "arquivo": "orb_046.webp",
+  "cor": "#3c82ba",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_047",
+  "arquivo": "orb_047.webp",
+  "cor": "#b1500d",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_048",
+  "arquivo": "orb_048.webp",
+  "cor": "#395f1d",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_049",
+  "arquivo": "orb_049.webp",
+  "cor": "#1f3596",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_050",
+  "arquivo": "orb_050.webp",
+  "cor": "#281c12",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_051",
+  "arquivo": "orb_051.webp",
+  "cor": "#b9a8a9",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_052",
+  "arquivo": "orb_052.webp",
+  "cor": "#875d2c",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_053",
+  "arquivo": "orb_053.webp",
+  "cor": "#352319",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_054",
+  "arquivo": "orb_054.webp",
+  "cor": "#eba421",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_055",
+  "arquivo": "orb_055.webp",
+  "cor": "#940808",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_056",
+  "arquivo": "orb_056.webp",
+  "cor": "#282a30",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_057",
+  "arquivo": "orb_057.webp",
+  "cor": "#857e99",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_058",
+  "arquivo": "orb_058.webp",
+  "cor": "#4983b6",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_059",
+  "arquivo": "orb_059.webp",
+  "cor": "#1d62aa",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_060",
+  "arquivo": "orb_060.webp",
+  "cor": "#2d5414",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_061",
+  "arquivo": "orb_061.webp",
+  "cor": "#393635",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_062",
+  "arquivo": "orb_062.webp",
+  "cor": "#718393",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_063",
+  "arquivo": "orb_063.webp",
+  "cor": "#5c2bab",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_064",
+  "arquivo": "orb_064.webp",
+  "cor": "#094a7a",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_065",
+  "arquivo": "orb_065.webp",
+  "cor": "#57311a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_066",
+  "arquivo": "orb_066.webp",
+  "cor": "#14570a",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_067",
+  "arquivo": "orb_067.webp",
+  "cor": "#a0626c",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_068",
+  "arquivo": "orb_068.webp",
+  "cor": "#7ca5d0",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_069",
+  "arquivo": "orb_069.webp",
+  "cor": "#431f17",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_070",
+  "arquivo": "orb_070.webp",
+  "cor": "#44412a",
+  "familia": "amarelo"
+ },
+ {
+  "id": "orb_071",
+  "arquivo": "orb_071.webp",
+  "cor": "#3a3e53",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_072",
+  "arquivo": "orb_072.webp",
+  "cor": "#855518",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_073",
+  "arquivo": "orb_073.webp",
+  "cor": "#7698b9",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_074",
+  "arquivo": "orb_074.webp",
+  "cor": "#462391",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_075",
+  "arquivo": "orb_075.webp",
+  "cor": "#46464a",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_076",
+  "arquivo": "orb_076.webp",
+  "cor": "#3f0f10",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_077",
+  "arquivo": "orb_077.webp",
+  "cor": "#3589c6",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_078",
+  "arquivo": "orb_078.webp",
+  "cor": "#064d64",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_079",
+  "arquivo": "orb_079.webp",
+  "cor": "#a27a50",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_080",
+  "arquivo": "orb_080.webp",
+  "cor": "#1c4870",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_081",
+  "arquivo": "orb_081.webp",
+  "cor": "#264f0b",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_082",
+  "arquivo": "orb_082.webp",
+  "cor": "#37332f",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_083",
+  "arquivo": "orb_083.webp",
+  "cor": "#ad5d0d",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_084",
+  "arquivo": "orb_084.webp",
+  "cor": "#5a2e7d",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_085",
+  "arquivo": "orb_085.webp",
+  "cor": "#2e82bf",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_086",
+  "arquivo": "orb_086.webp",
+  "cor": "#b35114",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_087",
+  "arquivo": "orb_087.webp",
+  "cor": "#2a679a",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_088",
+  "arquivo": "orb_088.webp",
+  "cor": "#3c6027",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_089",
+  "arquivo": "orb_089.webp",
+  "cor": "#443d35",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_090",
+  "arquivo": "orb_090.webp",
+  "cor": "#2f3134",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_091",
+  "arquivo": "orb_091.webp",
+  "cor": "#70a7d1",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_092",
+  "arquivo": "orb_092.webp",
+  "cor": "#583493",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_093",
+  "arquivo": "orb_093.webp",
+  "cor": "#c39a52",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_094",
+  "arquivo": "orb_094.webp",
+  "cor": "#566687",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_095",
+  "arquivo": "orb_095.webp",
+  "cor": "#291653",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_096",
+  "arquivo": "orb_096.webp",
+  "cor": "#560508",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_097",
+  "arquivo": "orb_097.webp",
+  "cor": "#196785",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_098",
+  "arquivo": "orb_098.webp",
+  "cor": "#8f5f21",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_099",
+  "arquivo": "orb_099.webp",
+  "cor": "#8685ae",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_100",
+  "arquivo": "orb_100.webp",
+  "cor": "#193d0a",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_101",
+  "arquivo": "orb_101.webp",
+  "cor": "#c0adaf",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_102",
+  "arquivo": "orb_102.webp",
+  "cor": "#502410",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_103",
+  "arquivo": "orb_103.webp",
+  "cor": "#7b5a33",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_104",
+  "arquivo": "orb_104.webp",
+  "cor": "#7c95ae",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_105",
+  "arquivo": "orb_105.webp",
+  "cor": "#3c6f93",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_106",
+  "arquivo": "orb_106.webp",
+  "cor": "#ab865d",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_107",
+  "arquivo": "orb_107.webp",
+  "cor": "#c2a680",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_108",
+  "arquivo": "orb_108.webp",
+  "cor": "#3e3e1a",
+  "familia": "amarelo"
+ },
+ {
+  "id": "orb_109",
+  "arquivo": "orb_109.webp",
+  "cor": "#7e59cc",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_110",
+  "arquivo": "orb_110.webp",
+  "cor": "#6288a8",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_111",
+  "arquivo": "orb_111.webp",
+  "cor": "#cd8924",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_112",
+  "arquivo": "orb_112.webp",
+  "cor": "#2b3045",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_113",
+  "arquivo": "orb_113.webp",
+  "cor": "#0d2e4f",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_114",
+  "arquivo": "orb_114.webp",
+  "cor": "#7aabb8",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_115",
+  "arquivo": "orb_115.webp",
+  "cor": "#ad828a",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_116",
+  "arquivo": "orb_116.webp",
+  "cor": "#093430",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_117",
+  "arquivo": "orb_117.webp",
+  "cor": "#d16c05",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_118",
+  "arquivo": "orb_118.webp",
+  "cor": "#533c1e",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_119",
+  "arquivo": "orb_119.webp",
+  "cor": "#447816",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_120",
+  "arquivo": "orb_120.webp",
+  "cor": "#375786",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_121",
+  "arquivo": "orb_121.webp",
+  "cor": "#5f214d",
+  "familia": "rosa"
+ },
+ {
+  "id": "orb_122",
+  "arquivo": "orb_122.webp",
+  "cor": "#77828f",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_123",
+  "arquivo": "orb_123.webp",
+  "cor": "#43248f",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_124",
+  "arquivo": "orb_124.webp",
+  "cor": "#5f93b3",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_125",
+  "arquivo": "orb_125.webp",
+  "cor": "#695c8d",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_126",
+  "arquivo": "orb_126.webp",
+  "cor": "#9c3e16",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_127",
+  "arquivo": "orb_127.webp",
+  "cor": "#416e21",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_128",
+  "arquivo": "orb_128.webp",
+  "cor": "#43278c",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_129",
+  "arquivo": "orb_129.webp",
+  "cor": "#ebb054",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_130",
+  "arquivo": "orb_130.webp",
+  "cor": "#83a5b9",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_131",
+  "arquivo": "orb_131.webp",
+  "cor": "#1f5ba5",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_132",
+  "arquivo": "orb_132.webp",
+  "cor": "#316092",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_133",
+  "arquivo": "orb_133.webp",
+  "cor": "#8f171e",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_134",
+  "arquivo": "orb_134.webp",
+  "cor": "#272a32",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_135",
+  "arquivo": "orb_135.webp",
+  "cor": "#264c64",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_136",
+  "arquivo": "orb_136.webp",
+  "cor": "#8e673a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_137",
+  "arquivo": "orb_137.webp",
+  "cor": "#8f9ac0",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_138",
+  "arquivo": "orb_138.webp",
+  "cor": "#d099a3",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_139",
+  "arquivo": "orb_139.webp",
+  "cor": "#406793",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_140",
+  "arquivo": "orb_140.webp",
+  "cor": "#242e66",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_141",
+  "arquivo": "orb_141.webp",
+  "cor": "#8d591f",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_142",
+  "arquivo": "orb_142.webp",
+  "cor": "#085c7d",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_143",
+  "arquivo": "orb_143.webp",
+  "cor": "#7636aa",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_144",
+  "arquivo": "orb_144.webp",
+  "cor": "#88a8c8",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_145",
+  "arquivo": "orb_145.webp",
+  "cor": "#672311",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_146",
+  "arquivo": "orb_146.webp",
+  "cor": "#305d16",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_147",
+  "arquivo": "orb_147.webp",
+  "cor": "#6b33b8",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_148",
+  "arquivo": "orb_148.webp",
+  "cor": "#304a9a",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_149",
+  "arquivo": "orb_149.webp",
+  "cor": "#143b33",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_150",
+  "arquivo": "orb_150.webp",
+  "cor": "#936c4c",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_151",
+  "arquivo": "orb_151.webp",
+  "cor": "#173811",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_152",
+  "arquivo": "orb_152.webp",
+  "cor": "#dbccc1",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_153",
+  "arquivo": "orb_153.webp",
+  "cor": "#105a89",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_154",
+  "arquivo": "orb_154.webp",
+  "cor": "#252220",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_155",
+  "arquivo": "orb_155.webp",
+  "cor": "#282b2e",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_156",
+  "arquivo": "orb_156.webp",
+  "cor": "#734da6",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_157",
+  "arquivo": "orb_157.webp",
+  "cor": "#3075b5",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_158",
+  "arquivo": "orb_158.webp",
+  "cor": "#880e13",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_159",
+  "arquivo": "orb_159.webp",
+  "cor": "#815a2f",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_160",
+  "arquivo": "orb_160.webp",
+  "cor": "#a38484",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_161",
+  "arquivo": "orb_161.webp",
+  "cor": "#4e93ab",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_162",
+  "arquivo": "orb_162.webp",
+  "cor": "#8346b3",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_163",
+  "arquivo": "orb_163.webp",
+  "cor": "#226198",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_164",
+  "arquivo": "orb_164.webp",
+  "cor": "#39600a",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_165",
+  "arquivo": "orb_165.webp",
+  "cor": "#56422a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_166",
+  "arquivo": "orb_166.webp",
+  "cor": "#2e2722",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_167",
+  "arquivo": "orb_167.webp",
+  "cor": "#422c83",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_168",
+  "arquivo": "orb_168.webp",
+  "cor": "#edc05b",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_169",
+  "arquivo": "orb_169.webp",
+  "cor": "#b0a8b8",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_170",
+  "arquivo": "orb_170.webp",
+  "cor": "#892e07",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_171",
+  "arquivo": "orb_171.webp",
+  "cor": "#5a050a",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_172",
+  "arquivo": "orb_172.webp",
+  "cor": "#282d35",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_173",
+  "arquivo": "orb_173.webp",
+  "cor": "#361b63",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_174",
+  "arquivo": "orb_174.webp",
+  "cor": "#548db4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_175",
+  "arquivo": "orb_175.webp",
+  "cor": "#88a9cb",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_176",
+  "arquivo": "orb_176.webp",
+  "cor": "#9b94ae",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_177",
+  "arquivo": "orb_177.webp",
+  "cor": "#3d3b24",
+  "familia": "amarelo"
+ },
+ {
+  "id": "orb_178",
+  "arquivo": "orb_178.webp",
+  "cor": "#579847",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_179",
+  "arquivo": "orb_179.webp",
+  "cor": "#476a0e",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_180",
+  "arquivo": "orb_180.webp",
+  "cor": "#6e2dbe",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_181",
+  "arquivo": "orb_181.webp",
+  "cor": "#093560",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_182",
+  "arquivo": "orb_182.webp",
+  "cor": "#755b33",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_183",
+  "arquivo": "orb_183.webp",
+  "cor": "#6b717c",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_184",
+  "arquivo": "orb_184.webp",
+  "cor": "#0d697d",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_185",
+  "arquivo": "orb_185.webp",
+  "cor": "#4c2314",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_186",
+  "arquivo": "orb_186.webp",
+  "cor": "#9f734a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_187",
+  "arquivo": "orb_187.webp",
+  "cor": "#261f30",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_188",
+  "arquivo": "orb_188.webp",
+  "cor": "#b78393",
+  "familia": "rosa"
+ },
+ {
+  "id": "orb_189",
+  "arquivo": "orb_189.webp",
+  "cor": "#2c2e34",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_190",
+  "arquivo": "orb_190.webp",
+  "cor": "#808490",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_191",
+  "arquivo": "orb_191.webp",
+  "cor": "#8aa8c2",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_192",
+  "arquivo": "orb_192.webp",
+  "cor": "#862906",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_193",
+  "arquivo": "orb_193.webp",
+  "cor": "#576a88",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_194",
+  "arquivo": "orb_194.webp",
+  "cor": "#295f7e",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_195",
+  "arquivo": "orb_195.webp",
+  "cor": "#2e1d41",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_196",
+  "arquivo": "orb_196.webp",
+  "cor": "#263d77",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_197",
+  "arquivo": "orb_197.webp",
+  "cor": "#f1e9d9",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_198",
+  "arquivo": "orb_198.webp",
+  "cor": "#8b1417",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_199",
+  "arquivo": "orb_199.webp",
+  "cor": "#3086b1",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_200",
+  "arquivo": "orb_200.webp",
+  "cor": "#4e6c61",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_201",
+  "arquivo": "orb_201.webp",
+  "cor": "#92682e",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_202",
+  "arquivo": "orb_202.webp",
+  "cor": "#2e4c09",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_203",
+  "arquivo": "orb_203.webp",
+  "cor": "#8b3e15",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_204",
+  "arquivo": "orb_204.webp",
+  "cor": "#4e7126",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_205",
+  "arquivo": "orb_205.webp",
+  "cor": "#739dc6",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_206",
+  "arquivo": "orb_206.webp",
+  "cor": "#3473a0",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_207",
+  "arquivo": "orb_207.webp",
+  "cor": "#86592a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_208",
+  "arquivo": "orb_208.webp",
+  "cor": "#492d95",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_209",
+  "arquivo": "orb_209.webp",
+  "cor": "#2c7a93",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_210",
+  "arquivo": "orb_210.webp",
+  "cor": "#264e8e",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_211",
+  "arquivo": "orb_211.webp",
+  "cor": "#8e7154",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_212",
+  "arquivo": "orb_212.webp",
+  "cor": "#9f94a5",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_213",
+  "arquivo": "orb_213.webp",
+  "cor": "#7c1011",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_214",
+  "arquivo": "orb_214.webp",
+  "cor": "#e68d1f",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_215",
+  "arquivo": "orb_215.webp",
+  "cor": "#183652",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_216",
+  "arquivo": "orb_216.webp",
+  "cor": "#5534af",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_217",
+  "arquivo": "orb_217.webp",
+  "cor": "#8b6c4c",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_218",
+  "arquivo": "orb_218.webp",
+  "cor": "#383f4d",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_219",
+  "arquivo": "orb_219.webp",
+  "cor": "#8592ad",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_220",
+  "arquivo": "orb_220.webp",
+  "cor": "#bb6c6a",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_221",
+  "arquivo": "orb_221.webp",
+  "cor": "#115b69",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_222",
+  "arquivo": "orb_222.webp",
+  "cor": "#7f2811",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_223",
+  "arquivo": "orb_223.webp",
+  "cor": "#423628",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_224",
+  "arquivo": "orb_224.webp",
+  "cor": "#4c4c79",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_225",
+  "arquivo": "orb_225.webp",
+  "cor": "#50741c",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_226",
+  "arquivo": "orb_226.webp",
+  "cor": "#426e91",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_227",
+  "arquivo": "orb_227.webp",
+  "cor": "#5688b8",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_228",
+  "arquivo": "orb_228.webp",
+  "cor": "#114673",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_229",
+  "arquivo": "orb_229.webp",
+  "cor": "#502b92",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_230",
+  "arquivo": "orb_230.webp",
+  "cor": "#336b21",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_231",
+  "arquivo": "orb_231.webp",
+  "cor": "#2d2e37",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_232",
+  "arquivo": "orb_232.webp",
+  "cor": "#535c7e",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_233",
+  "arquivo": "orb_233.webp",
+  "cor": "#595554",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_234",
+  "arquivo": "orb_234.webp",
+  "cor": "#b5a7a7",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_235",
+  "arquivo": "orb_235.webp",
+  "cor": "#354f19",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_236",
+  "arquivo": "orb_236.webp",
+  "cor": "#266ea8",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_237",
+  "arquivo": "orb_237.webp",
+  "cor": "#3e37a1",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_238",
+  "arquivo": "orb_238.webp",
+  "cor": "#5291c5",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_239",
+  "arquivo": "orb_239.webp",
+  "cor": "#6b270a",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_240",
+  "arquivo": "orb_240.webp",
+  "cor": "#2a2421",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_241",
+  "arquivo": "orb_241.webp",
+  "cor": "#af9da6",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_242",
+  "arquivo": "orb_242.webp",
+  "cor": "#787c9f",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_243",
+  "arquivo": "orb_243.webp",
+  "cor": "#5c4227",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_244",
+  "arquivo": "orb_244.webp",
+  "cor": "#678bae",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_245",
+  "arquivo": "orb_245.webp",
+  "cor": "#54050e",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_246",
+  "arquivo": "orb_246.webp",
+  "cor": "#94737d",
+  "familia": "rosa"
+ },
+ {
+  "id": "orb_247",
+  "arquivo": "orb_247.webp",
+  "cor": "#165bb4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_248",
+  "arquivo": "orb_248.webp",
+  "cor": "#18416a",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_249",
+  "arquivo": "orb_249.webp",
+  "cor": "#434525",
+  "familia": "amarelo"
+ },
+ {
+  "id": "orb_250",
+  "arquivo": "orb_250.webp",
+  "cor": "#074152",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_251",
+  "arquivo": "orb_251.webp",
+  "cor": "#f1a733",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_252",
+  "arquivo": "orb_252.webp",
+  "cor": "#3c4253",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_253",
+  "arquivo": "orb_253.webp",
+  "cor": "#213a69",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_254",
+  "arquivo": "orb_254.webp",
+  "cor": "#424146",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_255",
+  "arquivo": "orb_255.webp",
+  "cor": "#589fca",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_256",
+  "arquivo": "orb_256.webp",
+  "cor": "#3d6649",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_257",
+  "arquivo": "orb_257.webp",
+  "cor": "#2c2f33",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_258",
+  "arquivo": "orb_258.webp",
+  "cor": "#354a0d",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_259",
+  "arquivo": "orb_259.webp",
+  "cor": "#531bb7",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_260",
+  "arquivo": "orb_260.webp",
+  "cor": "#382113",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_261",
+  "arquivo": "orb_261.webp",
+  "cor": "#889bb2",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_262",
+  "arquivo": "orb_262.webp",
+  "cor": "#1c1a1c",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_263",
+  "arquivo": "orb_263.webp",
+  "cor": "#953008",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_264",
+  "arquivo": "orb_264.webp",
+  "cor": "#5a5655",
+  "familia": "cinza"
+ },
+ {
+  "id": "orb_265",
+  "arquivo": "orb_265.webp",
+  "cor": "#84541b",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_266",
+  "arquivo": "orb_266.webp",
+  "cor": "#5896cc",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_267",
+  "arquivo": "orb_267.webp",
+  "cor": "#503674",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_268",
+  "arquivo": "orb_268.webp",
+  "cor": "#0f4a4f",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_269",
+  "arquivo": "orb_269.webp",
+  "cor": "#a69989",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_270",
+  "arquivo": "orb_270.webp",
+  "cor": "#0f243f",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_271",
+  "arquivo": "orb_271.webp",
+  "cor": "#530607",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_272",
+  "arquivo": "orb_272.webp",
+  "cor": "#c09f72",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_273",
+  "arquivo": "orb_273.webp",
+  "cor": "#467cb4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_274",
+  "arquivo": "orb_274.webp",
+  "cor": "#964310",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_275",
+  "arquivo": "orb_275.webp",
+  "cor": "#2a73a4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_276",
+  "arquivo": "orb_276.webp",
+  "cor": "#305911",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_277",
+  "arquivo": "orb_277.webp",
+  "cor": "#7046c7",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_278",
+  "arquivo": "orb_278.webp",
+  "cor": "#553815",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_279",
+  "arquivo": "orb_279.webp",
+  "cor": "#494932",
+  "familia": "amarelo"
+ },
+ {
+  "id": "orb_280",
+  "arquivo": "orb_280.webp",
+  "cor": "#256a95",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_281",
+  "arquivo": "orb_281.webp",
+  "cor": "#9d8a97",
+  "familia": "branco"
+ },
+ {
+  "id": "orb_282",
+  "arquivo": "orb_282.webp",
+  "cor": "#236cc2",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_283",
+  "arquivo": "orb_283.webp",
+  "cor": "#74769e",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_284",
+  "arquivo": "orb_284.webp",
+  "cor": "#7a0c15",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_285",
+  "arquivo": "orb_285.webp",
+  "cor": "#5f4625",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_286",
+  "arquivo": "orb_286.webp",
+  "cor": "#292e39",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_287",
+  "arquivo": "orb_287.webp",
+  "cor": "#f2be3e",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_288",
+  "arquivo": "orb_288.webp",
+  "cor": "#0e2848",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_289",
+  "arquivo": "orb_289.webp",
+  "cor": "#6f1fb1",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_290",
+  "arquivo": "orb_290.webp",
+  "cor": "#37691c",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_291",
+  "arquivo": "orb_291.webp",
+  "cor": "#7187a8",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_292",
+  "arquivo": "orb_292.webp",
+  "cor": "#5e98c8",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_293",
+  "arquivo": "orb_293.webp",
+  "cor": "#252143",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_294",
+  "arquivo": "orb_294.webp",
+  "cor": "#42160b",
+  "familia": "vermelho"
+ },
+ {
+  "id": "orb_295",
+  "arquivo": "orb_295.webp",
+  "cor": "#2c2f36",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_296",
+  "arquivo": "orb_296.webp",
+  "cor": "#4262be",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_297",
+  "arquivo": "orb_297.webp",
+  "cor": "#7a9ac4",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_298",
+  "arquivo": "orb_298.webp",
+  "cor": "#4b8f69",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_299",
+  "arquivo": "orb_299.webp",
+  "cor": "#20769a",
+  "familia": "ciano"
+ },
+ {
+  "id": "orb_300",
+  "arquivo": "orb_300.webp",
+  "cor": "#353335",
+  "familia": "preto"
+ },
+ {
+  "id": "orb_301",
+  "arquivo": "orb_301.webp",
+  "cor": "#4d327e",
+  "familia": "roxo"
+ },
+ {
+  "id": "orb_302",
+  "arquivo": "orb_302.webp",
+  "cor": "#8e3209",
+  "familia": "laranja"
+ },
+ {
+  "id": "orb_303",
+  "arquivo": "orb_303.webp",
+  "cor": "#2f4f3c",
+  "familia": "verde"
+ },
+ {
+  "id": "orb_304",
+  "arquivo": "orb_304.webp",
+  "cor": "#375da6",
+  "familia": "azul"
+ },
+ {
+  "id": "orb_305",
+  "arquivo": "orb_305.webp",
+  "cor": "#b47f9a",
+  "familia": "rosa"
+ }
+]
